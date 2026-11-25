@@ -30,13 +30,17 @@ export function getDatabase() {
     CREATE TABLE IF NOT EXISTS emails (
       id TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, from_address TEXT NOT NULL,
       to_json TEXT NOT NULL, subject TEXT NOT NULL,
-      status TEXT NOT NULL, error_message TEXT, provider_id TEXT, created_at TEXT NOT NULL,
+      status TEXT NOT NULL, error_message TEXT, provider_id TEXT, message_id TEXT, created_at TEXT NOT NULL,
       FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
     );
     CREATE INDEX IF NOT EXISTS emails_created_at ON emails(created_at DESC);
+    CREATE TABLE IF NOT EXISTS idempotency_keys (api_key_id TEXT NOT NULL, idempotency_key TEXT NOT NULL, request_hash TEXT NOT NULL, email_id TEXT NOT NULL, expires_at TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(api_key_id,idempotency_key), FOREIGN KEY(api_key_id) REFERENCES api_keys(id), FOREIGN KEY(email_id) REFERENCES emails(id));
+    CREATE INDEX IF NOT EXISTS idempotency_keys_expiry ON idempotency_keys(expires_at);
     CREATE TABLE IF NOT EXISTS send_limits (api_key_id TEXT PRIMARY KEY, window_started INTEGER NOT NULL, request_count INTEGER NOT NULL, FOREIGN KEY(api_key_id) REFERENCES api_keys(id));
     CREATE TABLE IF NOT EXISTS login_limits (source_hash TEXT PRIMARY KEY, window_started INTEGER NOT NULL, attempt_count INTEGER NOT NULL);
   `);
+  const emailColumns = db.prepare('PRAGMA table_info(emails)').all() as Array<{ name: string }>;
+  if (!emailColumns.some(({ name }) => name === 'message_id')) db.exec('ALTER TABLE emails ADD COLUMN message_id TEXT');
   globalForDatabase.emailgoDatabase = db;
   return db;
 }

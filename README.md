@@ -10,10 +10,11 @@ Emailgo is an independent email delivery API and workspace for Website Thanks. I
 - Send transactional emails through the Emailgo API using a configured SMTP relay.
 - Persist recipients, subject lines, relay response IDs, failures and key last-use times in SQLite. Email bodies are used for SMTP handoff and are not saved to the message log.
 - Filter recent message activity and inspect relay failures.
-- Per-key send limit of 60 requests per minute and a 1 MB request body limit.
+- Per-key send limit of 60 requests per minute, a 1 MB request body limit, and 24-hour idempotency keys to prevent accidental duplicate sends.
+- Authenticated `GET /api/v1/emails` and `GET /api/v1/emails/:id` endpoints for message history.
 - Docker image designed for a persistent `./data` volume.
 
-SMTP acceptance is recorded as `sent`. The first version does not yet track recipient delivery, opens, bounces or complaints. Those need delivery event webhooks from a mail transport or a delivery event ingestion endpoint.
+SMTP credentials are only sent over TLS. Port 587 requires STARTTLS; port 465 uses implicit TLS. SMTP acceptance is recorded as `sent`. The first version does not yet track recipient delivery, opens, bounces or complaints. Those need delivery event webhooks from a mail transport or a delivery event ingestion endpoint.
 
 ## Run locally
 
@@ -36,10 +37,20 @@ Create a key in **API keys**, verify a domain in **Domains**, then send:
 curl -X POST http://localhost:3000/api/v1/emails \
   -H 'Authorization: Bearer eg_live_your_key' \
   -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: order-123-confirmation' \
   -d '{"from":"hello@example.com","to":"person@example.net","subject":"Hello","text":"Sent with Emailgo."}'
 ```
 
-The `from` domain must be verified. Provide either `text`, `html`, or both. A `to` value can be one address or an array of up to 50 addresses. The API returns an Emailgo email ID on success. Invalid keys receive 401, unverified domains receive 403, and SMTP delivery errors receive 502.
+The `from` domain must be verified. Provide either `text`, `html`, or both. An `Idempotency-Key` makes retries safe for 24 hours. Reusing it with different content returns 409. A `to` value can be one address or an array of up to 50 addresses. Invalid keys receive 401, unverified domains receive 403, and SMTP delivery errors receive 502.
+
+List the latest messages with optional pagination:
+
+```sh
+curl 'http://localhost:3000/api/v1/emails?limit=20' \
+  -H 'Authorization: Bearer eg_live_your_key'
+```
+
+Follow `next_after` as the `after` query parameter to load the next page. Retrieve one message with `GET /api/v1/emails/{email_id}`. Both endpoints return status and relay metadata; message bodies are not retained or returned.
 
 ## Domain authentication
 
