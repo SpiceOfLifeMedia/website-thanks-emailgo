@@ -42,13 +42,13 @@ export default function Home() {
 
   async function resend(email: Email) {
     if (!configured || email.id.startsWith('demo_')) { setNotice('Connect Resend to resend real messages.'); return; }
-    if (!window.confirm(`Resend “${email.subject}” to ${email.to.join(', ')}?`)) return;
+    if (!window.confirm(`Send “${email.subject}” again to ${email.to.join(', ')}?`)) return;
     setSending(email.id); setNotice('');
     try {
       const response = await fetch(`/api/emails/${encodeURIComponent(email.id)}/resend`, { method: 'POST' });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? 'Resend failed.');
-      setNotice(`Resent “${email.subject}”.`);
+      setNotice(`Sent “${email.subject}” again.`);
     } catch (error) { setNotice(error instanceof Error ? error.message : 'Resend failed.'); }
     finally { setSending(null); }
   }
@@ -56,7 +56,7 @@ export default function Home() {
   return <main className="shell">
     <aside className="rail"><a className="brand" href="#top" aria-label="Website Thanks Mailroom home"><span className="brandMark">w</span><span>website thanks<small>MAILROOM</small></span></a><div className="railLabel">WORKSPACE</div><button className="navItem active"><span className="navIcon">▤</span> Email activity <span className="navCount">{emails.length}</span></button><button className="navItem" onClick={() => { setFilter('Needs attention'); document.getElementById('activity')?.scrollIntoView({ behavior: 'smooth' }); }}><span className="navIcon">⌁</span> Needs attention {attention > 0 && <span className="navCount alertCount">{attention}</span>}</button><div className="railBottom"><div className="avatar">WT</div><span>Website Thanks<small>Operations</small></span><button className="more" aria-label="Workspace options">···</button></div></aside>
     <section className="content" id="top"><header className="topbar"><div className="breadcrumb">Mailroom <span>/</span> <strong>Email activity</strong></div><div className="topActions"><span className={`connection ${configured ? 'connected' : ''}`}><i />{configured ? 'Resend connected' : 'Demo mode'}</span><button className="help">?</button></div></header>
-      <div className="page"><div className="intro"><div><div className="eyebrow">MESSAGING OPERATIONS</div><h1>Email activity</h1><p>See what landed, what needs a nudge, and resend when it matters.</p></div><button className="button buttonDark" onClick={() => { setLoading(true); fetch('/api/emails').then(r => r.json()).then(d => { if (d.configured) { setConfigured(true); setEmails(d.data ?? []); } }).catch(() => setNotice('Refresh failed.')).finally(() => setLoading(false)); }}>↻ &nbsp; Refresh activity</button></div>
+      <div className="page"><div className="intro"><div><div className="eyebrow">MESSAGING OPERATIONS</div><h1>Email activity</h1><p>See what landed, what needs a nudge, and send it again when it matters.</p></div><button className="button buttonDark" onClick={() => { setLoading(true); fetch('/api/emails').then(r => r.json()).then(d => { if (d.configured) { setConfigured(true); setEmails(d.data ?? []); } }).catch(() => setNotice('Refresh failed.')).finally(() => setLoading(false)); }}>↻ &nbsp; Refresh activity</button></div>
         <div className="metrics"><article className="metric"><span>Messages in view</span><strong>{emails.length.toLocaleString('en-AU')}</strong><small>Recent activity from Resend</small><div className="metricGlyph">✉</div></article><article className="metric"><span>Needs attention</span><strong>{attention.toLocaleString('en-AU')}</strong><small>{attention ? 'Review delivery issues below' : 'Nothing waiting on you'}</small><div className="metricGlyph">⌁</div></article><article className="metric"><span>Connection</span><strong className="metricStatus">{configured ? 'Connected' : 'Not connected'}</strong><small>{configured ? 'Ready to send and review' : 'Add your Resend details to begin'}</small><div className="metricGlyph">↗</div></article></div>
         <section className="activity" id="activity"><div className="activityHeader"><div><h2>Recent messages</h2><p>A live record of messages sent through Website Thanks.</p></div><button className="button buttonLight" onClick={() => { setFilter(filter === 'All mail' ? 'Needs attention' : 'All mail'); }}>☷ &nbsp; {filter === 'All mail' ? 'Filter' : 'Show all'}</button></div>
           <div className="tableTools"><label className="search"><span>⌕</span><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search by recipient or subject" /></label><div className="tabs">{['All mail', 'Needs attention', 'Delivered'].map(tab => <button key={tab} className={filter === tab ? 'tab selected' : 'tab'} onClick={() => setFilter(tab)}>{tab}{tab === 'Needs attention' && attention > 0 && <b>{attention}</b>}</button>)}</div></div>
