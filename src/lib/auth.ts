@@ -1,0 +1,73 @@
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import { cookies } from 'next/headers';
+import { getDatabase, hashSecret, nowIso } from '@/lib/database';
+
+const SESSION_COOKIE = 'emailgo_session';
+const SESSION_HOURS = 8;
+
+function adminPassword() { return process.env.EMAILGO_ADMIN_PASSWORD; }
+function sessionSecret() { return process.env.EMAILGO_SESSION_SECRET || adminPassword(); }
+
+export function hasAdminSetup() { return Boolean(adminPassword() && sessionSecret()); }
+
+function sign(payload: string) {
+  return createHmac('sha256', sessionSecret()!).update(payload).digest('base64url');
+}
+
+export async function isAdminSession() {
+  if (!hasAdminSetup()) return false;
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  if (!token) return false;
+  const [payload, signature] = token.split('.');
+  if (!payload || !signature) return false;
+  const expected = sign(payload);
+  const actualBytes = Buffer.from(signature);
+  const expectedBytes = Buffer.from(expected);
+  if (actualBytes.length !== expectedBytes.length || !timingSafeEqual(actualBytes, expectedBytes)) return false;
+  try {
+    const session = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as { exp: number };
+    return Number.isFinite(session.exp) && session.exp > Date.now();
+  } catch { return false; }
+}
+
+export function verifyAdminPassword(candidate: string) {
+  const expected = adminPassword();
+  if (!expected) return false;
+  const candidateHash = Buffer.from(hashSecret(candidate));
+  const expectedHash = Buffer.from(hashSecret(expected));
+  return candidateHash.length === expectedHash.length && timingSafeEqual(candidateHash, expectedHash);
+}
+
+export function createAdminSession() {
+  const payload = Buffer.from(JSON.stringify({ exp: Date.now() + SESSION_HOURS * 60 * 60 * 1000 })).toString('base64url');
+  return `${payload}.${sign(payload)}`;
+}
+
+export const adminCookie = SESSION_COOKIE;
+export const sessionMaxAge = SESSION_HOURS * 60 * 60;
+
+export function hasTrustedBrowserOrigin(request: Request) {
+  const origin = request.headers.get('origin');
+  if (!origin) return true;
+  try {
+    const originUrl = new URL(origin);
+    const forwardedHost = request.headers.get('x-forwarded-host')?.split(',')[0]?.trim();
+    const requestHost = forwardedHost || request.headers.get('host');
+    return (originUrl.protocol === 'https:' || originUrl.protocol === 'http:') && Boolean(requestHost) && originUrl.host.toLowerCase() === requestHost!.toLowerCase();
+  } catch { return false; }
+}
+
+export function authorizeApiKey(request: Request) {
+  const authorization = request.headers.get('authorization') ?? '';
+  const match = /^Bearer (eg_live_[A-Za-z0-9_-]{40,})$/.exec(authorization);
+  if (!match) return null;
+  const secret = match[1];
+  const prefix = secret.slice(0, 20);
+  const row = getDatabase().prepare('SELECT id, secret_hash FROM api_keys WHERE prefix = ? AND revoked_at IS NULL').get(prefix) as { id: string; secret_hash: string } | undefined;
+  if (!row) return null;
+  const supplied = Buffer.from(hashSecret(secret));
+  const stored = Buffer.from(row.secret_hash);
+  if (supplied.length !== stored.length || !timingSafeEqual(supplied, stored)) return null;
+  getDatabase().prepare('UPDATE api_keys SET last_used_at = ? WHERE id = ?').run(nowIso(), row.id);
+  return { id: row.id };
+}

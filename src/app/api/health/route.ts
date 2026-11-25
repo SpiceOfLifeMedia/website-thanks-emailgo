@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { configured } from '@/lib/resend';
-export const dynamic = 'force-dynamic';
+import { smtpConfigured } from '@/lib/smtp';
+export const runtime = 'nodejs';
 export async function GET() {
-  return NextResponse.json({ ok: true, provider: 'Resend', configured: configured() });
+  return NextResponse.json({ ok: true, service: 'Emailgo', smtpConfigured: smtpConfigured() });
 }

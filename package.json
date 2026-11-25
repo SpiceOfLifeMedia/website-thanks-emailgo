@@ -1,8 +1,28 @@
 {
-  "name": "website-thanks-mailroom",
-  "version": "0.1.0",
+  "name": "website-thanks-emailgo",
+  "version": "0.2.0",
   "private": true,
-  "scripts": {"dev":"next dev","build":"next build","start":"next start","typecheck":"tsc --noEmit"},
-  "dependencies": {"next":"^16.4.5","react":"^19.1.1","react-dom":"^19.1.1"},
-  "devDependencies": {"@types/node":"^22.18.6","@types/react":"^19.1.16","@types/react-dom":"^19.1.9","typescript":"^5.9.2"}
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "node scripts/start.mjs",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm run build"
+  },
+  "dependencies": {
+    "next": "^16.4.5",
+    "nodemailer": "^10.6.1",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.6",
+    "@types/nodemailer": "^8.0.2",
+    "@types/react": "^19.1.16",
+    "@types/react-dom": "^19.1.9",
+    "typescript": "^5.9.2"
+  },
+  "engines": {
+    "node": ">=24"
+  }
 }
