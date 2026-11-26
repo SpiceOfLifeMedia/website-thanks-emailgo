@@ -3,6 +3,7 @@ import { authorizeApiKey } from '@/lib/auth';
 import { consumeSendLimit, execute, hashSecret, nowIso, query, queryOne, randomId, transaction } from '@/lib/database';
 import { sendThroughSmtp } from '@/lib/smtp';
 import { readJsonLimited } from '@/lib/request-json';
+import { relayMessageIdFromResponse } from '@/lib/ses-events';
 export const runtime = 'nodejs';
 export const maxDuration = 30;
 
@@ -68,6 +69,17 @@ export async function POST(request: Request) {
   const domainAllowed = verifiedDomains.some(({ domain }) => senderDomain === domain || senderDomain.endsWith(`.${domain}`));
   if (!domainAllowed) return responseError('Verify the sender domain in your Send, thanks workspace before sending.', 403);
 
+  const recipientAddresses = (to as string[]).map((address) => mailbox(address));
+  const suppressedRecipients = (await query<{ address: string }>(
+    `SELECT address FROM suppressions WHERE address IN (${recipientAddresses.map(() => '?').join(',')})`,
+    recipientAddresses,
+  )).rows;
+  if (suppressedRecipients.length) {
+    return NextResponse.json({
+      error: { message: 'One or more recipients are on the block list and cannot receive email.', addresses: suppressedRecipients.map(({ address }) => address) },
+    }, { status: 422 });
+  }
+
   const idempotencyKey = request.headers.get('idempotency-key');
   if (idempotencyKey !== null && !/^[\x21-\x7E]{1,256}$/.test(idempotencyKey)) return responseError('Idempotency-Key must be 1 to 256 visible ASCII characters.', 400);
   const requestHash = hashSecret(JSON.stringify({ from, to, subject, text: text ?? null, html: html ?? null }));
@@ -115,7 +127,7 @@ export async function POST(request: Request) {
 
   try {
     const smtpResult = await sendThroughSmtp({ from, to: to as string[], subject, ...(text !== undefined ? { text } : {}), ...(html !== undefined ? { html } : {}) });
-    await execute('UPDATE emails SET status = ?, provider_id = ?, message_id = ? WHERE id = ?', ['sent', smtpResult.response.slice(0, 500), smtpResult.messageId, id]);
+    await execute('UPDATE emails SET status = ?, provider_id = ?, message_id = ?, relay_message_id = ? WHERE id = ?', ['sent', smtpResult.response.slice(0, 500), smtpResult.messageId, relayMessageIdFromResponse(smtpResult.response), id]);
     const storedEmail = await getStoredEmail(id);
     if (!storedEmail) throw new Error('The sent email record could not be read.');
     return NextResponse.json(emailResponse(storedEmail), { status: 200 });

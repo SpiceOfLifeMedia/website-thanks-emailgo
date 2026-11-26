@@ -13,8 +13,8 @@ type DashboardData = {
   emails: EmailRecord[];
   keys: Array<{ id: string; name: string; prefix: string; created_at: string; last_used_at: string | null }>;
   domains: Array<{ id: string; domain: string; verification_token: string; created_at: string; verified_at: string | null }>;
-  blockedAddresses: Array<{ address: string; reason: string; added_at: string }>;
-  metrics: { total: number; sent: number; failed: number; monthToDate: number };
+  blockedAddresses: Array<{ address: string; reason: string; added_at: string; removable?: boolean }>;
+  metrics: { total: number; sent: number; bounced?: number; failed: number; monthToDate: number };
 };
 
 const viewByHash: Record<string, View> = {
@@ -41,7 +41,7 @@ function formatDate(value: string | null) {
 
 function emailStatus(status: string): EmailRow['status'] {
   const known: Record<string, EmailRow['status']> = {
-    delivered: 'Delivered', bounced: 'Bounced', complained: 'Complained', sent: 'Sent', queued: 'Queued', failed: 'Failed',
+    delivered: 'Delivered', bounced: 'Bounced', complained: 'Complained', deferred: 'Deferred', sent: 'Sent', queued: 'Queued', failed: 'Failed',
   };
   return known[status.toLowerCase()] ?? 'Queued';
 }
@@ -167,6 +167,7 @@ export default function Home() {
     address: entry.address,
     reason: entry.reason === 'bounced' ? 'Bounced' : entry.reason === 'complained' ? 'Complained' : 'Added manually',
     addedAt: formatDate(entry.added_at),
+    removable: entry.removable,
   }));
 
   const pageContent = view === 'quickstart' ? <div className={styles.auxStack}>
@@ -176,6 +177,7 @@ export default function Home() {
   </div> : view === 'settings' ? <div className={styles.auxStack}>
     <section className={styles.auxCard}><div><h2>SMTP delivery connection</h2><p>Send, thanks provides the API and activity log. Add an SMTP connection to deliver messages.</p><span className={`${styles.connectionState} ${dashboard.smtpConfigured ? styles.connected : ''}`}>{dashboard.smtpConfigured ? 'Configured' : 'Not configured'}</span></div></section>
     <section className={styles.auxCard}><div><h2>Server settings</h2><p>These values are read on the server only and are not shown in the browser.</p><ul><li><code>EMAILGO_SMTP_HOST</code> SMTP server host</li><li><code>EMAILGO_SMTP_PORT</code> SMTP port, usually 587</li><li><code>EMAILGO_SMTP_USER</code> SMTP username</li><li><code>EMAILGO_SMTP_PASSWORD</code> SMTP password</li><li><code>EMAILGO_SMTP_SECURE</code> Set true for TLS on port 465</li></ul></div></section>
+    <section className={styles.auxCard}><div><h2>Delivery notifications</h2><p>Signed events update messages to Delivered, Bounced or Complained. Configure the HTTPS endpoint and a shared token on your event source.</p><ul><li><code>EMAILGO_WEBHOOK_TOKEN</code></li><li><code>EMAILGO_SNS_TOPIC_ARNS</code> Optional event source allow list</li></ul><p><code>/api/webhooks/delivery-events?token=…</code></p></div></section>
     <section className={styles.auxCard}><div><h2>Admin access</h2><p>Set a unique workspace password and independent session signing secret.</p><ul><li><code>EMAILGO_ADMIN_PASSWORD</code></li><li><code>EMAILGO_SESSION_SECRET</code></li><li>Mount <code>./data</code> as durable storage when running outside a managed database.</li></ul></div></section>
   </div> : undefined;
 

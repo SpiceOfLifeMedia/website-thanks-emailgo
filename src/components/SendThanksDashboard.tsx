@@ -11,7 +11,7 @@ import { CommaIcon, SendThanksLogo } from './SendThanksLogo';
 import s from './send-thanks-dashboard.module.css';
 
 export type View = 'overview' | 'emails' | 'domains' | 'block' | 'keys' | 'quickstart' | 'settings';
-export type EmailStatus = 'Delivered' | 'Bounced' | 'Complained' | 'Sent' | 'Queued' | 'Failed';
+export type EmailStatus = 'Delivered' | 'Bounced' | 'Complained' | 'Deferred' | 'Sent' | 'Queued' | 'Failed';
 export type DomainStatus = 'Verified' | 'Pending DNS';
 export type BlockReason = 'Bounced' | 'Complained' | 'Added manually';
 
@@ -19,7 +19,7 @@ export interface EmailRow { id: string; to: string; subject: string; status: Ema
 export interface DnsRecord { type: string; name: string; value: string; found: boolean }
 export interface DomainRow { id: string; name: string; status: DomainStatus; addedAt: string; records?: DnsRecord[] }
 export interface ApiKeyRow { id: string; name: string; prefix: string; permission: string; lastUsed: string; revoked?: boolean }
-export interface BlockRow { address: string; reason: BlockReason; addedAt: string }
+export interface BlockRow { address: string; reason: BlockReason; addedAt: string; removable?: boolean }
 export interface Usage { sent: number; limit: number | null; resetsOn: string }
 
 export interface DashboardProps {
@@ -70,7 +70,7 @@ const COPY: Record<View, [string, string]> = {
   overview: ['Overview', 'How your sending is going, at a glance.'],
   emails: ['Emails', 'Every email sent from your account, newest first.'],
   domains: ['Domains', 'The domains you send from. Each one needs a few DNS records before it can send.'],
-  block: ['Block list', 'Requests to these addresses are rejected before sending. Bounces and complaints are not tracked automatically yet.'],
+  block: ['Block list', 'Addresses added here, permanent bounces and complaints are blocked from future sends.'],
   keys: ['API keys', 'Keys let your website and apps send email. Treat them like a password.'],
   quickstart: ['Quickstart', 'Create a key, verify a sender domain, then make your first request.'],
   settings: ['Settings', 'Workspace access and delivery connection.'],
@@ -80,7 +80,7 @@ const BADGE: Record<string, { cls: string; icon: string }> = {
   Delivered: { cls: 'b-delivered', icon: P.check }, Verified: { cls: 'b-verified', icon: P.check },
   Bounced: { cls: 'b-bounced', icon: P.bounce }, Complained: { cls: 'b-complained', icon: P.flag },
   'Pending DNS': { cls: '', icon: P.clock }, 'Added manually': { cls: '', icon: P.block }, Revoked: { cls: 'b-revoked', icon: P.x },
-  Sent: { cls: '', icon: P.check }, Queued: { cls: '', icon: P.clock }, Failed: { cls: 'b-bounced', icon: P.x },
+  Deferred: { cls: '', icon: P.clock }, Sent: { cls: '', icon: P.check }, Queued: { cls: '', icon: P.clock }, Failed: { cls: 'b-bounced', icon: P.x },
 };
 
 const fmt = (n: number) => n.toLocaleString('en-AU');
@@ -279,7 +279,7 @@ export default function SendThanksDashboard(props: DashboardProps) {
                       </div>
                     ))}
                     {emails.length === 0 && <div className={s.empty}>No email records match this view.</div>}
-                    <p className={s.deliveryNote}>A send request is marked Sent when it is accepted for handoff. Recipient delivery, bounce and complaint events are not tracked yet.</p>
+                    <p className={s.deliveryNote}>Sent means accepted for handoff. Signed delivery notifications update messages to Delivered, Bounced or Complained.</p>
                   </Card>
                 )}
                 {show.keys && (
@@ -372,7 +372,7 @@ export default function SendThanksDashboard(props: DashboardProps) {
                         <div className={s.rowMain}>
                           <div className={s.rowText}><span className={s.rowTitle} style={{ fontSize: 15 }}>{b.address}</span><span className={s.rowMeta}>Added {b.addedAt}</span></div>
                           <StatusBadge label={b.reason} />
-                          {!ov && props.onRemoveBlockedAddress && confirm !== `b:${b.address}` && (
+                          {!ov && b.removable !== false && props.onRemoveBlockedAddress && confirm !== `b:${b.address}` && (
                             <button type="button" className={s.secondary} onClick={() => setConfirm(`b:${b.address}`)}>Remove</button>
                           )}
                         </div>

@@ -85,7 +85,7 @@
 .usageFoot strong { color: var(--ink); }
 
 /* Badge: always word + icon, colour is a third cue only */
-.badge { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 999px; border: 2px solid var(--ink); font-size: 13px; font-weight: 700; white-space: nowrap; background: var(--chalk); }
+.badge { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 7px; border-radius: 999px; border: 2px solid var(--ink); font-size: 12px; font-weight: 700; white-space: nowrap; background: var(--chalk); }
 .badge svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
 .b-delivered, .b-verified { background: var(--basil); color: var(--chalk); }
 .b-bounced { background: var(--tomato-tint); }
@@ -93,7 +93,7 @@
 .b-revoked { background: var(--line); }
 
 /* Emails: one markup, grid areas change at the breakpoint */
-.emailHead, .emailRow { display: grid; grid-template-columns: 104px minmax(140px, 1fr) minmax(0, 1.3fr) 100px; grid-template-areas: 'status to subject sent'; gap: 12px; padding: 12px 20px; align-items: center; }
+.emailHead, .emailRow { display: grid; grid-template-columns: 112px minmax(140px, 1fr) minmax(0, 1.3fr) 100px; grid-template-areas: 'status to subject sent'; gap: 12px; padding: 12px 20px; align-items: center; }
 .emailHead { padding-block: 10px; font-family: var(--mono); font-size: 12px; letter-spacing: .06em; color: var(--pencil); }
 .emailRow { border-top: 1px solid var(--line); }
 .eStatus { grid-area: status; } .eTo { grid-area: to; font-size: 14px; color: var(--graphite); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
