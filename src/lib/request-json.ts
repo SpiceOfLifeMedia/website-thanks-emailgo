@@ -1,6 +1,7 @@
 export type JsonReadResult = { ok: true; value: unknown } | { ok: false; status: number; error: string };
+export type TextReadResult = { ok: true; text: string } | { ok: false; status: number; error: string };
 
-export async function readJsonLimited(request: Request, limitBytes: number): Promise<JsonReadResult> {
+export async function readTextLimited(request: Request, limitBytes: number): Promise<TextReadResult> {
   const maximumDrainBytes = limitBytes * 2;
   const contentLength = Number(request.headers.get('content-length') ?? 0);
   let tooLarge = contentLength > limitBytes;
@@ -33,6 +34,12 @@ export async function readJsonLimited(request: Request, limitBytes: number): Pro
   const content = new Uint8Array(totalBytes);
   let offset = 0;
   for (const chunk of chunks) { content.set(chunk, offset); offset += chunk.byteLength; }
-  try { return { ok: true, value: JSON.parse(new TextDecoder().decode(content)) as unknown }; }
+  return { ok: true, text: new TextDecoder().decode(content) };
+}
+
+export async function readJsonLimited(request: Request, limitBytes: number): Promise<JsonReadResult> {
+  const text = await readTextLimited(request, limitBytes);
+  if (!text.ok) return text;
+  try { return { ok: true, value: JSON.parse(text.text) as unknown }; }
   catch { return { ok: false, status: 400, error: 'Request body must be valid JSON.' }; }
 }

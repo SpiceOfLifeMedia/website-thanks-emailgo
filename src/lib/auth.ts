@@ -63,11 +63,15 @@ export async function authorizeApiKey(request: Request) {
   if (!match) return null;
   const secret = match[1];
   const prefix = secret.slice(0, 20);
-  const row = await queryOne<{ id: string; secret_hash: string }>('SELECT id, secret_hash FROM api_keys WHERE prefix = ? AND revoked_at IS NULL', [prefix]);
+  const row = await queryOne<{ id: string; secret_hash: string; permission: string; domain_id: string | null }>('SELECT id, secret_hash, permission, domain_id FROM api_keys WHERE prefix = ? AND revoked_at IS NULL', [prefix]);
   if (!row) return null;
   const supplied = Buffer.from(hashSecret(secret));
   const stored = Buffer.from(row.secret_hash);
   if (supplied.length !== stored.length || !timingSafeEqual(supplied, stored)) return null;
   await execute('UPDATE api_keys SET last_used_at = ? WHERE id = ?', [nowIso(), row.id]);
-  return { id: row.id };
+  return { id: row.id, permission: row.permission === 'sending_access' ? 'sending_access' as const : 'full_access' as const, domainId: row.domain_id };
+}
+
+export function hasFullApiAccess(apiKey: { permission: string }) {
+  return apiKey.permission === 'full_access';
 }

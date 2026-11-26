@@ -1,0 +1,111 @@
+import { NextResponse } from 'next/server';
+import { createContactPreferenceToken } from '@/lib/contact-preferences';
+import { execute, nowIso, query, queryOne, randomId, transaction } from '@/lib/database';
+import { authorizeBroadcastRequest, eligibleBroadcastContacts, type BroadcastInput, validateBroadcastInput } from '@/lib/broadcasts';
+import { readJsonLimited } from '@/lib/request-json';
+import { smtpConfigured } from '@/lib/smtp';
+
+export const runtime = 'nodejs';
+export const maxDuration = 30;
+const privateHeaders = { 'Cache-Control': 'private, no-store' };
+const emailPattern = /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/;
+
+function htmlEscape(value: string) { return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character] ?? character); }
+function render(source: string | null, values: Record<string, unknown>, html: boolean) {
+  if (source === null) return null;
+  return source.replace(/{{\s*([A-Za-z_][A-Za-z0-9_.-]{0,99})\s*}}/g, (_match, name: string) => {
+    const value = values[name];
+    if (value === null || value === undefined) return '';
+    const text = String(value);
+    return html ? htmlEscape(text) : text;
+  });
+}
+
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+  const authorization = await authorizeBroadcastRequest(request);
+  if (!authorization.ok) return NextResponse.json({ error: authorization.error }, { status: authorization.status, headers: privateHeaders });
+  if (!process.env.CRON_SECRET) return NextResponse.json({ error: 'Scheduled worker is not configured.' }, { status: 503, headers: privateHeaders });
+  if (!smtpConfigured()) return NextResponse.json({ error: 'SMTP delivery is not configured.' }, { status: 503, headers: privateHeaders });
+  if (!process.env.EMAILGO_PREFERENCES_SECRET || process.env.EMAILGO_PREFERENCES_SECRET.length < 32) return NextResponse.json({ error: 'EMAILGO_PREFERENCES_SECRET must contain at least 32 characters before a broadcast can be queued.' }, { status: 503, headers: privateHeaders });
+  if (!process.env.EMAILGO_PUBLIC_URL) return NextResponse.json({ error: 'Set EMAILGO_PUBLIC_URL before queuing a broadcast.' }, { status: 503, headers: privateHeaders });
+  let publicOrigin: URL;
+  try { publicOrigin = new URL(process.env.EMAILGO_PUBLIC_URL); }
+  catch { return NextResponse.json({ error: 'EMAILGO_PUBLIC_URL must be a valid public URL.' }, { status: 503, headers: privateHeaders }); }
+  if (process.env.NODE_ENV === 'production' && publicOrigin.protocol !== 'https:') return NextResponse.json({ error: 'EMAILGO_PUBLIC_URL must use HTTPS in production.' }, { status: 503, headers: privateHeaders });
+
+  const { id } = await context.params;
+  const campaign = await queryOne<BroadcastInput & { id: string; status: string }>('SELECT id,name,api_key_id AS "apiKeyId",from_address AS "from",subject,text_body AS text,html_body AS html,audience_type AS "audienceType",audience_id AS "audienceId",status FROM broadcasts WHERE id=?', [id]);
+  if (!campaign) return NextResponse.json({ error: 'Broadcast not found.' }, { status: 404, headers: privateHeaders });
+  if (campaign.status !== 'draft') return NextResponse.json({ error: 'Only draft broadcasts can be queued.' }, { status: 409, headers: privateHeaders });
+  const validated = await validateBroadcastInput(campaign);
+  if ('error' in validated) return NextResponse.json({ error: validated.error }, { status: validated.status, headers: privateHeaders });
+  const parsed = await readJsonLimited(request, 5_000);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: parsed.status, headers: privateHeaders });
+  if (!parsed.value || typeof parsed.value !== 'object' || Array.isArray(parsed.value)) return NextResponse.json({ error: 'Request body must be a JSON object.' }, { status: 400, headers: privateHeaders });
+  const body = parsed.value as Record<string, unknown>;
+  if (Object.keys(body).some((key) => key !== 'scheduled_at')) return NextResponse.json({ error: 'Only scheduled_at is supported.' }, { status: 400, headers: privateHeaders });
+  let scheduledAt = nowIso();
+  if (body.scheduled_at !== undefined) {
+    if (typeof body.scheduled_at !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(body.scheduled_at) || !Number.isFinite(Date.parse(body.scheduled_at))) return NextResponse.json({ error: 'scheduled_at must be an ISO 8601 timestamp.' }, { status: 400, headers: privateHeaders });
+    const parsedTime = Date.parse(body.scheduled_at);
+    if (parsedTime <= Date.now() || parsedTime > Date.now() + 30 * 24 * 60 * 60 * 1000) return NextResponse.json({ error: 'scheduled_at must be within the next 30 days.' }, { status: 400, headers: privateHeaders });
+    scheduledAt = new Date(parsedTime).toISOString();
+  }
+  const fromAddress = /<([^<>]+)>$/.exec(campaign.from)?.[1] ?? campaign.from;
+  if (!emailPattern.test(fromAddress)) return NextResponse.json({ error: 'The broadcast sender is invalid.' }, { status: 400, headers: privateHeaders });
+  const senderDomain = fromAddress.slice(fromAddress.lastIndexOf('@') + 1).toLowerCase();
+  const verifiedDomainRows = await query<{ domain: string; open_tracking: number; click_tracking: number }>('SELECT domain,open_tracking,click_tracking FROM domains WHERE verified_at IS NOT NULL');
+  const senderDomainConfig = verifiedDomainRows.rows.filter((domain) => senderDomain === domain.domain.toLowerCase() || senderDomain.endsWith(`.${domain.domain.toLowerCase()}`)).sort((a, b) => b.domain.length - a.domain.length)[0];
+  if (!senderDomainConfig) return NextResponse.json({ error: 'The broadcast sender domain is no longer verified.' }, { status: 403, headers: privateHeaders });
+  const tracking = { open: Boolean(senderDomainConfig.open_tracking), click: Boolean(senderDomainConfig.click_tracking) };
+  if ((tracking.open || tracking.click) && (!process.env.EMAILGO_TRACKING_SECRET || !process.env.EMAILGO_PUBLIC_URL)) return NextResponse.json({ error: 'Tracking is enabled but its URL or signing secret is missing.' }, { status: 503, headers: privateHeaders });
+
+  const active = await execute("UPDATE broadcasts SET status='queuing',updated_at=? WHERE id=? AND status='draft'", [nowIso(), id]);
+  if (!active) return NextResponse.json({ error: 'This broadcast has already been queued.' }, { status: 409, headers: privateHeaders });
+  try {
+    const recipients = await eligibleBroadcastContacts(campaign, 1001);
+    if (!recipients.length) {
+      await execute("UPDATE broadcasts SET status='draft',updated_at=? WHERE id=? AND status='queuing'", [nowIso(), id]);
+      return NextResponse.json({ error: 'No opted-in, subscribed contacts match this audience.' }, { status: 409, headers: privateHeaders });
+    }
+    if (recipients.length > 1000) {
+      await execute("UPDATE broadcasts SET status='draft',updated_at=? WHERE id=? AND status='queuing'", [nowIso(), id]);
+      return NextResponse.json({ error: 'A broadcast is limited to 1,000 recipients per send. Narrow the saved audience and create another broadcast for the remaining contacts.' }, { status: 413, headers: privateHeaders });
+    }
+    const baseStatements: Array<{ sql: string; params: readonly unknown[] }> = [];
+    for (const recipient of recipients) {
+      const preferenceToken = createContactPreferenceToken({ contactId: recipient.id, email: recipient.email });
+      const preferencesUrl = `${publicOrigin.origin}/preferences/${preferenceToken}`;
+      const unsubscribeUrl = `${publicOrigin.origin}/api/preferences/${preferenceToken}/one-click`;
+      let properties: Record<string, unknown> = {};
+      try { properties = JSON.parse(recipient.properties_json) as Record<string, unknown>; } catch {}
+      const values = { ...properties, email: recipient.email, name: recipient.name ?? '', unsubscribe_url: unsubscribeUrl, preferences_url: preferencesUrl };
+      const subject = render(campaign.subject, values, false)?.replace(/[\r\n]/g, ' ').trim() ?? '';
+      if (!subject || subject.length > 998) throw new Error('A rendered broadcast subject is invalid.');
+      const textBody = render(campaign.text, values, false);
+      const htmlBody = render(campaign.html, values, true);
+      const textWithFooter = textBody === null ? null : `${textBody}\n\nManage preferences: ${preferencesUrl}\nUnsubscribe: ${unsubscribeUrl}`;
+      const htmlWithFooter = htmlBody === null ? null : `${htmlBody}<div style="margin-top:24px;font-size:12px;color:#666"><a href="${htmlEscape(preferencesUrl)}">Manage preferences</a> · <a href="${htmlEscape(unsubscribeUrl)}">Unsubscribe</a></div>`;
+      const emailId = randomId('em');
+      const createdAt = nowIso();
+      baseStatements.push({
+        sql: `INSERT INTO emails(id,api_key_id,from_address,to_json,subject,status,headers_json,text_body,html_body,scheduled_at,track_opens,track_clicks,broadcast_id,created_at)
+          VALUES(?,?,?,?,?,'scheduled',?,?,?,?,?,?,?,?)`,
+        params: [emailId, campaign.apiKeyId, campaign.from, JSON.stringify([recipient.email]), subject,
+          JSON.stringify({ 'List-Unsubscribe': `<${unsubscribeUrl}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' }),
+          textWithFooter, htmlWithFooter, scheduledAt, tracking.open ? 1 : 0, tracking.click ? 1 : 0, id, createdAt],
+      });
+    }
+    const finalStatus = Date.parse(scheduledAt) > Date.now() ? 'scheduled' : 'queued';
+    baseStatements.push({
+      sql: 'UPDATE broadcasts SET status=?,scheduled_at=?,recipient_count=?,updated_at=? WHERE id=? AND status=?',
+      params: [finalStatus, scheduledAt, recipients.length, nowIso(), id, 'queuing'],
+    });
+    await transaction(baseStatements);
+    return NextResponse.json({ id, status: finalStatus, recipient_count: recipients.length, scheduled_at: scheduledAt }, { status: 202, headers: privateHeaders });
+  } catch (cause) {
+    await execute("UPDATE broadcasts SET status='draft',updated_at=? WHERE id=? AND status='queuing'", [nowIso(), id]);
+    const message = cause instanceof Error ? cause.message : 'Could not queue the broadcast.';
+    return NextResponse.json({ error: message }, { status: 500, headers: privateHeaders });
+  }
+}

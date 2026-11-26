@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "node scripts/start.mjs",
+    "emailgo": "node bin/emailgo.mjs",
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm run build"
   },

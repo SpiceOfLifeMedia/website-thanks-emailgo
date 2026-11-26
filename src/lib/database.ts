@@ -20,19 +20,95 @@ const postgresSchema = [
   `CREATE TABLE IF NOT EXISTS api_keys (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, prefix TEXT NOT NULL UNIQUE,
     secret_hash TEXT NOT NULL, created_at TEXT NOT NULL, last_used_at TEXT,
+    permission TEXT NOT NULL DEFAULT 'full_access', domain_id TEXT,
     revoked_at TEXT
   )`,
+  "ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS permission TEXT NOT NULL DEFAULT 'full_access'",
+  'ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS domain_id TEXT',
+  `CREATE TABLE IF NOT EXISTS webhooks (
+    id TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, endpoint TEXT NOT NULL,
+    events_json TEXT NOT NULL, secret_generation INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL, disabled_at TEXT,
+    FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
+  )`,
+  'CREATE INDEX IF NOT EXISTS webhooks_api_key ON webhooks(api_key_id,created_at DESC)',
+  `CREATE TABLE IF NOT EXISTS webhook_deliveries (
+    id TEXT PRIMARY KEY, event_id TEXT NOT NULL, webhook_id TEXT NOT NULL, api_key_id TEXT NOT NULL,
+    event_type TEXT NOT NULL, payload_json TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
+    attempt_count INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, next_attempt_at TEXT,
+    last_attempt_at TEXT, last_status_code INTEGER, last_response_excerpt TEXT, last_error TEXT,
+    processing_started_at TEXT, delivered_at TEXT,
+    FOREIGN KEY(webhook_id) REFERENCES webhooks(id), FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
+  )`,
+  'CREATE INDEX IF NOT EXISTS webhook_deliveries_queue ON webhook_deliveries(status,next_attempt_at,created_at)',
+  'CREATE INDEX IF NOT EXISTS webhook_deliveries_webhook ON webhook_deliveries(webhook_id,created_at DESC)',
+  'CREATE INDEX IF NOT EXISTS webhook_deliveries_event ON webhook_deliveries(event_id)',
+  `CREATE TABLE IF NOT EXISTS webhook_delivery_attempts (
+    id TEXT PRIMARY KEY, delivery_id TEXT NOT NULL, attempt_number INTEGER NOT NULL,
+    attempted_at TEXT NOT NULL, duration_ms INTEGER NOT NULL, status_code INTEGER,
+    response_excerpt TEXT, error_message TEXT,
+    FOREIGN KEY(delivery_id) REFERENCES webhook_deliveries(id)
+  )`,
+  'CREATE INDEX IF NOT EXISTS webhook_delivery_attempts_delivery ON webhook_delivery_attempts(delivery_id,attempt_number DESC)',
   `CREATE TABLE IF NOT EXISTS domains (
     id TEXT PRIMARY KEY, domain TEXT NOT NULL UNIQUE, verification_token TEXT NOT NULL,
-    created_at TEXT NOT NULL, verified_at TEXT
+    created_at TEXT NOT NULL, verified_at TEXT,
+    open_tracking INTEGER NOT NULL DEFAULT 0, click_tracking INTEGER NOT NULL DEFAULT 0
   )`,
+  'ALTER TABLE domains ADD COLUMN IF NOT EXISTS open_tracking INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE domains ADD COLUMN IF NOT EXISTS click_tracking INTEGER NOT NULL DEFAULT 0',
   `CREATE TABLE IF NOT EXISTS emails (
     id TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, from_address TEXT NOT NULL,
     to_json TEXT NOT NULL, subject TEXT NOT NULL,
     status TEXT NOT NULL, error_message TEXT, provider_id TEXT, message_id TEXT, created_at TEXT NOT NULL,
+    cc_json TEXT, bcc_json TEXT, reply_to TEXT, headers_json TEXT, tags_json TEXT, attachments_json TEXT,
+    text_body TEXT, html_body TEXT, attachment_payload_json TEXT, scheduled_at TEXT,
+    attempt_count INTEGER NOT NULL DEFAULT 0, next_attempt_at TEXT, processing_started_at TEXT,
+    track_opens INTEGER NOT NULL DEFAULT 0, track_clicks INTEGER NOT NULL DEFAULT 0, broadcast_id TEXT,
     FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
   )`,
+  'ALTER TABLE emails ADD COLUMN IF NOT EXISTS cc_json TEXT',
+  'ALTER TABLE emails ADD COLUMN IF NOT EXISTS bcc_json TEXT',
+  'ALTER TABLE emails ADD COLUMN IF NOT EXISTS reply_to TEXT',
+  'ALTER TABLE emails ADD COLUMN IF NOT EXISTS headers_json TEXT',
+  'ALTER TABLE emails ADD COLUMN IF NOT EXISTS tags_json TEXT',
+  'ALTER TABLE emails ADD COLUMN IF NOT EXISTS attachments_json TEXT',
+  'ALTER TABLE emails ADD COLUMN IF NOT EXISTS text_body TEXT',
+  'ALTER TABLE emails ADD COLUMN IF NOT EXISTS html_body TEXT',
+  'ALTER TABLE emails ADD COLUMN IF NOT EXISTS attachment_payload_json TEXT',
+  'ALTER TABLE emails ADD COLUMN IF NOT EXISTS scheduled_at TEXT',
+  'ALTER TABLE emails ADD COLUMN IF NOT EXISTS attempt_count INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE emails ADD COLUMN IF NOT EXISTS next_attempt_at TEXT',
+  'ALTER TABLE emails ADD COLUMN IF NOT EXISTS processing_started_at TEXT',
+  'ALTER TABLE emails ADD COLUMN IF NOT EXISTS track_opens INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE emails ADD COLUMN IF NOT EXISTS track_clicks INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE emails ADD COLUMN IF NOT EXISTS broadcast_id TEXT',
+  `CREATE TABLE IF NOT EXISTS broadcasts (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, api_key_id TEXT NOT NULL, from_address TEXT NOT NULL,
+    subject TEXT NOT NULL, text_body TEXT, html_body TEXT,
+    audience_type TEXT NOT NULL, audience_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft',
+    scheduled_at TEXT, recipient_count INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
+  )`,
+  'CREATE INDEX IF NOT EXISTS broadcasts_updated_at ON broadcasts(updated_at DESC)',
+  'CREATE INDEX IF NOT EXISTS emails_broadcast_id ON emails(broadcast_id,created_at DESC)',
+  `CREATE TABLE IF NOT EXISTS received_emails (
+    id TEXT PRIMARY KEY, provider_event_id TEXT NOT NULL UNIQUE, api_key_id TEXT NOT NULL,
+    message_id TEXT, from_address TEXT NOT NULL, to_json TEXT NOT NULL, cc_json TEXT, bcc_json TEXT,
+    subject TEXT NOT NULL, headers_json TEXT, text_body TEXT, html_body TEXT,
+    received_at TEXT NOT NULL, created_at TEXT NOT NULL,
+    FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
+  )`,
+  'CREATE INDEX IF NOT EXISTS received_emails_api_key ON received_emails(api_key_id,received_at DESC,id DESC)',
+  `CREATE TABLE IF NOT EXISTS received_email_attachments (
+    id TEXT PRIMARY KEY, received_email_id TEXT NOT NULL, filename TEXT NOT NULL,
+    content_type TEXT NOT NULL, content_disposition TEXT, content_id TEXT,
+    byte_length INTEGER NOT NULL, content_base64 TEXT NOT NULL, created_at TEXT NOT NULL,
+    FOREIGN KEY(received_email_id) REFERENCES received_emails(id)
+  )`,
+  'CREATE INDEX IF NOT EXISTS received_attachments_email ON received_email_attachments(received_email_id,created_at,id)',
   'CREATE INDEX IF NOT EXISTS emails_created_at ON emails(created_at DESC)',
+  'CREATE INDEX IF NOT EXISTS emails_scheduled_queue ON emails(status,scheduled_at,next_attempt_at)',
   `CREATE TABLE IF NOT EXISTS idempotency_keys (
     api_key_id TEXT NOT NULL, idempotency_key TEXT NOT NULL, request_hash TEXT NOT NULL,
     email_id TEXT NOT NULL, expires_at TEXT NOT NULL, created_at TEXT NOT NULL,
@@ -45,6 +121,46 @@ const postgresSchema = [
     FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
   )`,
   'CREATE TABLE IF NOT EXISTS login_limits (source_hash TEXT PRIMARY KEY, window_started INTEGER NOT NULL, attempt_count INTEGER NOT NULL)',
+  `CREATE TABLE IF NOT EXISTS email_templates (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, subject TEXT NOT NULL,
+    html TEXT, text TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+  )`,
+  'CREATE INDEX IF NOT EXISTS email_templates_updated_at ON email_templates(updated_at DESC)',
+  `CREATE TABLE IF NOT EXISTS contacts (
+    id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, name TEXT,
+    properties_json TEXT NOT NULL, tags_json TEXT NOT NULL, unsubscribed_at TEXT,
+    consent_status TEXT NOT NULL DEFAULT 'unknown', consent_source TEXT, consented_at TEXT,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+  )`,
+  'ALTER TABLE contacts ADD COLUMN IF NOT EXISTS consent_status TEXT NOT NULL DEFAULT \'unknown\'',
+  'ALTER TABLE contacts ADD COLUMN IF NOT EXISTS consent_source TEXT',
+  'ALTER TABLE contacts ADD COLUMN IF NOT EXISTS consented_at TEXT',
+  `CREATE TABLE IF NOT EXISTS email_events (
+    id TEXT PRIMARY KEY, email_id TEXT NOT NULL, type TEXT NOT NULL,
+    created_at TEXT NOT NULL, target_domain TEXT, target_path TEXT,
+    FOREIGN KEY(email_id) REFERENCES emails(id)
+  )`,
+  'CREATE INDEX IF NOT EXISTS email_events_email ON email_events(email_id,created_at DESC)',
+  'CREATE INDEX IF NOT EXISTS contacts_created_at ON contacts(created_at DESC)',
+  'CREATE INDEX IF NOT EXISTS contacts_updated_at ON contacts(updated_at DESC)',
+  `CREATE TABLE IF NOT EXISTS segments (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, filters_json TEXT NOT NULL,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+  )`,
+  'CREATE INDEX IF NOT EXISTS segments_updated_at ON segments(updated_at DESC)',
+  `CREATE TABLE IF NOT EXISTS topics (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, slug TEXT NOT NULL UNIQUE, description TEXT,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL, disabled_at TEXT
+  )`,
+  'ALTER TABLE topics ADD COLUMN IF NOT EXISTS disabled_at TEXT',
+  'CREATE INDEX IF NOT EXISTS topics_updated_at ON topics(updated_at DESC)',
+  `CREATE TABLE IF NOT EXISTS contact_topics (
+    contact_id TEXT NOT NULL, topic_id TEXT NOT NULL, subscribed_at TEXT, unsubscribed_at TEXT,
+    consent_source TEXT, consented_at TEXT, PRIMARY KEY(contact_id,topic_id),
+    FOREIGN KEY(contact_id) REFERENCES contacts(id) ON DELETE CASCADE,
+    FOREIGN KEY(topic_id) REFERENCES topics(id) ON DELETE CASCADE
+  )`,
+  'CREATE INDEX IF NOT EXISTS contact_topics_topic ON contact_topics(topic_id,subscribed_at DESC)',
 ];
 
 function getPostgres() {
@@ -74,18 +190,72 @@ function getSqlite() {
     CREATE TABLE IF NOT EXISTS api_keys (
       id TEXT PRIMARY KEY, name TEXT NOT NULL, prefix TEXT NOT NULL UNIQUE,
       secret_hash TEXT NOT NULL, created_at TEXT NOT NULL, last_used_at TEXT,
+      permission TEXT NOT NULL DEFAULT 'full_access', domain_id TEXT,
       revoked_at TEXT
     );
+    CREATE TABLE IF NOT EXISTS webhooks (
+      id TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, endpoint TEXT NOT NULL,
+      events_json TEXT NOT NULL, secret_generation INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL, disabled_at TEXT,
+      FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
+    );
+    CREATE INDEX IF NOT EXISTS webhooks_api_key ON webhooks(api_key_id,created_at DESC);
+    CREATE TABLE IF NOT EXISTS webhook_deliveries (
+      id TEXT PRIMARY KEY, event_id TEXT NOT NULL, webhook_id TEXT NOT NULL, api_key_id TEXT NOT NULL,
+      event_type TEXT NOT NULL, payload_json TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
+      attempt_count INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, next_attempt_at TEXT,
+      last_attempt_at TEXT, last_status_code INTEGER, last_response_excerpt TEXT, last_error TEXT,
+      processing_started_at TEXT, delivered_at TEXT,
+      FOREIGN KEY(webhook_id) REFERENCES webhooks(id), FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
+    );
+    CREATE INDEX IF NOT EXISTS webhook_deliveries_queue ON webhook_deliveries(status,next_attempt_at,created_at);
+    CREATE INDEX IF NOT EXISTS webhook_deliveries_webhook ON webhook_deliveries(webhook_id,created_at DESC);
+    CREATE INDEX IF NOT EXISTS webhook_deliveries_event ON webhook_deliveries(event_id);
+    CREATE TABLE IF NOT EXISTS webhook_delivery_attempts (
+      id TEXT PRIMARY KEY, delivery_id TEXT NOT NULL, attempt_number INTEGER NOT NULL,
+      attempted_at TEXT NOT NULL, duration_ms INTEGER NOT NULL, status_code INTEGER,
+      response_excerpt TEXT, error_message TEXT,
+      FOREIGN KEY(delivery_id) REFERENCES webhook_deliveries(id)
+    );
+    CREATE INDEX IF NOT EXISTS webhook_delivery_attempts_delivery ON webhook_delivery_attempts(delivery_id,attempt_number DESC);
     CREATE TABLE IF NOT EXISTS domains (
       id TEXT PRIMARY KEY, domain TEXT NOT NULL UNIQUE, verification_token TEXT NOT NULL,
-      created_at TEXT NOT NULL, verified_at TEXT
+      created_at TEXT NOT NULL, verified_at TEXT,
+      open_tracking INTEGER NOT NULL DEFAULT 0, click_tracking INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS emails (
       id TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, from_address TEXT NOT NULL,
       to_json TEXT NOT NULL, subject TEXT NOT NULL,
       status TEXT NOT NULL, error_message TEXT, provider_id TEXT, message_id TEXT, created_at TEXT NOT NULL,
+      cc_json TEXT, bcc_json TEXT, reply_to TEXT, headers_json TEXT, tags_json TEXT, attachments_json TEXT,
+      text_body TEXT, html_body TEXT, attachment_payload_json TEXT, scheduled_at TEXT,
+      attempt_count INTEGER NOT NULL DEFAULT 0, next_attempt_at TEXT, processing_started_at TEXT,
+      track_opens INTEGER NOT NULL DEFAULT 0, track_clicks INTEGER NOT NULL DEFAULT 0, broadcast_id TEXT,
       FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
     );
+    CREATE TABLE IF NOT EXISTS broadcasts (
+      id TEXT PRIMARY KEY, name TEXT NOT NULL, api_key_id TEXT NOT NULL, from_address TEXT NOT NULL,
+      subject TEXT NOT NULL, text_body TEXT, html_body TEXT,
+      audience_type TEXT NOT NULL, audience_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft',
+      scheduled_at TEXT, recipient_count INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
+    );
+    CREATE INDEX IF NOT EXISTS broadcasts_updated_at ON broadcasts(updated_at DESC);
+    CREATE TABLE IF NOT EXISTS received_emails (
+      id TEXT PRIMARY KEY, provider_event_id TEXT NOT NULL UNIQUE, api_key_id TEXT NOT NULL,
+      message_id TEXT, from_address TEXT NOT NULL, to_json TEXT NOT NULL, cc_json TEXT, bcc_json TEXT,
+      subject TEXT NOT NULL, headers_json TEXT, text_body TEXT, html_body TEXT,
+      received_at TEXT NOT NULL, created_at TEXT NOT NULL,
+      FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
+    );
+    CREATE INDEX IF NOT EXISTS received_emails_api_key ON received_emails(api_key_id,received_at DESC,id DESC);
+    CREATE TABLE IF NOT EXISTS received_email_attachments (
+      id TEXT PRIMARY KEY, received_email_id TEXT NOT NULL, filename TEXT NOT NULL,
+      content_type TEXT NOT NULL, content_disposition TEXT, content_id TEXT,
+      byte_length INTEGER NOT NULL, content_base64 TEXT NOT NULL, created_at TEXT NOT NULL,
+      FOREIGN KEY(received_email_id) REFERENCES received_emails(id)
+    );
+    CREATE INDEX IF NOT EXISTS received_attachments_email ON received_email_attachments(received_email_id,created_at,id);
     CREATE INDEX IF NOT EXISTS emails_created_at ON emails(created_at DESC);
     CREATE TABLE IF NOT EXISTS idempotency_keys (
       api_key_id TEXT NOT NULL, idempotency_key TEXT NOT NULL, request_hash TEXT NOT NULL,
@@ -99,9 +269,72 @@ function getSqlite() {
       FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
     );
     CREATE TABLE IF NOT EXISTS login_limits (source_hash TEXT PRIMARY KEY, window_started INTEGER NOT NULL, attempt_count INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS email_templates (
+      id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, subject TEXT NOT NULL,
+      html TEXT, text TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS email_templates_updated_at ON email_templates(updated_at DESC);
+    CREATE TABLE IF NOT EXISTS contacts (
+      id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, name TEXT,
+      properties_json TEXT NOT NULL, tags_json TEXT NOT NULL, unsubscribed_at TEXT,
+      consent_status TEXT NOT NULL DEFAULT 'unknown', consent_source TEXT, consented_at TEXT,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS email_events (
+      id TEXT PRIMARY KEY, email_id TEXT NOT NULL, type TEXT NOT NULL,
+      created_at TEXT NOT NULL, target_domain TEXT, target_path TEXT,
+      FOREIGN KEY(email_id) REFERENCES emails(id)
+    );
+    CREATE INDEX IF NOT EXISTS email_events_email ON email_events(email_id,created_at DESC);
+    CREATE INDEX IF NOT EXISTS contacts_created_at ON contacts(created_at DESC);
+    CREATE INDEX IF NOT EXISTS contacts_updated_at ON contacts(updated_at DESC);
+    CREATE TABLE IF NOT EXISTS segments (
+      id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, filters_json TEXT NOT NULL,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS segments_updated_at ON segments(updated_at DESC);
+    CREATE TABLE IF NOT EXISTS topics (
+      id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, slug TEXT NOT NULL UNIQUE, description TEXT,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL, disabled_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS topics_updated_at ON topics(updated_at DESC);
+    CREATE TABLE IF NOT EXISTS contact_topics (
+      contact_id TEXT NOT NULL, topic_id TEXT NOT NULL, subscribed_at TEXT, unsubscribed_at TEXT,
+      consent_source TEXT, consented_at TEXT, PRIMARY KEY(contact_id,topic_id),
+      FOREIGN KEY(contact_id) REFERENCES contacts(id) ON DELETE CASCADE,
+      FOREIGN KEY(topic_id) REFERENCES topics(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS contact_topics_topic ON contact_topics(topic_id,subscribed_at DESC);
   `);
   const emailColumns = db.prepare('PRAGMA table_info(emails)').all() as Array<{ name: string }>;
-  if (!emailColumns.some(({ name }) => name === 'message_id')) db.exec('ALTER TABLE emails ADD COLUMN message_id TEXT');
+  const existingEmailColumns = new Set(emailColumns.map(({ name }) => name));
+  const emailMigrations: Array<[string, string]> = [
+    ['message_id', 'TEXT'], ['cc_json', 'TEXT'], ['bcc_json', 'TEXT'], ['reply_to', 'TEXT'],
+    ['headers_json', 'TEXT'], ['tags_json', 'TEXT'], ['attachments_json', 'TEXT'], ['text_body', 'TEXT'],
+    ['html_body', 'TEXT'], ['attachment_payload_json', 'TEXT'], ['scheduled_at', 'TEXT'],
+    ['attempt_count', 'INTEGER NOT NULL DEFAULT 0'], ['next_attempt_at', 'TEXT'], ['processing_started_at', 'TEXT'],
+    ['track_opens', 'INTEGER NOT NULL DEFAULT 0'], ['track_clicks', 'INTEGER NOT NULL DEFAULT 0'],
+    ['broadcast_id', 'TEXT'],
+  ];
+  for (const [column, definition] of emailMigrations) {
+    if (!existingEmailColumns.has(column)) db.exec(`ALTER TABLE emails ADD COLUMN ${column} ${definition}`);
+  }
+  const keyColumns = db.prepare('PRAGMA table_info(api_keys)').all() as Array<{ name: string }>;
+  const existingKeyColumns = new Set(keyColumns.map(({ name }) => name));
+  if (!existingKeyColumns.has('permission')) db.exec("ALTER TABLE api_keys ADD COLUMN permission TEXT NOT NULL DEFAULT 'full_access'");
+  if (!existingKeyColumns.has('domain_id')) db.exec('ALTER TABLE api_keys ADD COLUMN domain_id TEXT');
+  const contactColumns = db.prepare('PRAGMA table_info(contacts)').all() as Array<{ name: string }>;
+  const existingContactColumns = new Set(contactColumns.map(({ name }) => name));
+  if (!existingContactColumns.has('consent_status')) db.exec("ALTER TABLE contacts ADD COLUMN consent_status TEXT NOT NULL DEFAULT 'unknown'");
+  if (!existingContactColumns.has('consent_source')) db.exec('ALTER TABLE contacts ADD COLUMN consent_source TEXT');
+  if (!existingContactColumns.has('consented_at')) db.exec('ALTER TABLE contacts ADD COLUMN consented_at TEXT');
+  db.exec('CREATE INDEX IF NOT EXISTS emails_scheduled_queue ON emails(status,scheduled_at,next_attempt_at)');
+  db.exec('CREATE INDEX IF NOT EXISTS emails_broadcast_id ON emails(broadcast_id,created_at DESC)');
+  const domainColumns = db.prepare('PRAGMA table_info(domains)').all() as Array<{ name: string }>;
+  const existingDomainColumns = new Set(domainColumns.map(({ name }) => name));
+  for (const [column, definition] of [['open_tracking', 'INTEGER NOT NULL DEFAULT 0'], ['click_tracking', 'INTEGER NOT NULL DEFAULT 0']] as const) {
+    if (!existingDomainColumns.has(column)) db.exec(`ALTER TABLE domains ADD COLUMN ${column} ${definition}`);
+  }
   globalForDatabases.emailgoSqlite = db;
   return db;
 }

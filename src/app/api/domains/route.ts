@@ -16,5 +16,5 @@ export async function POST(request: Request) {
   const id = randomId('dom');
   try { await execute('INSERT INTO domains(id,domain,verification_token,created_at) VALUES(?,?,?,?)', [id, domain, token, nowIso()]); }
   catch { return NextResponse.json({ error: 'That sender domain is already added.' }, { status: 409 }); }
-  return NextResponse.json({ id, domain, verification_token: token, created_at: nowIso() }, { status: 201 });
+  return NextResponse.json({ id, domain, verification_token: token, created_at: nowIso(), open_tracking: false, click_tracking: false }, { status: 201 });
 }
