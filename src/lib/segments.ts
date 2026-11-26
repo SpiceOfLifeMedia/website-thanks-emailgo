@@ -45,7 +45,7 @@ function escapeLike(value: string) {
   return value.replace(/[!%_]/g, '!$&');
 }
 
-export function segmentWhere(filters: SegmentFilters) {
+export function segmentWhere(filters: SegmentFilters, segmentId?: string) {
   const clauses: string[] = [];
   const params: Array<string | number | null> = [];
   for (const tag of filters.tags_all ?? []) {
@@ -61,11 +61,17 @@ export function segmentWhere(filters: SegmentFilters) {
     params.push(filters.consent_status);
   }
   if (filters.unsubscribed !== undefined) clauses.push(filters.unsubscribed ? 'c.unsubscribed_at IS NOT NULL' : 'c.unsubscribed_at IS NULL');
-  return { where: clauses.join(' AND '), params };
+  const filterWhere = clauses.join(' AND ');
+  if (!segmentId) return { where: filterWhere, params };
+  const membership = 'EXISTS (SELECT 1 FROM segment_contacts sc WHERE sc.segment_id=? AND sc.contact_id=c.id)';
+  return {
+    where: `(${filterWhere ? `(${filterWhere}) OR ` : ''}${membership})`,
+    params: [...params, segmentId],
+  };
 }
 
-export async function countSegment(filters: SegmentFilters) {
-  const { where, params } = segmentWhere(filters);
+export async function countSegment(filters: SegmentFilters, segmentId?: string) {
+  const { where, params } = segmentWhere(filters, segmentId);
   const result = await queryOne<{ count: number }>(`SELECT CAST(COUNT(*) AS INTEGER) AS count FROM contacts c WHERE ${where}`, params);
   return Number(result?.count ?? 0);
 }
@@ -73,5 +79,5 @@ export async function countSegment(filters: SegmentFilters) {
 export async function toSegment(row: SegmentRow) {
   let filters: SegmentFilters = {};
   try { filters = JSON.parse(row.filters_json) as SegmentFilters; } catch {}
-  return { id: row.id, object: 'segment', name: row.name, filters, contacts_count: await countSegment(filters), created_at: row.created_at, updated_at: row.updated_at };
+  return { id: row.id, object: 'segment', name: row.name, filters, contacts_count: await countSegment(filters, row.id), created_at: row.created_at, updated_at: row.updated_at };
 }

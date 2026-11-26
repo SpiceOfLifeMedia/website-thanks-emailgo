@@ -81,6 +81,22 @@ export class Emailgo {
       send: (id, body = {}) => request('POST', `/api/v1/broadcasts/${encodeURIComponent(id)}/send`, { body }),
       cancel: (id) => request('POST', `/api/v1/broadcasts/${encodeURIComponent(id)}/cancel`, { body: {} }),
     };
+    this.automations = {
+      list: () => request('GET', '/api/v1/automations'),
+      create: (body) => request('POST', '/api/v1/automations', { body }),
+      get: (id) => request('GET', `/api/v1/automations/${encodeURIComponent(id)}`),
+      update: (id, body) => request('PATCH', `/api/v1/automations/${encodeURIComponent(id)}`, { body }),
+      archive: (id) => request('DELETE', `/api/v1/automations/${encodeURIComponent(id)}`),
+      start: (id) => request('POST', `/api/v1/automations/${encodeURIComponent(id)}/start`, { body: {} }),
+      stop: (id) => request('POST', `/api/v1/automations/${encodeURIComponent(id)}/stop`, { body: {} }),
+      runs: (id, query) => request('GET', `/api/v1/automations/${encodeURIComponent(id)}/runs`, { query }),
+      getRun: (id, runId) => request('GET', `/api/v1/automations/${encodeURIComponent(id)}/runs/${encodeURIComponent(runId)}`),
+      stopRun: (id, runId) => request('POST', `/api/v1/automations/${encodeURIComponent(id)}/runs/${encodeURIComponent(runId)}/stop`, { body: {} }),
+    };
+    this.events = {
+      list: () => request('GET', '/api/v1/events'),
+      send: (body, options) => request('POST', '/api/v1/events', { body, idempotencyKey: options?.idempotencyKey }),
+    };
     this.webhooks = {
       list: () => request('GET', '/api/v1/webhooks'),
       create: (body) => request('POST', '/api/v1/webhooks', { body }),

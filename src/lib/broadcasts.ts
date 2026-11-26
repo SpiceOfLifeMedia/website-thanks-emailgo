@@ -16,8 +16,9 @@ export type BroadcastInput = {
 const emailPattern = /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/;
 
 export async function authorizeBroadcastRequest(request: Request): Promise<{ ok: true } | { ok: false; status: 401 | 403; error: string }> {
-  if (!hasTrustedBrowserOrigin(request)) return { ok: false, status: 403, error: 'Request origin is not allowed.' };
-  if (await isAdminSession()) return { ok: true };
+  const origin = request.headers.get('origin');
+  if (origin && !hasTrustedBrowserOrigin(request)) return { ok: false, status: 403, error: 'Request origin is not allowed.' };
+  if (await isAdminSession()) return hasTrustedBrowserOrigin(request) ? { ok: true } : { ok: false, status: 403, error: 'Request origin is not allowed.' };
   const apiKey = await authorizeApiKey(request);
   if (!apiKey) return { ok: false, status: 401, error: 'Sign in or provide a full-access API key.' };
   if (!hasFullApiAccess(apiKey)) return { ok: false, status: 403, error: 'This API key has sending-only access.' };
@@ -82,7 +83,7 @@ export async function eligibleBroadcastContacts(input: Pick<BroadcastInput, 'aud
   try { filters = JSON.parse(segment.filters_json); } catch { return []; }
   const parsedFilters = parseSegmentFilters(filters);
   if (!parsedFilters.ok) return [];
-  const filter = segmentWhere(parsedFilters.filters);
+  const filter = segmentWhere(parsedFilters.filters, input.audienceId);
   const where = filter.where ? ` AND ${filter.where}` : '';
   const result = await query<{ id: string; email: string; name: string | null; properties_json: string }>(`SELECT c.id,c.email,c.name,c.properties_json FROM contacts c
     WHERE c.consent_status='opted_in' AND c.unsubscribed_at IS NULL ${where}

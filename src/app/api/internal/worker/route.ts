@@ -4,6 +4,7 @@ import { execute, nowIso, query } from '@/lib/database';
 import { sendThroughSmtp, smtpConfigured, type OutboundAttachment } from '@/lib/smtp';
 import { trackedHtml } from '@/lib/tracking';
 import { deliverDueWebhooks, emitWebhookEvent } from '@/lib/webhooks';
+import { processAutomationRuns } from '@/lib/automations';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -123,5 +124,6 @@ export async function POST(request: Request) {
       ELSE 'sent' END,updated_at=?
     WHERE status IN ('queued','scheduled','sending') AND recipient_count>0`, [now, now, nowIso()]);
   const webhooks = await deliverDueWebhooks();
-  return NextResponse.json({ ok: true, checked: due.rows.length, sent, failed, deferred, webhooks, smtp_configured: smtpConfigured(), checked_at: now });
+  const automations = await processAutomationRuns(5);
+  return NextResponse.json({ ok: true, checked: due.rows.length, sent, failed, deferred, webhooks, automations, smtp_configured: smtpConfigured(), checked_at: now });
 }

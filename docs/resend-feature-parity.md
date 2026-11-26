@@ -26,7 +26,7 @@ Emailgo is an independent mail platform. It must not call the Resend API or requ
 | Contacts, properties, tags and consent state | Partial, local smoke validation passed | API/dashboard CRUD and CSV record unknown consent by default, with opt-in source and time fields. Unsubscribe remains suppressive. Signed public preference pages support topic choices and global unsubscribe. |
 | Audiences, segments and topics | Partial, local smoke validation passed | Saved live segments support tag, opt-in and unsubscribe filters, with counts and paginated contact previews. Topic CRUD, a public signed preference center, and contact topic preferences are available; subscriptions require explicit confirmation when restoring a global opt out. API-key topic targeting and broad segmentation rules are absent. |
 | Broadcasts/newsletters | Partial, local smoke validation passed | Dashboard can save, edit, schedule, cancel and queue personalized campaigns to saved segments or subscribed topics. Only opted-in, non-suppressed contacts are eligible. Messages include signed preferences links and RFC 8058 unsubscribe headers. Each send is limited to 1,000 recipients and is drained by the existing worker. There is no visual editor, campaign analytics, experiments, provider delivery/bounce/complaint ingestion, or production relay verification. |
-| Automations | Not implemented | Requires an event store, durable scheduler and run history. |
+| Automations | Partial, local smoke validation passed | Full-access API and dashboard create, activate, pause and archive event-triggered workflows. Supports condition branches, delays up to 30 days, filtered wait-for-event, template email, contact name/property/tag updates, add-to-segment, idempotent custom event sends and per-step run history/cancel. The dashboard has a simple action builder and JSON graph editor; a drag-and-drop visual canvas is absent. A durable database and scheduled worker are required. Contact deletion actions, event schemas and retry/resume for failed runs are absent. |
 | Inbound email and message receiving | Partial | A signed, replay-resistant normalized provider event bridge stores inbound message bodies and attachments; full-access keys and the dashboard Receiving view can list, retrieve and download them. No MX routing or inbound SMTP/provider is configured, so actual receipt depends on an external service forwarding events. Threading and mailbox actions are absent. |
 | Shared inboxes | Not implemented | Requires inbound receiving, threads, assignments, drafts and team access controls. |
 
@@ -36,7 +36,7 @@ Emailgo is an independent mail platform. It must not call the Resend API or requ
 | --- | --- | --- |
 | API keys and REST reference | Partial, local smoke validation passed | Keys are stored as hashes. Full-access and domain-restricted sending-only keys are implemented. Full-access keys can list, create, inspect, rename and revoke keys through `/api/v1/api-keys`; raw key material is returned only at creation. An OpenAPI 3.1 document is served at `/api/v1/openapi.json`. API key scopes remain coarser than Resend's full platform and OAuth is absent. |
 | Domain management API | Partial | Full-access keys can list, create, inspect, verify, update tracking settings and delete unused sender domains through `/api/v1/domains`. DNS checks cover ownership, SPF, DMARC and MX; DKIM and return-path setup still come from the SMTP relay. |
-| SDK, CLI and MCP tools | Partial, local smoke validation passed | A dependency-free source Node SDK and repository CLI cover implemented Emailgo API methods. The SDK is not published, CLI has no keychain-backed profiles or local webhook tunnel, MCP is absent, and other language SDKs are absent. |
+| SDK, CLI and MCP tools | Partial, local smoke validation passed | A dependency-free source Node SDK and repository CLI cover implemented Emailgo API methods, including automation/event methods. The SDK is not published, CLI has no keychain-backed profiles or local webhook tunnel, MCP is absent, and other language SDKs are absent. |
 | Multiple workspaces, members and roles | Not implemented | Current admin is a single shared password session. |
 | OAuth, SSO and audit log | Not implemented | Requires identity and account-security design. |
 | Billing, quotas and plan controls | Not implemented | No billing provider or usage enforcement exists. |
@@ -76,6 +76,13 @@ Emailgo is an independent mail platform. It must not call the Resend API or requ
 | `PATCH`, `DELETE /api/v1/broadcasts/{id}` | Update or delete a draft. Queued campaigns cannot be rewritten. |
 | `POST /api/v1/broadcasts/{id}/send` | Queue up to 1,000 eligible, consented recipients for immediate or scheduled SMTP handoff. Requires the worker, SMTP, public URL and signed preference configuration. |
 | `POST /api/v1/broadcasts/{id}/cancel` | Cancel pending campaign messages before the worker claims them. |
+| `GET`, `POST /api/v1/automations` | List or create a graph workflow with a trigger, connections, conditions, waits, delays, template email, contact update, or segment membership actions. |
+| `GET`, `PATCH`, `DELETE /api/v1/automations/{id}` | Read, edit while paused/draft, pause, or archive an owned automation. Archived definitions and runs are retained. |
+| `POST /api/v1/automations/{id}/start`, `POST /stop` | Activate or pause new runs. In-flight runs retain their original workflow snapshot. |
+| `GET /api/v1/automations/{id}/runs` | List scoped workflow runs with status and cursor pagination. |
+| `GET /api/v1/automations/{id}/runs/{runId}` | Retrieve run context and step-level input/output/error history. |
+| `POST /api/v1/automations/{id}/runs/{runId}/stop` | Cancel a running or waiting run. |
+| `GET`, `POST /api/v1/events` | List observed event names or send an idempotent custom event for a contact/email to trigger or resume workflows. Reusing an idempotency key with a different event returns 409. |
 | `GET`, `POST /api/v1/api-keys` | List active API keys or create a scoped key; the secret is returned only in the create response. Requires a full-access API key. |
 | `GET`, `PATCH`, `DELETE /api/v1/api-keys/{id}` | Inspect, rename or revoke an active key. Requires a full-access API key. |
 | `GET`, `POST /api/v1/domains` | List sender domains or add a domain with its ownership TXT token. Requires a full-access API key. |

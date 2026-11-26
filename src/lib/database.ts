@@ -126,6 +126,38 @@ const postgresSchema = [
     html TEXT, text TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`,
   'CREATE INDEX IF NOT EXISTS email_templates_updated_at ON email_templates(updated_at DESC)',
+  `CREATE TABLE IF NOT EXISTS automations (
+    id TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, name TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft',
+    trigger_event TEXT NOT NULL, steps_json TEXT NOT NULL, connections_json TEXT NOT NULL,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
+  )`,
+  'CREATE INDEX IF NOT EXISTS automations_key_status ON automations(api_key_id,status,updated_at DESC)',
+  `CREATE TABLE IF NOT EXISTS automation_events (
+    id TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, event_name TEXT NOT NULL, contact_id TEXT, email TEXT,
+    payload_json TEXT NOT NULL, idempotency_key TEXT, request_hash TEXT, created_at TEXT NOT NULL,
+    UNIQUE(api_key_id,idempotency_key), FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
+  )`,
+  'ALTER TABLE automation_events ADD COLUMN IF NOT EXISTS request_hash TEXT',
+  'CREATE INDEX IF NOT EXISTS automation_events_lookup ON automation_events(api_key_id,event_name,created_at DESC)',
+  `CREATE TABLE IF NOT EXISTS automation_runs (
+    id TEXT PRIMARY KEY, automation_id TEXT NOT NULL, api_key_id TEXT NOT NULL, event_id TEXT NOT NULL,
+    event_name TEXT NOT NULL, contact_id TEXT, email TEXT, payload_json TEXT NOT NULL,
+    steps_json TEXT NOT NULL, connections_json TEXT NOT NULL, current_step_key TEXT,
+    status TEXT NOT NULL DEFAULT 'running', waiting_event_name TEXT, waiting_since TEXT, resume_at TEXT,
+    context_json TEXT NOT NULL, started_at TEXT NOT NULL, updated_at TEXT NOT NULL, completed_at TEXT,
+    processing_started_at TEXT, error TEXT,
+    UNIQUE(automation_id,event_id), FOREIGN KEY(automation_id) REFERENCES automations(id),
+    FOREIGN KEY(api_key_id) REFERENCES api_keys(id), FOREIGN KEY(event_id) REFERENCES automation_events(id)
+  )`,
+  'CREATE INDEX IF NOT EXISTS automation_runs_queue ON automation_runs(status,resume_at,updated_at)',
+  'CREATE INDEX IF NOT EXISTS automation_runs_automation ON automation_runs(automation_id,started_at DESC)',
+  `CREATE TABLE IF NOT EXISTS automation_run_steps (
+    id TEXT PRIMARY KEY, run_id TEXT NOT NULL, step_key TEXT NOT NULL, step_type TEXT NOT NULL,
+    status TEXT NOT NULL, input_json TEXT, output_json TEXT, started_at TEXT NOT NULL,
+    finished_at TEXT, error TEXT, UNIQUE(run_id,step_key), FOREIGN KEY(run_id) REFERENCES automation_runs(id)
+  )`,
+  'CREATE INDEX IF NOT EXISTS automation_run_steps_run ON automation_run_steps(run_id,started_at)',
   `CREATE TABLE IF NOT EXISTS contacts (
     id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, name TEXT,
     properties_json TEXT NOT NULL, tags_json TEXT NOT NULL, unsubscribed_at TEXT,
@@ -148,6 +180,13 @@ const postgresSchema = [
     created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`,
   'CREATE INDEX IF NOT EXISTS segments_updated_at ON segments(updated_at DESC)',
+  `CREATE TABLE IF NOT EXISTS segment_contacts (
+    segment_id TEXT NOT NULL, contact_id TEXT NOT NULL, created_at TEXT NOT NULL,
+    PRIMARY KEY(segment_id,contact_id),
+    FOREIGN KEY(segment_id) REFERENCES segments(id) ON DELETE CASCADE,
+    FOREIGN KEY(contact_id) REFERENCES contacts(id) ON DELETE CASCADE
+  )`,
+  'CREATE INDEX IF NOT EXISTS segment_contacts_contact ON segment_contacts(contact_id,segment_id)',
   `CREATE TABLE IF NOT EXISTS topics (
     id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, slug TEXT NOT NULL UNIQUE, description TEXT,
     created_at TEXT NOT NULL, updated_at TEXT NOT NULL, disabled_at TEXT
@@ -274,6 +313,37 @@ function getSqlite() {
       html TEXT, text TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS email_templates_updated_at ON email_templates(updated_at DESC);
+    CREATE TABLE IF NOT EXISTS automations (
+      id TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, name TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft',
+      trigger_event TEXT NOT NULL, steps_json TEXT NOT NULL, connections_json TEXT NOT NULL,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
+    );
+    CREATE INDEX IF NOT EXISTS automations_key_status ON automations(api_key_id,status,updated_at DESC);
+    CREATE TABLE IF NOT EXISTS automation_events (
+      id TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, event_name TEXT NOT NULL, contact_id TEXT, email TEXT,
+      payload_json TEXT NOT NULL, idempotency_key TEXT, request_hash TEXT, created_at TEXT NOT NULL,
+      UNIQUE(api_key_id,idempotency_key), FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
+    );
+    CREATE INDEX IF NOT EXISTS automation_events_lookup ON automation_events(api_key_id,event_name,created_at DESC);
+    CREATE TABLE IF NOT EXISTS automation_runs (
+      id TEXT PRIMARY KEY, automation_id TEXT NOT NULL, api_key_id TEXT NOT NULL, event_id TEXT NOT NULL,
+      event_name TEXT NOT NULL, contact_id TEXT, email TEXT, payload_json TEXT NOT NULL,
+      steps_json TEXT NOT NULL, connections_json TEXT NOT NULL, current_step_key TEXT,
+      status TEXT NOT NULL DEFAULT 'running', waiting_event_name TEXT, waiting_since TEXT, resume_at TEXT,
+      context_json TEXT NOT NULL, started_at TEXT NOT NULL, updated_at TEXT NOT NULL, completed_at TEXT,
+      processing_started_at TEXT, error TEXT,
+      UNIQUE(automation_id,event_id), FOREIGN KEY(automation_id) REFERENCES automations(id),
+      FOREIGN KEY(api_key_id) REFERENCES api_keys(id), FOREIGN KEY(event_id) REFERENCES automation_events(id)
+    );
+    CREATE INDEX IF NOT EXISTS automation_runs_queue ON automation_runs(status,resume_at,updated_at);
+    CREATE INDEX IF NOT EXISTS automation_runs_automation ON automation_runs(automation_id,started_at DESC);
+    CREATE TABLE IF NOT EXISTS automation_run_steps (
+      id TEXT PRIMARY KEY, run_id TEXT NOT NULL, step_key TEXT NOT NULL, step_type TEXT NOT NULL,
+      status TEXT NOT NULL, input_json TEXT, output_json TEXT, started_at TEXT NOT NULL,
+      finished_at TEXT, error TEXT, UNIQUE(run_id,step_key), FOREIGN KEY(run_id) REFERENCES automation_runs(id)
+    );
+    CREATE INDEX IF NOT EXISTS automation_run_steps_run ON automation_run_steps(run_id,started_at);
     CREATE TABLE IF NOT EXISTS contacts (
       id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, name TEXT,
       properties_json TEXT NOT NULL, tags_json TEXT NOT NULL, unsubscribed_at TEXT,
@@ -293,6 +363,13 @@ function getSqlite() {
       created_at TEXT NOT NULL, updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS segments_updated_at ON segments(updated_at DESC);
+    CREATE TABLE IF NOT EXISTS segment_contacts (
+      segment_id TEXT NOT NULL, contact_id TEXT NOT NULL, created_at TEXT NOT NULL,
+      PRIMARY KEY(segment_id,contact_id),
+      FOREIGN KEY(segment_id) REFERENCES segments(id) ON DELETE CASCADE,
+      FOREIGN KEY(contact_id) REFERENCES contacts(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS segment_contacts_contact ON segment_contacts(contact_id,segment_id);
     CREATE TABLE IF NOT EXISTS topics (
       id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, slug TEXT NOT NULL UNIQUE, description TEXT,
       created_at TEXT NOT NULL, updated_at TEXT NOT NULL, disabled_at TEXT
@@ -328,6 +405,8 @@ function getSqlite() {
   if (!existingContactColumns.has('consent_status')) db.exec("ALTER TABLE contacts ADD COLUMN consent_status TEXT NOT NULL DEFAULT 'unknown'");
   if (!existingContactColumns.has('consent_source')) db.exec('ALTER TABLE contacts ADD COLUMN consent_source TEXT');
   if (!existingContactColumns.has('consented_at')) db.exec('ALTER TABLE contacts ADD COLUMN consented_at TEXT');
+  const automationEventColumns = db.prepare('PRAGMA table_info(automation_events)').all() as Array<{ name: string }>;
+  if (!automationEventColumns.some(({ name }) => name === 'request_hash')) db.exec('ALTER TABLE automation_events ADD COLUMN request_hash TEXT');
   db.exec('CREATE INDEX IF NOT EXISTS emails_scheduled_queue ON emails(status,scheduled_at,next_attempt_at)');
   db.exec('CREATE INDEX IF NOT EXISTS emails_broadcast_id ON emails(broadcast_id,created_at DESC)');
   const domainColumns = db.prepare('PRAGMA table_info(domains)').all() as Array<{ name: string }>;

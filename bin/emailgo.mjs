@@ -26,6 +26,8 @@ Common commands:
   segments list|create|get|update|delete|contacts [id] [--data JSON]
   topics list|create|get|update|delete [id] [--data JSON]
   broadcasts list|create|get|update|delete|queue|cancel [id] [--data JSON]
+  automations list|create|get|update|archive|start|stop|runs|run|stop-run [id] [--run-id id] [--data JSON]
+  events list|send [--data JSON] [--idempotency-key KEY]
   webhooks list|create|get|update|delete|deliveries|replay|rotate-secret [id] [--data JSON]
   usage get
 `;
@@ -98,6 +100,15 @@ const resourceRoutes = {
     update: ['PATCH', item('/api/v1/broadcasts')], delete: ['DELETE', item('/api/v1/broadcasts')],
     queue: ['POST', `${item('/api/v1/broadcasts')}/send`], cancel: ['POST', `${item('/api/v1/broadcasts')}/cancel`],
   },
+  automations: {
+    list: ['GET', '/api/v1/automations'], create: ['POST', '/api/v1/automations'], get: ['GET', item('/api/v1/automations')],
+    update: ['PATCH', item('/api/v1/automations')], archive: ['DELETE', item('/api/v1/automations')],
+    start: ['POST', `${item('/api/v1/automations')}/start`], stop: ['POST', `${item('/api/v1/automations')}/stop`],
+    runs: ['GET', withQuery(`${item('/api/v1/automations')}/runs`)],
+    run: ['GET', `${item('/api/v1/automations')}/runs/${encodeURIComponent(String(flags.get('run-id') || ''))}`],
+    'stop-run': ['POST', `${item('/api/v1/automations')}/runs/${encodeURIComponent(String(flags.get('run-id') || ''))}/stop`],
+  },
+  events: { list: ['GET', '/api/v1/events'], send: ['POST', '/api/v1/events'] },
   webhooks: {
     list: ['GET', '/api/v1/webhooks'], create: ['POST', '/api/v1/webhooks'], get: ['GET', item('/api/v1/webhooks')],
     update: ['PATCH', item('/api/v1/webhooks')], delete: ['DELETE', item('/api/v1/webhooks')],

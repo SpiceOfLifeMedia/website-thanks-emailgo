@@ -85,6 +85,49 @@ The Broadcasts workspace creates personalized campaign drafts from saved segment
 
 Full-access API keys can create and manage broadcast drafts with `GET`, `POST /api/v1/broadcasts`, `PATCH` or `DELETE /api/v1/broadcasts/{broadcast_id}`, then queue or schedule them with `POST /api/v1/broadcasts/{broadcast_id}/send`. Pending messages can be canceled with `POST /api/v1/broadcasts/{broadcast_id}/cancel`.
 
+### Automations
+
+The dashboard and full-access REST API support event-triggered workflows with condition branches, delays of up to 30 days, wait-for-event steps, template email steps, and per-run step history. Active definitions are immutable; pause them before editing. Events are sent with `POST /api/v1/events`, with exactly one `contact_id` or `email`, an `event` name, optional object `payload`, and optional `Idempotency-Key`. Use the same full-access API key that owns the automation.
+
+Automation definitions use a `steps` array and `connections` array. Each workflow starts with one `trigger` step. Supported step types are `trigger`, `condition`, `delay`, `wait_for_event`, `send_email`, `contact_update`, and `add_to_segment`. Condition rules support `and`/`or` groups, event/contact/wait-event fields and common comparison operators. Email steps reference a template ID and a verified sender address. The worker advances runs and sends due automation emails; it must be configured with `CRON_SECRET` and a durable database. The dashboard has a simple action builder and a JSON graph editor; a drag-and-drop canvas, contact-delete action and event schema builder are not implemented yet.
+
+Create an automation with `POST /api/v1/automations`, activate it with `POST /api/v1/automations/{id}/start`, and monitor it through `GET /api/v1/automations/{id}/runs`. Retrieve an individual run for step-level inputs, outputs and errors. The CLI and Node SDK expose the automation and event endpoints.
+
+```json
+{
+  "name": "Welcome sequence",
+  "status": "active",
+  "steps": [
+    { "key": "start", "type": "trigger", "config": { "event_name": "user.created" } },
+    { "key": "welcome", "type": "send_email", "config": { "template": { "id": "tpl_..." }, "from": "hello@example.com" } }
+  ],
+  "connections": [{ "from": "start", "to": "welcome" }]
+}
+```
+
+Send the matching event with `POST /api/v1/events`:
+
+```json
+{ "event": "user.created", "email": "person@example.net", "payload": { "plan": "pro" } }
+```
+
+Automation graphs also support condition branches, filtered event waits, contact updates and adding a contact to a saved segment. Contact update values can use `{{event.field}}`, `{{contact.field}}`, or a `{ "var": "event.field" }` value for a property. For example:
+
+```json
+{
+  "name": "Activate a new customer",
+  "status": "active",
+  "steps": [
+    { "key": "start", "type": "trigger", "config": { "event_name": "user.activated" } },
+    { "key": "update", "type": "contact_update", "config": { "updates": { "name": "{{event.display_name}}", "properties": { "plan": { "var": "event.plan" } }, "tags": ["active"] } } },
+    { "key": "segment", "type": "add_to_segment", "config": { "segment_id": "seg_..." } }
+  ],
+  "connections": [{ "from": "start", "to": "update" }, { "from": "update", "to": "segment" }]
+}
+```
+
+Event waits may use a `filter_rule` against the incoming event. The runner records each step and checks the associated contact's unsubscribe state before sending an automation email. Failed runs are terminal; there is no retry or resume endpoint yet. A new event creates a separate run.
+
 Retrieve tracking events for an email with `GET /api/v1/emails/{email_id}/events`. Event access is scoped to the API key that sent the email.
 
 Emailgo retains submitted text and HTML bodies in its database so message details can show their contents. Encoded attachment bytes are removed after scheduled sends complete, and immediate-send attachment bytes are not retained. Configure protected, durable database storage and backups for production. Retention windows and self-service message deletion are not implemented yet.

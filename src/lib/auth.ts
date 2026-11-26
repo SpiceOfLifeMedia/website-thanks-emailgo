@@ -48,11 +48,20 @@ export const sessionMaxAge = SESSION_HOURS * 60 * 60;
 
 export function hasTrustedBrowserOrigin(request: Request) {
   const origin = request.headers.get('origin');
-  if (!origin) return true;
+  const forwardedHost = request.headers.get('x-forwarded-host')?.split(',')[0]?.trim();
+  const requestHost = forwardedHost || request.headers.get('host');
+  if (!origin) {
+    const fetchSite = request.headers.get('sec-fetch-site');
+    if (fetchSite) return fetchSite === 'same-origin';
+    const referer = request.headers.get('referer');
+    if (!referer || !requestHost) return false;
+    try {
+      const refererUrl = new URL(referer);
+      return (refererUrl.protocol === 'https:' || refererUrl.protocol === 'http:') && refererUrl.host.toLowerCase() === requestHost.toLowerCase();
+    } catch { return false; }
+  }
   try {
     const originUrl = new URL(origin);
-    const forwardedHost = request.headers.get('x-forwarded-host')?.split(',')[0]?.trim();
-    const requestHost = forwardedHost || request.headers.get('host');
     return (originUrl.protocol === 'https:' || originUrl.protocol === 'http:') && Boolean(requestHost) && originUrl.host.toLowerCase() === requestHost!.toLowerCase();
   } catch { return false; }
 }

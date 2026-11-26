@@ -23,7 +23,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   if (!segment) return errorResponse('Segment not found.', 404);
   let filters: SegmentFilters;
   try { filters = JSON.parse(segment.filters_json) as SegmentFilters; } catch { return errorResponse('Segment filters are unavailable.', 500); }
-  const { where, params } = segmentWhere(filters);
+  const { where, params } = segmentWhere(filters, id);
   const url = new URL(request.url);
   const rawLimit = url.searchParams.get('limit');
   const limit = rawLimit === null ? 20 : Number(rawLimit);
