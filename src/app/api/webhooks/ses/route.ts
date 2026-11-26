@@ -47,9 +47,12 @@ export async function POST(request: Request) {
       await execute('INSERT INTO suppressions(address,reason,detail,created_at) VALUES(?,?,?,?) ON CONFLICT(address) DO NOTHING',
         [event.recipient, event.type, event.detail, nowIso()]);
     }
-    if (email) {
-      const status = strongerStatus(email.status, event.type);
-      if (status !== email.status) await execute('UPDATE emails SET status = ? WHERE id = ?', [status, email.id]);
+    // Compare-and-set so an overlapping copy with a stale read can never downgrade the status.
+    for (let current = email; current;) {
+      const status = strongerStatus(current.status, event.type);
+      if (status === current.status) break;
+      if (await execute('UPDATE emails SET status = ? WHERE id = ? AND status = ?', [status, current.id, current.status])) break;
+      current = await queryOne<{ id: string; status: string }>('SELECT id,status FROM emails WHERE id = ?', [current.id]);
     }
     recorded += Number(await execute(`INSERT INTO delivery_events(id,sns_message_id,email_id,relay_message_id,event_type,recipient,detail,created_at)
       VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(sns_message_id,recipient) DO NOTHING`,
