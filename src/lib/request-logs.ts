@@ -1,11 +1,8 @@
 import { getAuthorizedRequestKey } from '@/lib/auth';
 import { execute, nowIso, query, queryOne, randomId } from '@/lib/database';
-import { redactShareTokens } from '@/lib/request-log-sanitization';
+import { sanitizeApiLogText, sanitizeApiLogValue } from '@/lib/request-log-sanitization';
 
 const BODY_LIMIT = 64 * 1024;
-const sensitiveField = /(?:authorization|cookie|password|secret|token|api[_-]?key|credential|idempotency|email|recipient|\bto\b|\bcc\b|\bbcc\b|reply[_-]?to|subject|text|html|content|attachment|header|propert|tag|name$|phone|address)/i;
-const secretValue = /\b(?:(?:eg|st)_live_|whsec_)[A-Za-z0-9_-]{16,}\b/g;
-const emailValue = /[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 
 type CapturedBody = { json: string | null; bytes: number | null };
 type ApiLogRow = {
@@ -22,24 +19,6 @@ type ApiLogRow = {
   response_body_json: string | null;
   created_at: string;
 };
-
-function senderDomain(value: unknown) {
-  if (typeof value !== 'string') return '[REDACTED]';
-  const address = value.match(emailValue)?.[0];
-  const at = address?.lastIndexOf('@') ?? -1;
-  return at > 0 ? `[REDACTED]@${address!.slice(at + 1).toLowerCase()}` : '[REDACTED]';
-}
-
-function redact(value: unknown, parentKey = ''): unknown {
-  if (parentKey.toLowerCase() === 'from') return senderDomain(value);
-  if (sensitiveField.test(parentKey)) return '[REDACTED]';
-  if (typeof value === 'string') return redactShareTokens(value.replace(secretValue, '[REDACTED]').replace(emailValue, '[REDACTED_EMAIL]'));
-  if (Array.isArray(value)) return value.map((entry) => redact(entry));
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, redact(entry, key)]));
-  }
-  return value;
-}
 
 function contentLength(message: Request | Response) {
   const headerValue = message.headers.get('content-length');
@@ -73,7 +52,7 @@ async function captureJsonBody(message: Request | Response): Promise<CapturedBod
     for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
     const parsed = JSON.parse(new TextDecoder().decode(bytes)) as unknown;
     if (!parsed || typeof parsed !== 'object') return { json: null, bytes: declaredBytes ?? length };
-    return { json: JSON.stringify(redact(parsed)), bytes: declaredBytes ?? length };
+    return { json: JSON.stringify(sanitizeApiLogValue(parsed)), bytes: declaredBytes ?? length };
   } catch {
     return { json: null, bytes: declaredBytes ?? length };
   } finally {
@@ -82,7 +61,7 @@ async function captureJsonBody(message: Request | Response): Promise<CapturedBod
 }
 
 function safeKeyName(name: string) {
-  return redactShareTokens(name.slice(0, 120).replace(secretValue, '[REDACTED]').replace(emailValue, '[REDACTED_EMAIL]'));
+  return sanitizeApiLogText(name.slice(0, 120));
 }
 
 async function recordLog(
@@ -94,7 +73,7 @@ async function recordLog(
 ) {
   const apiKey = getAuthorizedRequestKey(request);
   if (!apiKey) return;
-  const endpoint = new URL(request.url).pathname.slice(0, 300).replace(emailValue, '[REDACTED_EMAIL]');
+  const endpoint = sanitizeApiLogText(new URL(request.url).pathname.slice(0, 300));
   const method = request.method.toUpperCase().slice(0, 12);
   const userAgent = request.headers.get('user-agent')?.slice(0, 500) ?? null;
   await execute(`INSERT INTO api_request_logs(

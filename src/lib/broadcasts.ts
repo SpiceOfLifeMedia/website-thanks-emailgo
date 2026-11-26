@@ -1,5 +1,6 @@
 import { query, queryOne } from '@/lib/database';
 import { authorizeApiKey, hasFullApiAccess, hasTrustedBrowserOrigin, isAdminSession } from '@/lib/auth';
+import { normalizeEmailDesign, renderEmailDesign, type EmailDesign } from '@/lib/email-design';
 import { parseSegmentFilters, segmentWhere } from '@/lib/segments';
 
 export type BroadcastInput = {
@@ -9,6 +10,7 @@ export type BroadcastInput = {
   subject: string;
   text: string | null;
   html: string | null;
+  design?: EmailDesign | null;
   audienceType: 'segment' | 'topic';
   audienceId: string;
 };
@@ -33,7 +35,17 @@ export function parseBroadcastInput(value: unknown): { ok: true; value: Broadcas
   const from = typeof body.from === 'string' ? body.from.trim() : '';
   const subject = typeof body.subject === 'string' ? body.subject.trim() : '';
   const text = body.text === undefined || body.text === null ? null : typeof body.text === 'string' ? body.text : undefined;
-  const html = body.html === undefined || body.html === null ? null : typeof body.html === 'string' ? body.html : undefined;
+  let design: EmailDesign | null | undefined;
+  if (Object.prototype.hasOwnProperty.call(body, 'design')) {
+    if (body.design === null) design = null;
+    else {
+      const normalized = normalizeEmailDesign(body.design);
+      if (!normalized.ok) return normalized;
+      design = normalized.design;
+    }
+  }
+  const htmlValue = Object.prototype.hasOwnProperty.call(body, 'design') && design ? renderEmailDesign(design) : body.html;
+  const html = htmlValue === undefined || htmlValue === null ? null : typeof htmlValue === 'string' ? htmlValue : undefined;
   const audienceType = body.audience_type;
   const audienceId = typeof body.audience_id === 'string' ? body.audience_id : '';
   const sender = /<([^<>]+)>$/.exec(from)?.[1] ?? from;
@@ -46,7 +58,15 @@ export function parseBroadcastInput(value: unknown): { ok: true; value: Broadcas
   if ((text?.length ?? 0) > 500_000 || (html?.length ?? 0) > 500_000) return { ok: false, error: 'Email content exceeds the 500 KB limit.' };
   if (audienceType !== 'segment' && audienceType !== 'topic') return { ok: false, error: 'audience_type must be segment or topic.' };
   if (!audienceId || audienceId.length > 100) return { ok: false, error: 'Choose a saved segment or topic.' };
-  return { ok: true, value: { name, apiKeyId, from, subject, text, html, audienceType, audienceId } };
+  return { ok: true, value: { name, apiKeyId, from, subject, text, html, design, audienceType, audienceId } };
+}
+
+export function parseBroadcastDesign(value: string | null | undefined): EmailDesign | null {
+  if (!value) return null;
+  try {
+    const normalized = normalizeEmailDesign(JSON.parse(value) as unknown);
+    return normalized.ok ? normalized.design : null;
+  } catch { return null; }
 }
 
 export async function validateBroadcastInput(input: BroadcastInput) {

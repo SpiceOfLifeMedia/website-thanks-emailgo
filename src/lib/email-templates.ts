@@ -1,4 +1,5 @@
 import { execute, nowIso, query, queryOne, randomId, transaction } from '@/lib/database';
+import { normalizeEmailDesign, renderEmailDesign, type EmailDesign } from '@/lib/email-design';
 
 export type TemplateVariable = {
   id: string;
@@ -18,6 +19,7 @@ export type TemplateContent = {
   html: string;
   text: string | null;
   variables: TemplateVariable[];
+  design?: EmailDesign | null;
 };
 
 export type TemplateRecord = TemplateContent & {
@@ -38,17 +40,19 @@ export type TemplateRequestInput = {
   html?: unknown;
   text?: unknown;
   variables?: unknown;
+  design?: unknown;
 };
 
 type StoredTemplate = Omit<TemplateRecord, 'from' | 'variables'> & {
   from_address: string | null;
   variables_json: string | null;
+  editor_json: string | null;
 };
 type StoredTemplateSummary = Omit<StoredTemplate, 'html' | 'text'>;
 
 type StoredVersion = { id: string; template_id: string; snapshot_json: string; created_at: string; published_at: string | null };
 
-const templateColumns = 'id,name,alias,from_address,subject,reply_to,html,text,variables_json,current_version_id,published_version_id,published_at,created_at,updated_at';
+const templateColumns = 'id,name,alias,from_address,subject,reply_to,html,text,variables_json,editor_json,current_version_id,published_version_id,published_at,created_at,updated_at';
 const templateSummaryColumns = 'id,name,alias,from_address,subject,reply_to,variables_json,current_version_id,published_version_id,published_at,created_at,updated_at';
 const reservedVariables = new Set(['FIRST_NAME', 'LAST_NAME', 'EMAIL', 'RESEND_UNSUBSCRIBE_URL', 'UNSUBSCRIBE_URL', 'CONTACT', 'THIS']);
 const emailPattern = /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/;
@@ -68,6 +72,7 @@ export function storedTemplateToContent(template: StoredTemplate): TemplateConte
     html: template.html ?? '',
     text: template.text,
     variables: parseJson<TemplateVariable[]>(template.variables_json, []),
+    design: parseJson<EmailDesign | null>(template.editor_json, null),
   };
 }
 
@@ -126,7 +131,22 @@ export function validateTemplateRequest(input: unknown, current?: TemplateConten
   const subjectValue = body.subject === undefined ? current?.subject ?? '' : body.subject;
   if (typeof subjectValue !== 'string' || subjectValue.length > 998 || /[\r\n]/.test(subjectValue)) return { ok: false, error: 'subject must be a single-line string of up to 998 characters.' };
 
-  const htmlValue = body.html === undefined ? current?.html : body.html;
+  const designProvided = Object.prototype.hasOwnProperty.call(body, 'design');
+  let design = current?.design ?? null;
+  if (designProvided) {
+    if (body.design === null) design = null;
+    else {
+      const normalized = normalizeEmailDesign(body.design);
+      if (!normalized.ok) return normalized;
+      design = normalized.design;
+    }
+  } else if (Object.prototype.hasOwnProperty.call(body, 'html')) {
+    design = null;
+  }
+
+  let htmlValue: unknown;
+  if (designProvided && design) htmlValue = renderEmailDesign(design);
+  else htmlValue = body.html === undefined ? current?.html : body.html;
   if (requireHtml && typeof htmlValue !== 'string') return { ok: false, error: 'html must be a string.' };
   if (htmlValue !== undefined && htmlValue !== null && typeof htmlValue !== 'string') return { ok: false, error: 'html must be a string.' };
   if (typeof htmlValue === 'string' && htmlValue.length > 500_000) return { ok: false, error: 'html must not exceed 500 KB.' };
@@ -139,7 +159,7 @@ export function validateTemplateRequest(input: unknown, current?: TemplateConten
 
   const variables = normalizeTemplateVariables(body.variables, current?.variables ?? []);
   if (!variables.ok) return variables;
-  return { ok: true, content: { name, alias: aliasValue as string | null, from: fromResult.value, subject: subjectValue.trim(), reply_to: replyResult.value, html: typeof htmlValue === 'string' ? htmlValue : '', text: textValue as string | null, variables: variables.variables } };
+  return { ok: true, content: { name, alias: aliasValue as string | null, from: fromResult.value, subject: subjectValue.trim(), reply_to: replyResult.value, html: typeof htmlValue === 'string' ? htmlValue : '', text: textValue as string | null, variables: variables.variables, design } };
 }
 
 export async function findEmailTemplate(identifier: string) {
@@ -189,6 +209,7 @@ export function emailTemplateResponse(template: StoredTemplate) {
     html: content.html,
     text: content.text,
     variables: content.variables,
+    design: content.design ?? null,
     has_unpublished_versions: Boolean(template.current_version_id && template.current_version_id !== template.published_version_id),
   };
 }
@@ -234,8 +255,8 @@ export async function createEmailTemplate(content: TemplateContent) {
   const versionId = randomId('tplv');
   const timestamp = nowIso();
   await transaction([
-    { sql: `INSERT INTO email_templates(id,name,alias,from_address,subject,reply_to,html,text,variables_json,current_version_id,status,created_at,updated_at)
-      VALUES(?,?,?,?,?,?,?,?,?,?,'draft',?,?)`, params: [id, content.name, content.alias, content.from, content.subject, content.reply_to, content.html, content.text, JSON.stringify(content.variables), versionId, timestamp, timestamp] },
+    { sql: `INSERT INTO email_templates(id,name,alias,from_address,subject,reply_to,html,text,variables_json,editor_json,current_version_id,status,created_at,updated_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,'draft',?,?)`, params: [id, content.name, content.alias, content.from, content.subject, content.reply_to, content.html, content.text, JSON.stringify(content.variables), content.design ? JSON.stringify(content.design) : null, versionId, timestamp, timestamp] },
     { sql: 'INSERT INTO email_template_versions(id,template_id,snapshot_json,created_at,published_at) VALUES(?,?,?,?,NULL)', params: [versionId, id, serializeContent(content), timestamp] },
   ]);
   return findEmailTemplate(id);
@@ -249,8 +270,8 @@ export async function saveEmailTemplateDraft(id: string, content: TemplateConten
   if (JSON.stringify(previousContent) === JSON.stringify(content)) return current;
   const versionId = randomId('tplv');
   await transaction([
-    { sql: `UPDATE email_templates SET name=?,alias=?,from_address=?,subject=?,reply_to=?,html=?,text=?,variables_json=?,current_version_id=?,updated_at=? WHERE id=? AND current_version_id=?`,
-      params: [content.name, content.alias, content.from, content.subject, content.reply_to, content.html, content.text, JSON.stringify(content.variables), versionId, timestamp, id, expectedVersionId] },
+    { sql: `UPDATE email_templates SET name=?,alias=?,from_address=?,subject=?,reply_to=?,html=?,text=?,variables_json=?,editor_json=?,current_version_id=?,updated_at=? WHERE id=? AND current_version_id=?`,
+      params: [content.name, content.alias, content.from, content.subject, content.reply_to, content.html, content.text, JSON.stringify(content.variables), content.design ? JSON.stringify(content.design) : null, versionId, timestamp, id, expectedVersionId] },
     { sql: `INSERT INTO email_template_versions(id,template_id,snapshot_json,created_at,published_at)
       SELECT ?,?,?,?,NULL WHERE EXISTS (SELECT 1 FROM email_templates WHERE id=? AND current_version_id=?)`,
       params: [versionId, id, serializeContent(content), timestamp, id, versionId] },

@@ -99,11 +99,12 @@ const postgresSchema = [
   'ALTER TABLE emails ADD COLUMN IF NOT EXISTS broadcast_id TEXT',
   `CREATE TABLE IF NOT EXISTS broadcasts (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, api_key_id TEXT NOT NULL, from_address TEXT NOT NULL,
-    subject TEXT NOT NULL, text_body TEXT, html_body TEXT,
+    subject TEXT NOT NULL, text_body TEXT, html_body TEXT, editor_json TEXT,
     audience_type TEXT NOT NULL, audience_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft',
     scheduled_at TEXT, recipient_count INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
     FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
   )`,
+  'ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS editor_json TEXT',
   'CREATE INDEX IF NOT EXISTS broadcasts_updated_at ON broadcasts(updated_at DESC)',
   'CREATE INDEX IF NOT EXISTS emails_broadcast_id ON emails(broadcast_id,created_at DESC)',
   `CREATE TABLE IF NOT EXISTS received_emails (
@@ -148,7 +149,7 @@ const postgresSchema = [
   `CREATE TABLE IF NOT EXISTS email_templates (
     id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, alias TEXT, from_address TEXT,
     subject TEXT NOT NULL DEFAULT '', reply_to TEXT, html TEXT, text TEXT,
-    variables_json TEXT NOT NULL DEFAULT '[]', current_version_id TEXT, published_version_id TEXT,
+    variables_json TEXT NOT NULL DEFAULT '[]', editor_json TEXT, current_version_id TEXT, published_version_id TEXT,
     status TEXT NOT NULL DEFAULT 'draft', published_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`,
   'ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS alias TEXT',
@@ -156,6 +157,7 @@ const postgresSchema = [
   "ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS subject TEXT NOT NULL DEFAULT ''",
   'ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS reply_to TEXT',
   "ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS variables_json TEXT NOT NULL DEFAULT '[]'",
+  'ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS editor_json TEXT',
   'ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS current_version_id TEXT',
   'ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS published_version_id TEXT',
   "ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'draft'",
@@ -382,7 +384,7 @@ function getSqlite() {
     );
     CREATE TABLE IF NOT EXISTS broadcasts (
       id TEXT PRIMARY KEY, name TEXT NOT NULL, api_key_id TEXT NOT NULL, from_address TEXT NOT NULL,
-      subject TEXT NOT NULL, text_body TEXT, html_body TEXT,
+      subject TEXT NOT NULL, text_body TEXT, html_body TEXT, editor_json TEXT,
       audience_type TEXT NOT NULL, audience_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft',
       scheduled_at TEXT, recipient_count INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
       FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
@@ -428,7 +430,7 @@ function getSqlite() {
     CREATE TABLE IF NOT EXISTS email_templates (
       id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, alias TEXT, from_address TEXT,
       subject TEXT NOT NULL DEFAULT '', reply_to TEXT, html TEXT, text TEXT,
-      variables_json TEXT NOT NULL DEFAULT '[]', current_version_id TEXT, published_version_id TEXT,
+      variables_json TEXT NOT NULL DEFAULT '[]', editor_json TEXT, current_version_id TEXT, published_version_id TEXT,
       status TEXT NOT NULL DEFAULT 'draft', published_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS email_templates_updated_at ON email_templates(updated_at DESC);
@@ -568,11 +570,13 @@ function getSqlite() {
     if (!existingEmailColumns.has(column)) db.exec(`ALTER TABLE emails ADD COLUMN ${column} ${definition}`);
   }
   db.exec('CREATE INDEX IF NOT EXISTS emails_relay_message_id ON emails(relay_message_id)');
+  const broadcastColumns = db.prepare('PRAGMA table_info(broadcasts)').all() as Array<{ name: string }>;
+  if (!broadcastColumns.some(({ name }) => name === 'editor_json')) db.exec('ALTER TABLE broadcasts ADD COLUMN editor_json TEXT');
   const templateColumns = db.prepare('PRAGMA table_info(email_templates)').all() as Array<{ name: string }>;
   const existingTemplateColumns = new Set(templateColumns.map(({ name }) => name));
   for (const [column, definition] of [
     ['alias', 'TEXT'], ['from_address', 'TEXT'], ['reply_to', 'TEXT'],
-    ['variables_json', "TEXT NOT NULL DEFAULT '[]'"], ['current_version_id', 'TEXT'],
+    ['variables_json', "TEXT NOT NULL DEFAULT '[]'"], ['editor_json', 'TEXT'], ['current_version_id', 'TEXT'],
     ['published_version_id', 'TEXT'], ["status", "TEXT NOT NULL DEFAULT 'draft'"], ['published_at', 'TEXT'],
   ] as const) {
     if (!existingTemplateColumns.has(column)) db.exec(`ALTER TABLE email_templates ADD COLUMN ${column} ${definition}`);

@@ -1,10 +1,14 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { renderEmailDesign, type EmailDesign } from '@/lib/email-design';
+import { TemplatesEditor } from '@/components/templates-editor';
+import { createClaudeStarterDesign, designToEditor, editorToDesign } from '@/components/templates-editor/adapter';
+import type { Block, EmailTheme } from '@/components/templates-editor/blocks';
 
 type TemplateVariable = { id?: string; key: string; type: 'string' | 'number'; fallback_value?: string | number | null; fallbackValue?: string | number | null };
 type Template = { id: string; name: string; alias: string | null; from: string | null; reply_to: string | null; subject: string; variables: TemplateVariable[]; status: 'draft' | 'published'; has_unpublished_versions: boolean; published_at: string | null; created_at: string; updated_at: string };
-type TemplateDetail = Template & { html: string | null; text: string | null };
+type TemplateDetail = Template & { html: string | null; text: string | null; design: EmailDesign | null };
 type TemplateVersion = { id: string; created_at: string; published_at: string | null; is_current: boolean; is_published: boolean; name: string; subject: string; html: string; text: string | null; alias: string | null; from: string | null; reply_to: string | null; variables: TemplateVariable[] };
 type Contact = { id: string; email: string; name: string | null; properties: Record<string, unknown>; tags: string[]; unsubscribed_at: string | null; consent_status: 'unknown' | 'opted_in'; consent_source: string | null; consented_at: string | null; created_at: string; updated_at: string };
 type ContactProperty = { id: string; key: string; type: 'string' | 'number'; fallback_value: string | number | null; created_at: string; updated_at: string };
@@ -12,8 +16,8 @@ type Segment = { id: string; name: string; filters: { tags_all?: string[]; tags_
 type Topic = { id: string; name: string; slug: string; description: string | null; subscribers_count: number; created_at: string; updated_at: string };
 type BroadcastKey = { id: string; name: string; permission: 'full_access' | 'sending_access'; domain_id: string | null };
 type BroadcastDomain = { id: string; domain: string; verified_at: string | null };
-type Broadcast = { id: string; name: string; api_key_id: string; from_address: string; subject: string; text_body: string | null; html_body: string | null; audience_type: 'segment' | 'topic'; audience_id: string; status: string; scheduled_at: string | null; recipient_count: number; sent_count: number; failed_count: number; suppressed_count: number; pending_count: number; created_at: string; updated_at: string };
-type BroadcastDraft = { name: string; api_key_id: string; from: string; subject: string; text: string; html: string; audience_type: 'segment' | 'topic'; audience_id: string };
+type Broadcast = { id: string; name: string; api_key_id: string; from_address: string; subject: string; text_body: string | null; html_body: string | null; design: EmailDesign | null; audience_type: 'segment' | 'topic'; audience_id: string; status: string; scheduled_at: string | null; recipient_count: number; sent_count: number; failed_count: number; suppressed_count: number; pending_count: number; created_at: string; updated_at: string };
+type BroadcastDraft = { name: string; api_key_id: string; from: string; subject: string; text: string; html: string; design: EmailDesign | null; audience_type: 'segment' | 'topic'; audience_id: string };
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, { ...init, headers: { ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers } });
@@ -53,6 +57,9 @@ export function TemplatesWorkspace() {
   const [subject, setSubject] = useState('');
   const [text, setText] = useState('');
   const [html, setHtml] = useState('');
+  const [design, setDesign] = useState<EmailDesign | null>(null);
+  const [editorMode, setEditorMode] = useState<'visual' | 'html'>('html');
+  const [editorOpen, setEditorOpen] = useState(false);
   const [variablesJson, setVariablesJson] = useState('[]');
   const [historyId, setHistoryId] = useState('');
   const [history, setHistory] = useState<TemplateVersion[]>([]);
@@ -68,28 +75,44 @@ export function TemplatesWorkspace() {
   useEffect(() => { void load(); }, [load]);
 
   function clearForm() {
-    setEditingId(''); setName(''); setAlias(''); setFrom(''); setReplyTo(''); setSubject(''); setText(''); setHtml(''); setVariablesJson('[]');
+    setEditingId(''); setName(''); setAlias(''); setFrom(''); setReplyTo(''); setSubject(''); setText(''); setHtml(''); setDesign(null); setEditorMode('html'); setVariablesJson('[]');
   }
 
   async function editTemplate(template: Template) {
     setBusy(true); setError(''); setNotice('');
     try {
       const detail = await api<TemplateDetail>(`/api/templates/${encodeURIComponent(template.id)}`);
-      setEditingId(detail.id); setName(detail.name); setAlias(detail.alias ?? ''); setFrom(detail.from ?? ''); setReplyTo(detail.reply_to ?? ''); setSubject(detail.subject); setText(detail.text ?? ''); setHtml(detail.html ?? '');
+      setEditingId(detail.id); setName(detail.name); setAlias(detail.alias ?? ''); setFrom(detail.from ?? ''); setReplyTo(detail.reply_to ?? ''); setSubject(detail.subject); setText(detail.text ?? ''); setHtml(detail.html ?? ''); setDesign(detail.design ?? null); setEditorMode(detail.design ? 'visual' : 'html');
       setVariablesJson(JSON.stringify(detail.variables.map(({ key, type, fallback_value, fallbackValue }) => ({ key, type, fallback_value: fallback_value ?? fallbackValue ?? null })), null, 2));
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not load this template.'); }
     finally { setBusy(false); }
   }
 
+  async function persistTemplate(nextDesign = design) {
+    const variables = JSON.parse(variablesJson) as unknown;
+    if (!Array.isArray(variables)) throw new Error('Variables must be a JSON array.');
+    const wasEditing = Boolean(editingId);
+    const payload = { name, alias: alias || null, from: from || null, reply_to: replyTo || null, subject, text: text || null, html: nextDesign ? renderEmailDesign(nextDesign) : html || null, design: nextDesign, variables };
+    const saved = await api<TemplateDetail>(wasEditing ? `/api/templates/${encodeURIComponent(editingId)}` : '/api/templates', { method: wasEditing ? 'PATCH' : 'POST', body: JSON.stringify(payload) });
+    setEditingId(saved.id);
+    setDesign(nextDesign);
+    setHtml(saved.html ?? (nextDesign ? renderEmailDesign(nextDesign) : html));
+    await load();
+    setNotice(wasEditing ? 'Template updated.' : 'Template created.');
+  }
+
   async function saveTemplate(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError(''); setNotice('');
-    try {
-      const variables = JSON.parse(variablesJson) as unknown;
-      if (!Array.isArray(variables)) throw new Error('Variables must be a JSON array.');
-      const payload = { name, alias: alias || null, from: from || null, reply_to: replyTo || null, subject, text: text || null, html: html || null, variables };
-      await api(editingId ? `/api/templates/${encodeURIComponent(editingId)}` : '/api/templates', { method: editingId ? 'PATCH' : 'POST', body: JSON.stringify(payload) });
-      clearForm(); await load(); setNotice(editingId ? 'Template updated.' : 'Template created.');
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save template.'); }
+    try { await persistTemplate(); clearForm(); await load(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save template.'); }
+    finally { setBusy(false); }
+  }
+
+  async function saveVisualTemplate(blocks: Block[], theme: EmailTheme) {
+    const nextDesign = editorToDesign(blocks, theme, design ?? createClaudeStarterDesign());
+    setBusy(true); setError(''); setNotice('');
+    try { await persistTemplate(nextDesign); }
+    catch (cause) { const message = cause instanceof Error ? cause.message : 'Could not save this template.'; setError(message); throw cause; }
     finally { setBusy(false); }
   }
 
@@ -131,11 +154,13 @@ export function TemplatesWorkspace() {
       return Object.fromEntries(parsed.filter((item) => typeof item?.key === 'string').map((item) => [item.key as string, String(item.fallback_value ?? item.fallbackValue ?? `Sample ${item.key}`)]));
     } catch { return {}; }
   }, [variablesJson]);
-  const previewHtml = useMemo(() => renderTemplatePreview(html, previewVariables, true), [html, previewVariables]);
+  const previewHtml = useMemo(() => renderTemplatePreview(design ? renderEmailDesign(design) : html, previewVariables, true), [design, html, previewVariables]);
   const previewSubject = useMemo(() => renderTemplatePreview(subject, previewVariables, false), [subject, previewVariables]);
   const previewText = useMemo(() => renderTemplatePreview(text, previewVariables, false), [text, previewVariables]);
+  const editorModel = design ? designToEditor(design) : null;
 
   return <>
+    {editorOpen && design && editorModel && <div className="templateEditorOverlay" role="dialog" aria-modal="true" aria-label="Visual email editor"><TemplatesEditor key="template-editor" templateName={name || 'Welcome email'} accountName="Website Thanks" lastSavedWords={editingId ? 'Draft saved' : 'Draft not saved yet'} initialBlocks={editorModel.blocks} initialTheme={editorModel.theme} onSave={saveVisualTemplate} onClose={() => setEditorOpen(false)} saveError={error} /></div>}
     <div className="pageHeading"><div><div className="eyebrow">REUSABLE CONTENT</div><h1>Templates</h1><p>Save drafts, preview variables, and publish a stable version for new sends.</p></div><button className="outlineButton" onClick={() => void load()}>Refresh</button></div>
     {error && <div className="notice errorNotice" role="alert">{error}</div>}
     {notice && <div className="notice successNotice" role="status">{notice}</div>}
@@ -148,7 +173,13 @@ export function TemplatesWorkspace() {
         <label>Default reply-to<input value={replyTo} onChange={(event) => setReplyTo(event.target.value)} maxLength={320} placeholder="support@example.com" /></label>
         <label>Default subject<input value={subject} onChange={(event) => setSubject(event.target.value)} maxLength={998} placeholder="Welcome, {{{RECIPIENT_NAME}}}" /></label>
         <label>Plain text<textarea value={text} onChange={(event) => setText(event.target.value)} rows={5} maxLength={100_000} placeholder="Hello {{{RECIPIENT_NAME}}}," /></label>
-        <label>HTML<textarea value={html} onChange={(event) => setHtml(event.target.value)} rows={7} maxLength={100_000} placeholder="<p>Hello {{{RECIPIENT_NAME}}},</p>" /></label>
+        <div className="templateEditorField">
+          <div className="templateEditorMode" role="group" aria-label="Email editor mode">
+            <button type="button" className={editorMode === 'visual' ? 'selected' : ''} onClick={() => { const next = design ?? createClaudeStarterDesign(); setDesign(next); setEditorMode('visual'); setEditorOpen(true); }}>Visual editor</button>
+            <button type="button" className={editorMode === 'html' ? 'selected' : ''} onClick={() => { if (design) setHtml(renderEmailDesign(design)); setDesign(null); setEditorMode('html'); }}>HTML source</button>
+          </div>
+          <label>HTML<textarea value={html} onChange={(event) => setHtml(event.target.value)} rows={7} maxLength={500_000} placeholder="<p>Hello {{{RECIPIENT_NAME}}},</p>" /></label>
+        </div>
         <label className="templateVariablesField">Variables (JSON)<textarea value={variablesJson} onChange={(event) => setVariablesJson(event.target.value)} rows={6} spellCheck={false} placeholder={'[{"key":"RECIPIENT_NAME","type":"string","fallback_value":"friend"}]'} /></label>
       </div>
       <div className="resourceFormActions"><button className="primaryButton" disabled={busy}>{busy ? 'Saving…' : editingId ? 'Save draft' : 'Create draft'}</button>{editingId && <button type="button" className="outlineButton" onClick={() => void publishTemplate(editingId)} disabled={busy}>Publish draft</button>}{editingId && <button type="button" className="outlineButton" onClick={clearForm} disabled={busy}>Cancel edit</button>}</div>
@@ -465,8 +496,10 @@ export function BroadcastsWorkspace({ apiKeys, domains, canQueue }: { apiKeys: B
   const [segments, setSegments] = useState<Segment[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [editingId, setEditingId] = useState('');
+  const [editorMode, setEditorMode] = useState<'visual' | 'html'>('html');
+  const [editorOpen, setEditorOpen] = useState(false);
   const [scheduleLocal, setScheduleLocal] = useState('');
-  const [draft, setDraft] = useState<BroadcastDraft>({ name: '', api_key_id: '', from: '', subject: '', text: '', html: '', audience_type: 'segment', audience_id: '' });
+  const [draft, setDraft] = useState<BroadcastDraft>({ name: '', api_key_id: '', from: '', subject: '', text: '', html: '', design: null, audience_type: 'segment', audience_id: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -496,11 +529,30 @@ export function BroadcastsWorkspace({ apiKeys, domains, canQueue }: { apiKeys: B
   function update<K extends keyof BroadcastDraft>(key: K, value: BroadcastDraft[K]) { setDraft((current) => ({ ...current, [key]: value })); }
   function resetForm() {
     setEditingId('');
+    setEditorMode('html');
     setScheduleLocal('');
-    setDraft({ name: '', api_key_id: apiKeys[0]?.id ?? '', from: domains[0]?.domain ? `hello@${domains[0].domain}` : '', subject: '', text: '', html: '', audience_type: 'segment', audience_id: '' });
+    setDraft({ name: '', api_key_id: apiKeys[0]?.id ?? '', from: domains[0]?.domain ? `hello@${domains[0].domain}` : '', subject: '', text: '', html: '', design: null, audience_type: 'segment', audience_id: '' });
   }
-  function inputPayload() {
-    return { name: draft.name, api_key_id: draft.api_key_id, from: draft.from, subject: draft.subject, ...(draft.text ? { text: draft.text } : {}), ...(draft.html ? { html: draft.html } : {}), audience_type: draft.audience_type, audience_id: draft.audience_id };
+  function inputPayload(value: BroadcastDraft = draft) {
+    return { name: value.name, api_key_id: value.api_key_id, from: value.from, subject: value.subject, ...(value.text ? { text: value.text } : {}), ...(value.html ? { html: value.html } : {}), design: value.design, audience_type: value.audience_type, audience_id: value.audience_id };
+  }
+  async function saveVisualBroadcast(blocks: Block[], theme: EmailTheme) {
+    const nextDesign = editorToDesign(blocks, theme, draft.design ?? createClaudeStarterDesign());
+    const nextDraft = { ...draft, design: nextDesign };
+    setDraft(nextDraft);
+    setBusy(true); setError(''); setNotice('');
+    try {
+      const saved = editingId
+        ? await api<{ id: string }>(`/api/broadcasts/${encodeURIComponent(editingId)}`, { method: 'PATCH', body: JSON.stringify(inputPayload(nextDraft)) })
+        : await api<{ id: string }>('/api/broadcasts', { method: 'POST', body: JSON.stringify(inputPayload(nextDraft)) });
+      setEditingId(saved.id);
+      await load();
+      setNotice('Draft saved.');
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'Could not save this draft.';
+      setError(message);
+      throw cause;
+    } finally { setBusy(false); }
   }
   async function saveDraft() {
     setBusy(true); setError(''); setNotice('');
@@ -531,10 +583,12 @@ export function BroadcastsWorkspace({ apiKeys, domains, canQueue }: { apiKeys: B
   }
   function editBroadcast(broadcast: Broadcast) {
     setEditingId(broadcast.id);
+    setEditorMode(broadcast.design ? 'visual' : 'html');
     setScheduleLocal('');
-    setDraft({ name: broadcast.name, api_key_id: broadcast.api_key_id, from: broadcast.from_address, subject: broadcast.subject, text: broadcast.text_body ?? '', html: broadcast.html_body ?? '', audience_type: broadcast.audience_type, audience_id: broadcast.audience_id });
+    setDraft({ name: broadcast.name, api_key_id: broadcast.api_key_id, from: broadcast.from_address, subject: broadcast.subject, text: broadcast.text_body ?? '', html: broadcast.html_body ?? '', design: broadcast.design ?? null, audience_type: broadcast.audience_type, audience_id: broadcast.audience_id });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
+  const broadcastEditorModel = draft.design ? designToEditor(draft.design) : null;
   async function cancelBroadcast(id: string) {
     setBusy(true); setError(''); setNotice('');
     try { const result = await api<{ canceled_count: number }>(`/api/broadcasts/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: '{}' }); await load(); setNotice(`${result.canceled_count} pending messages canceled.`); }
@@ -549,6 +603,7 @@ export function BroadcastsWorkspace({ apiKeys, domains, canQueue }: { apiKeys: B
   }
 
   return <>
+    {editorOpen && draft.design && broadcastEditorModel && <div className="templateEditorOverlay" role="dialog" aria-modal="true" aria-label="Visual email editor"><TemplatesEditor key="broadcast-editor" templateName={draft.name || 'Broadcast draft'} accountName="Website Thanks" lastSavedWords={editingId ? 'Draft saved' : 'Draft not saved yet'} initialBlocks={broadcastEditorModel.blocks} initialTheme={broadcastEditorModel.theme} onSave={saveVisualBroadcast} onClose={() => setEditorOpen(false)} saveError={error} /></div>}
     <div className="pageHeading"><div><div className="eyebrow">CAMPAIGNS</div><h1>Broadcasts</h1><p>Send a consented topic or saved audience through the configured SMTP relay.</p></div><button className="outlineButton" onClick={() => void load()}>Refresh</button></div>
     {error && <div className="notice errorNotice" role="alert">{error}</div>}{notice && <div className="notice successNotice" role="status">{notice}</div>}
     <form className="panel broadcastForm" onSubmit={(event) => { event.preventDefault(); void saveDraft(); }}>
@@ -561,11 +616,17 @@ export function BroadcastsWorkspace({ apiKeys, domains, canQueue }: { apiKeys: B
         <label>{draft.audience_type === 'segment' ? 'Saved segment' : 'Subscribed topic'}<select value={draft.audience_id} onChange={(event) => update('audience_id', event.target.value)} required><option value="">Choose an audience</option>{audienceOptions.map((audience) => <option key={audience.id} value={audience.id}>{audience.name}</option>)}</select></label>
         <label className="broadcastSubject">Subject<input value={draft.subject} onChange={(event) => update('subject', event.target.value)} maxLength={998} required /></label>
         <label>Text body<textarea value={draft.text} onChange={(event) => update('text', event.target.value)} maxLength={500000} rows={7} placeholder="Plain text content. {{name}} and {{email}} are available." /></label>
-        <label>HTML body<textarea value={draft.html} onChange={(event) => update('html', event.target.value)} maxLength={500000} rows={7} placeholder="Optional HTML. {{name}}, {{email}}, {{preferences_url}} and {{unsubscribe_url}} are available." /></label>
+        <div className="broadcastEditorField">
+          <div className="templateEditorMode" role="group" aria-label="Email editor mode">
+            <button type="button" className={editorMode === 'visual' ? 'selected' : ''} onClick={() => { if (!draft.design) update('design', createClaudeStarterDesign()); setEditorMode('visual'); setEditorOpen(true); }}>Visual editor</button>
+            <button type="button" className={editorMode === 'html' ? 'selected' : ''} onClick={() => { if (draft.design) update('html', renderEmailDesign(draft.design)); update('design', null); setEditorMode('html'); }}>HTML source</button>
+          </div>
+          <label>HTML body<textarea value={draft.html} onChange={(event) => update('html', event.target.value)} maxLength={500000} rows={7} placeholder="Optional HTML. {{name}}, {{email}}, {{preferences_url}} and {{unsubscribe_url}} are available." /></label>
+        </div>
         <div className="broadcastDisclosure">Each queued message gets a signed preference link and a List-Unsubscribe header. Message delivery starts from the scheduled worker. Opens and clicks are approximate metrics.</div>
         {error && <p className="inlineError" role="alert">{error}</p>}
-        <div className="broadcastActions"><button className="outlineButton" type="submit" disabled={busy || !draft.api_key_id}>{busy ? 'Saving…' : 'Save draft'}</button><button className="primaryButton" type="button" disabled={busy || !canQueue || !draft.api_key_id || !draft.audience_id || (!draft.text && !draft.html)} onClick={() => void queueBroadcast(false)}>{busy ? 'Working…' : 'Queue now'}</button></div>
-        <div className="broadcastSchedule"><label>Schedule time<input type="datetime-local" value={scheduleLocal} onChange={(event) => setScheduleLocal(event.target.value)} /></label><button className="outlineButton" type="button" disabled={busy || !canQueue || !scheduleLocal || !draft.api_key_id || !draft.audience_id || (!draft.text && !draft.html)} onClick={() => void queueBroadcast(true)}>Schedule broadcast</button><span className="muted">Future times must be within 30 days.</span></div>
+        <div className="broadcastActions"><button className="outlineButton" type="submit" disabled={busy || !draft.api_key_id}>{busy ? 'Saving…' : 'Save draft'}</button><button className="primaryButton" type="button" disabled={busy || !canQueue || !draft.api_key_id || !draft.audience_id || (!draft.text && !draft.html && !draft.design)} onClick={() => void queueBroadcast(false)}>{busy ? 'Working…' : 'Queue now'}</button></div>
+        <div className="broadcastSchedule"><label>Schedule time<input type="datetime-local" value={scheduleLocal} onChange={(event) => setScheduleLocal(event.target.value)} /></label><button className="outlineButton" type="button" disabled={busy || !canQueue || !scheduleLocal || !draft.api_key_id || !draft.audience_id || (!draft.text && !draft.html && !draft.design)} onClick={() => void queueBroadcast(true)}>Schedule broadcast</button><span className="muted">Future times must be within 30 days.</span></div>
         {!canQueue && <p className="keyMissing">Queueing needs SMTP, the scheduled worker and signed preference links to be configured.</p>}
       </div>
     </form>
