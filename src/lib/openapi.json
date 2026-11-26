@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "description": "Send, thanks email sending, domains, API keys, contacts, audiences, broadcasts, automations, inbound receiving, webhooks, suppressions and usage. Send, thanks uses its configured SMTP relay."
   },
-  "servers": [{ "url": "https://emailgo.example.com" }],
+  "servers": [{ "url": "https://send-thanks.example.com" }],
   "security": [{ "BearerAuth": [] }],
   "paths": {
     "/api/v1/emails": {
