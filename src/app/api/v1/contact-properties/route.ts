@@ -1,3 +1,4 @@
+import { withApiRequestLog } from '@/lib/request-logs';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { createContactProperty, contactPropertyResponse, listContactProperties, parseContactPropertyValue, type ContactPropertyType } from '@/lib/contact-properties';
@@ -12,14 +13,14 @@ async function authorize(request: Request) {
   return { key };
 }
 
-export async function GET(request: Request) {
+async function __emailgo_GET_handler(request: Request) {
   const auth = await authorize(request);
   if (auth.error) return auth.error;
   const rows = await listContactProperties();
   return NextResponse.json({ object: 'list', data: rows.map(contactPropertyResponse), has_more: false }, { headers: { 'Cache-Control': 'private, no-store' } });
 }
 
-export async function POST(request: Request) {
+async function __emailgo_POST_handler(request: Request) {
   const auth = await authorize(request);
   if (auth.error) return auth.error;
   const parsed = await readJsonLimited(request, 10_000);
@@ -39,3 +40,6 @@ export async function POST(request: Request) {
     return error('A contact property with that key already exists.', 409);
   }
 }
+
+export const GET = withApiRequestLog(__emailgo_GET_handler);
+export const POST = withApiRequestLog(__emailgo_POST_handler);

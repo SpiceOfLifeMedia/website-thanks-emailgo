@@ -1,3 +1,4 @@
+import { withApiRequestLog } from '@/lib/request-logs';
 import { resolveTxt } from 'node:dns/promises';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
@@ -6,7 +7,7 @@ import { execute, nowIso, queryOne } from '@/lib/database';
 export const runtime = 'nodejs';
 const privateHeaders = { 'Cache-Control': 'private, no-store' };
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+async function __emailgo_POST_handler(request: Request, context: { params: Promise<{ id: string }> }) {
   const key = await authorizeApiKey(request);
   if (!key) return NextResponse.json({ error: { message: 'Invalid or revoked API key.' } }, { status: 401, headers: privateHeaders });
   if (!hasFullApiAccess(key)) return NextResponse.json({ error: { message: 'This API key has sending-only access.' } }, { status: 403, headers: privateHeaders });
@@ -24,3 +25,5 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ verified: false, error: { message: `Could not find a TXT record at _emailgo.${domain.domain}.` } }, { status: 422, headers: privateHeaders });
   }
 }
+
+export const POST = withApiRequestLog(__emailgo_POST_handler);

@@ -1,3 +1,4 @@
+import { withApiRequestLog } from '@/lib/request-logs';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { getSuppression, removeSuppression, suppressionResponse } from '@/lib/suppressions';
@@ -15,7 +16,7 @@ async function authorize(request: Request) {
   return { key };
 }
 
-export async function GET(request: Request, context: Context) {
+async function __emailgo_GET_handler(request: Request, context: Context) {
   const auth = await authorize(request);
   if (auth.error) return auth.error;
   const { suppression } = await context.params;
@@ -23,10 +24,13 @@ export async function GET(request: Request, context: Context) {
   return row ? NextResponse.json(suppressionResponse(row), { headers: privateHeaders }) : error('Suppression not found.', 404);
 }
 
-export async function DELETE(request: Request, context: Context) {
+async function __emailgo_DELETE_handler(request: Request, context: Context) {
   const auth = await authorize(request);
   if (auth.error) return auth.error;
   const { suppression } = await context.params;
   const row = await removeSuppression(suppression);
   return row ? NextResponse.json({ object: 'suppression', id: row.id }, { headers: privateHeaders }) : error('Suppression not found.', 404);
 }
+
+export const GET = withApiRequestLog(__emailgo_GET_handler);
+export const DELETE = withApiRequestLog(__emailgo_DELETE_handler);

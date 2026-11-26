@@ -1,3 +1,4 @@
+import { withApiRequestLog } from '@/lib/request-logs';
 import { randomBytes } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
@@ -12,7 +13,7 @@ function apiError(message: string, status: number) {
   return NextResponse.json({ error: { message } }, { status, headers: privateHeaders });
 }
 
-export async function GET(request: Request) {
+async function __emailgo_GET_handler(request: Request) {
   const key = await authorizeApiKey(request);
   if (!key) return apiError('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(key)) return apiError('This API key has sending-only access.', 403);
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
   return NextResponse.json({ data: result.rows }, { headers: privateHeaders });
 }
 
-export async function POST(request: Request) {
+async function __emailgo_POST_handler(request: Request) {
   const key = await authorizeApiKey(request);
   if (!key) return apiError('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(key)) return apiError('This API key has sending-only access.', 403);
@@ -48,3 +49,6 @@ export async function POST(request: Request) {
   await execute('INSERT INTO api_keys(id,name,prefix,secret_hash,created_at,permission,domain_id) VALUES(?,?,?,?,?,?,?)', [id, name, prefix, hashSecret(secret), createdAt, permission, domainId]);
   return NextResponse.json({ id, name, prefix, permission, domain_id: domainId, secret, created_at: createdAt }, { status: 201, headers: privateHeaders });
 }
+
+export const GET = withApiRequestLog(__emailgo_GET_handler);
+export const POST = withApiRequestLog(__emailgo_POST_handler);

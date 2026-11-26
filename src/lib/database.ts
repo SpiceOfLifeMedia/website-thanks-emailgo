@@ -23,6 +23,19 @@ const postgresSchema = [
     permission TEXT NOT NULL DEFAULT 'full_access', domain_id TEXT,
     revoked_at TEXT
   )`,
+  `CREATE TABLE IF NOT EXISTS api_request_logs (
+    id TEXT PRIMARY KEY, api_key_id TEXT, api_key_name TEXT, api_key_prefix TEXT,
+    endpoint TEXT NOT NULL, method TEXT NOT NULL, response_status INTEGER NOT NULL,
+    user_agent TEXT, request_bytes INTEGER, response_bytes INTEGER,
+    request_body_json TEXT, response_body_json TEXT,
+    created_at TEXT NOT NULL
+  )`,
+  'ALTER TABLE api_request_logs ADD COLUMN IF NOT EXISTS api_key_name TEXT',
+  'ALTER TABLE api_request_logs ADD COLUMN IF NOT EXISTS api_key_prefix TEXT',
+  'ALTER TABLE api_request_logs ADD COLUMN IF NOT EXISTS request_bytes INTEGER',
+  'ALTER TABLE api_request_logs ADD COLUMN IF NOT EXISTS response_bytes INTEGER',
+  'CREATE INDEX IF NOT EXISTS api_request_logs_created_at ON api_request_logs(created_at DESC,id DESC)',
+  'CREATE INDEX IF NOT EXISTS api_request_logs_status_created_at ON api_request_logs(response_status,created_at DESC,id DESC)',
   "ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS permission TEXT NOT NULL DEFAULT 'full_access'",
   'ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS domain_id TEXT',
   `CREATE TABLE IF NOT EXISTS webhooks (
@@ -241,6 +254,15 @@ function getSqlite() {
       permission TEXT NOT NULL DEFAULT 'full_access', domain_id TEXT,
       revoked_at TEXT
     );
+    CREATE TABLE IF NOT EXISTS api_request_logs (
+      id TEXT PRIMARY KEY, api_key_id TEXT, api_key_name TEXT, api_key_prefix TEXT,
+      endpoint TEXT NOT NULL, method TEXT NOT NULL, response_status INTEGER NOT NULL,
+      user_agent TEXT, request_bytes INTEGER, response_bytes INTEGER,
+      request_body_json TEXT, response_body_json TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS api_request_logs_created_at ON api_request_logs(created_at DESC,id DESC);
+    CREATE INDEX IF NOT EXISTS api_request_logs_status_created_at ON api_request_logs(response_status,created_at DESC,id DESC);
     CREATE TABLE IF NOT EXISTS webhooks (
       id TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, endpoint TEXT NOT NULL,
       events_json TEXT NOT NULL, secret_generation INTEGER NOT NULL DEFAULT 1,
@@ -418,6 +440,13 @@ function getSqlite() {
   const existingKeyColumns = new Set(keyColumns.map(({ name }) => name));
   if (!existingKeyColumns.has('permission')) db.exec("ALTER TABLE api_keys ADD COLUMN permission TEXT NOT NULL DEFAULT 'full_access'");
   if (!existingKeyColumns.has('domain_id')) db.exec('ALTER TABLE api_keys ADD COLUMN domain_id TEXT');
+  const requestLogColumns = db.prepare('PRAGMA table_info(api_request_logs)').all() as Array<{ name: string }>;
+  const existingRequestLogColumns = new Set(requestLogColumns.map(({ name }) => name));
+  for (const [column, definition] of [
+    ['api_key_name', 'TEXT'], ['api_key_prefix', 'TEXT'], ['request_bytes', 'INTEGER'], ['response_bytes', 'INTEGER'],
+  ] as const) {
+    if (!existingRequestLogColumns.has(column)) db.exec(`ALTER TABLE api_request_logs ADD COLUMN ${column} ${definition}`);
+  }
   const contactColumns = db.prepare('PRAGMA table_info(contacts)').all() as Array<{ name: string }>;
   const existingContactColumns = new Set(contactColumns.map(({ name }) => name));
   if (!existingContactColumns.has('consent_status')) db.exec("ALTER TABLE contacts ADD COLUMN consent_status TEXT NOT NULL DEFAULT 'unknown'");

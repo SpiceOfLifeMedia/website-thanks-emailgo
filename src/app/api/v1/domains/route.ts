@@ -1,3 +1,4 @@
+import { withApiRequestLog } from '@/lib/request-logs';
 import { randomBytes } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
@@ -20,14 +21,14 @@ async function authorize(request: Request) {
   return { key };
 }
 
-export async function GET(request: Request) {
+async function __emailgo_GET_handler(request: Request) {
   const auth = await authorize(request);
   if (auth.error) return auth.error;
   const result = await query(`SELECT id,domain,verification_token,created_at,verified_at,open_tracking,click_tracking FROM domains ORDER BY created_at DESC,id DESC`);
   return NextResponse.json({ data: result.rows }, { headers: privateHeaders });
 }
 
-export async function POST(request: Request) {
+async function __emailgo_POST_handler(request: Request) {
   const auth = await authorize(request);
   if (auth.error) return auth.error;
   const parsed = await readJsonLimited(request, 10_000);
@@ -47,3 +48,6 @@ export async function POST(request: Request) {
   }
   return NextResponse.json({ id, domain, verification_token: verificationToken, created_at: createdAt, verified_at: null, open_tracking: false, click_tracking: false }, { status: 201, headers: privateHeaders });
 }
+
+export const GET = withApiRequestLog(__emailgo_GET_handler);
+export const POST = withApiRequestLog(__emailgo_POST_handler);

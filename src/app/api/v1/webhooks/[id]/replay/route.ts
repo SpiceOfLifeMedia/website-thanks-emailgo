@@ -1,3 +1,4 @@
+import { withApiRequestLog } from '@/lib/request-logs';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { execute, nowIso, queryOne } from '@/lib/database';
@@ -5,7 +6,7 @@ import { readJsonLimited } from '@/lib/request-json';
 
 export const runtime = 'nodejs';
 function error(message: string, status: number) { return NextResponse.json({ error: { message } }, { status }); }
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+async function __emailgo_POST_handler(request: Request, context: { params: Promise<{ id: string }> }) {
   const apiKey = await authorizeApiKey(request);
   if (!apiKey) return error('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(apiKey)) return error('This API key has sending-only access.', 403);
@@ -23,3 +24,5 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     last_status_code=NULL,last_response_excerpt=NULL,processing_started_at=NULL,delivered_at=NULL WHERE id=? AND webhook_id=? AND status=?`, [deliveryId, id, row.status]);
   return updated ? NextResponse.json({ id: deliveryId, event_id: row.event_id, status: 'pending', replayed: true }) : error('Delivery changed while it was being replayed. Refresh and try again.', 409);
 }
+
+export const POST = withApiRequestLog(__emailgo_POST_handler);

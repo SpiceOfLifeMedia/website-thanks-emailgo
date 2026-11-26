@@ -1,3 +1,4 @@
+import { withApiRequestLog } from '@/lib/request-logs';
 import { createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey } from '@/lib/auth';
@@ -18,7 +19,7 @@ function validIdempotencyKey(value: unknown): value is string {
   return typeof value === 'string' && /^[\x21-\x7E]{1,256}$/.test(value);
 }
 
-export async function POST(request: Request) {
+async function __emailgo_POST_handler(request: Request) {
   const apiKey = await authorizeApiKey(request);
   if (!apiKey) return errorResponse('Invalid or revoked API key.', 401);
 
@@ -66,3 +67,5 @@ export async function POST(request: Request) {
   const hasFailures = results.some((result) => typeof result.http_status === 'number' && (result.http_status < 200 || result.http_status >= 300));
   return NextResponse.json({ object: 'list', data: results, has_failures: hasFailures }, { status: hasFailures ? 207 : 200 });
 }
+
+export const POST = withApiRequestLog(__emailgo_POST_handler);

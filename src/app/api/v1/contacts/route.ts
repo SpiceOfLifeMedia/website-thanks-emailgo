@@ -1,3 +1,4 @@
+import { withApiRequestLog } from '@/lib/request-logs';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { execute, nowIso, query, queryOne, randomId } from '@/lib/database';
@@ -79,7 +80,7 @@ function validateContact(body: ContactBody, requireEmail: boolean): ContactValid
   return { valid: true, value: { email, name, propertiesJson, tagsJson, unsubscribed: body.unsubscribed as boolean | undefined, consentStatus: body.consent_status as 'unknown' | 'opted_in' | undefined, consentSource } };
 }
 
-export async function GET(request: Request) {
+async function __emailgo_GET_handler(request: Request) {
   const apiKey = await authorizeApiKey(request);
   if (!apiKey) return errorResponse('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(apiKey)) return errorResponse('This API key has sending-only access.', 403);
@@ -103,7 +104,7 @@ export async function GET(request: Request) {
   return NextResponse.json({ object: 'list', data: data.map(toContact), has_more: hasMore, ...(hasMore ? { next_after: data[data.length - 1]?.id } : {}) });
 }
 
-export async function POST(request: Request) {
+async function __emailgo_POST_handler(request: Request) {
   const apiKey = await authorizeApiKey(request);
   if (!apiKey) return errorResponse('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(apiKey)) return errorResponse('This API key has sending-only access.', 403);
@@ -138,3 +139,6 @@ export async function POST(request: Request) {
   if (contact.consent_status === 'opted_in') await emitWebhookEvent(apiKey.id, 'contact.subscribed', { contact_id: id, email: contact.email, consent_source: contact.consent_source, consented_at: contact.consented_at });
   return NextResponse.json(toContact(contact), { status: 201 });
 }
+
+export const GET = withApiRequestLog(__emailgo_GET_handler);
+export const POST = withApiRequestLog(__emailgo_POST_handler);

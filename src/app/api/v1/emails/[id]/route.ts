@@ -1,3 +1,4 @@
+import { withApiRequestLog } from '@/lib/request-logs';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { execute, queryOne } from '@/lib/database';
@@ -10,7 +11,7 @@ function jsonValue<T>(value: string | null, fallback: T): T {
   if (!value) return fallback;
   try { return JSON.parse(value) as T; } catch { return fallback; }
 }
-export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
+async function __emailgo_GET_handler(request: Request, context: { params: Promise<{ id: string }> }) {
   const apiKey = await authorizeApiKey(request);
   if (!apiKey) return NextResponse.json({ error: { message: 'Invalid or revoked API key.' } }, { status: 401, headers: privateHeaders });
   if (!hasFullApiAccess(apiKey)) return NextResponse.json({ error: { message: 'This API key has sending-only access.' } }, { status: 403, headers: privateHeaders });
@@ -42,7 +43,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   }, { headers: privateHeaders });
 }
 
-export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+async function __emailgo_PATCH_handler(request: Request, context: { params: Promise<{ id: string }> }) {
   const apiKey = await authorizeApiKey(request);
   if (!apiKey) return NextResponse.json({ error: { message: 'Invalid or revoked API key.' } }, { status: 401 });
   if (!hasFullApiAccess(apiKey)) return NextResponse.json({ error: { message: 'This API key has sending-only access.' } }, { status: 403 });
@@ -66,3 +67,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     FROM emails WHERE id=? AND api_key_id=?`, [id, apiKey.id]);
   return row ? NextResponse.json({ id: row.id, object: 'email', status: row.status, scheduled_at: row.scheduled_at }) : NextResponse.json({ error: { message: 'Updated email could not be read.' } }, { status: 500 });
 }
+
+export const GET = withApiRequestLog(__emailgo_GET_handler);
+export const PATCH = withApiRequestLog(__emailgo_PATCH_handler);

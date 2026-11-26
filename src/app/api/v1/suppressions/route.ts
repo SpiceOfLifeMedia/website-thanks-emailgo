@@ -1,3 +1,4 @@
+import { withApiRequestLog } from '@/lib/request-logs';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { queryOne } from '@/lib/database';
@@ -16,7 +17,7 @@ async function authorize(request: Request) {
   return { key };
 }
 
-export async function GET(request: Request) {
+async function __emailgo_GET_handler(request: Request) {
   const auth = await authorize(request);
   if (auth.error) return auth.error;
   const url = new URL(request.url);
@@ -36,7 +37,7 @@ export async function GET(request: Request) {
   return NextResponse.json({ object: 'list', data: data.map(suppressionResponse), has_more: hasMore, ...(hasMore ? { next_after: data.at(-1)?.id } : {}) }, { headers: privateHeaders });
 }
 
-export async function POST(request: Request) {
+async function __emailgo_POST_handler(request: Request) {
   const auth = await authorize(request);
   if (auth.error) return auth.error;
   const parsed = await readJsonLimited(request, 5_000);
@@ -48,3 +49,6 @@ export async function POST(request: Request) {
   if (!row) return error('The suppression could not be saved.', 500);
   return NextResponse.json({ object: 'suppression', id: row.id }, { status: 201, headers: privateHeaders });
 }
+
+export const GET = withApiRequestLog(__emailgo_GET_handler);
+export const POST = withApiRequestLog(__emailgo_POST_handler);

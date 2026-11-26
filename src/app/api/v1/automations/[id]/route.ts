@@ -1,3 +1,4 @@
+import { withApiRequestLog } from '@/lib/request-logs';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { archiveAutomation, getAutomationByKey, saveAutomation } from '@/lib/automations';
@@ -8,7 +9,7 @@ export const dynamic = 'force-dynamic';
 type Context = { params: Promise<{ id: string }> };
 function error(message: string, status: number) { return NextResponse.json({ error: { message } }, { status, headers: { 'Cache-Control': 'private, no-store' } }); }
 
-export async function GET(request: Request, context: Context) {
+async function __emailgo_GET_handler(request: Request, context: Context) {
   const key = await authorizeApiKey(request);
   if (!key) return error('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(key)) return error('This API key has sending-only access.', 403);
@@ -17,7 +18,7 @@ export async function GET(request: Request, context: Context) {
   return automation ? NextResponse.json(automation, { headers: { 'Cache-Control': 'private, no-store' } }) : error('Automation not found.', 404);
 }
 
-export async function PATCH(request: Request, context: Context) {
+async function __emailgo_PATCH_handler(request: Request, context: Context) {
   const key = await authorizeApiKey(request);
   if (!key) return error('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(key)) return error('This API key has sending-only access.', 403);
@@ -28,7 +29,7 @@ export async function PATCH(request: Request, context: Context) {
   return saved.ok ? NextResponse.json(saved.automation, { headers: { 'Cache-Control': 'private, no-store' } }) : error(saved.error, saved.status);
 }
 
-export async function DELETE(request: Request, context: Context) {
+async function __emailgo_DELETE_handler(request: Request, context: Context) {
   const key = await authorizeApiKey(request);
   if (!key) return error('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(key)) return error('This API key has sending-only access.', 403);
@@ -36,3 +37,7 @@ export async function DELETE(request: Request, context: Context) {
   const changed = await archiveAutomation(key.id, id);
   return changed ? NextResponse.json({ id, object: 'automation', status: 'archived' }, { headers: { 'Cache-Control': 'private, no-store' } }) : error('Automation not found.', 404);
 }
+
+export const GET = withApiRequestLog(__emailgo_GET_handler);
+export const PATCH = withApiRequestLog(__emailgo_PATCH_handler);
+export const DELETE = withApiRequestLog(__emailgo_DELETE_handler);

@@ -1,3 +1,4 @@
+import { withApiRequestLog } from '@/lib/request-logs';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { execute, nowIso, query, randomId } from '@/lib/database';
@@ -7,7 +8,7 @@ import { parseSegmentFilters, toSegment, type SegmentRow } from '@/lib/segments'
 export const runtime = 'nodejs';
 function errorResponse(message: string, status: number) { return NextResponse.json({ error: { message } }, { status }); }
 
-export async function GET(request: Request) {
+async function __emailgo_GET_handler(request: Request) {
   const apiKey = await authorizeApiKey(request);
   if (!apiKey) return errorResponse('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(apiKey)) return errorResponse('This API key has sending-only access.', 403);
@@ -15,7 +16,7 @@ export async function GET(request: Request) {
   return NextResponse.json({ object: 'list', data: await Promise.all(rows.rows.map(toSegment)) });
 }
 
-export async function POST(request: Request) {
+async function __emailgo_POST_handler(request: Request) {
   const apiKey = await authorizeApiKey(request);
   if (!apiKey) return errorResponse('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(apiKey)) return errorResponse('This API key has sending-only access.', 403);
@@ -34,3 +35,6 @@ export async function POST(request: Request) {
   const row = { id, name, filters_json: JSON.stringify(filters.filters), created_at: timestamp, updated_at: timestamp };
   return NextResponse.json(await toSegment(row), { status: 201 });
 }
+
+export const GET = withApiRequestLog(__emailgo_GET_handler);
+export const POST = withApiRequestLog(__emailgo_POST_handler);

@@ -1,10 +1,11 @@
+import { withApiRequestLog } from '@/lib/request-logs';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { execute, queryOne } from '@/lib/database';
 
 export const runtime = 'nodejs';
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+async function __emailgo_POST_handler(request: Request, context: { params: Promise<{ id: string }> }) {
   const apiKey = await authorizeApiKey(request);
   if (!apiKey) return NextResponse.json({ error: { message: 'Invalid or revoked API key.' } }, { status: 401 });
   if (!hasFullApiAccess(apiKey)) return NextResponse.json({ error: { message: 'This API key has sending-only access.' } }, { status: 403 });
@@ -15,3 +16,5 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (!existing) return NextResponse.json({ error: { message: 'Email not found.' } }, { status: 404 });
   return NextResponse.json({ error: { message: 'Only scheduled emails can be canceled.' } }, { status: 409 });
 }
+
+export const POST = withApiRequestLog(__emailgo_POST_handler);

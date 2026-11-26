@@ -21,6 +21,20 @@ export interface EmailgoList<T = JsonObject> {
   next_after?: string;
   next_before?: string;
 }
+export interface EmailgoLog {
+  id: string;
+  object: 'log';
+  created_at: string;
+  endpoint: string;
+  method: string;
+  response_status: number;
+  user_agent: string | null;
+  request_bytes: number | null;
+  response_bytes: number | null;
+  api_key?: { name: string | null; prefix: string | null };
+  request_body?: JsonObject | unknown[] | null;
+  response_body?: JsonObject | unknown[] | null;
+}
 export interface EmailgoKeyInput extends JsonObject {
   name: string;
   permission?: 'full_access' | 'sending_access';
@@ -91,4 +105,5 @@ export declare class Emailgo {
   webhooks: { list(): Promise<EmailgoResult<EmailgoList>>; create(body: JsonObject): Promise<EmailgoResult<JsonObject>>; get(id: string): Promise<EmailgoResult<JsonObject>>; update(id: string, body: JsonObject): Promise<EmailgoResult<JsonObject>>; delete(id: string): Promise<EmailgoResult<JsonObject>>; deliveries(id: string, query?: EmailgoQuery): Promise<EmailgoResult<EmailgoList>>; replay(id: string, body: JsonObject): Promise<EmailgoResult<JsonObject>>; rotateSecret(id: string): Promise<EmailgoResult<JsonObject>> };
   suppressions: { list(query?: EmailgoQuery): Promise<EmailgoResult<EmailgoList>>; add(email: string): Promise<EmailgoResult<JsonObject>>; batchAdd(emails: string[]): Promise<EmailgoResult<EmailgoList>>; get(identifier: string): Promise<EmailgoResult<JsonObject>>; remove(identifier: string): Promise<EmailgoResult<JsonObject>>; batchRemove(emails: string[]): Promise<EmailgoResult<EmailgoList>> };
   usage: { get(): Promise<EmailgoResult<JsonObject>> };
+  logs: { list(query?: EmailgoQuery): Promise<EmailgoResult<EmailgoList<EmailgoLog>>>; get(id: string): Promise<EmailgoResult<EmailgoLog>> };
 }

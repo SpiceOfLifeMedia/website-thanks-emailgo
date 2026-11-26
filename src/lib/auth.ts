@@ -4,6 +4,16 @@ import { execute, hashSecret, nowIso, queryOne } from '@/lib/database';
 
 const SESSION_COOKIE = 'emailgo_session';
 const SESSION_HOURS = 8;
+type AuthorizedRequestKey = { id: string; name: string; prefix: string };
+const authorizedRequestKeys = new WeakMap<Request, AuthorizedRequestKey>();
+
+export function getAuthorizedRequestKeyId(request: Request) {
+  return authorizedRequestKeys.get(request)?.id ?? null;
+}
+
+export function getAuthorizedRequestKey(request: Request) {
+  return authorizedRequestKeys.get(request) ?? null;
+}
 
 function adminPassword() { return process.env.EMAILGO_ADMIN_PASSWORD; }
 function sessionSecret() { return process.env.EMAILGO_SESSION_SECRET || adminPassword(); }
@@ -72,12 +82,13 @@ export async function authorizeApiKey(request: Request) {
   if (!match) return null;
   const secret = match[1];
   const prefix = secret.slice(0, 20);
-  const row = await queryOne<{ id: string; secret_hash: string; permission: string; domain_id: string | null }>('SELECT id, secret_hash, permission, domain_id FROM api_keys WHERE prefix = ? AND revoked_at IS NULL', [prefix]);
+  const row = await queryOne<{ id: string; name: string; prefix: string; secret_hash: string; permission: string; domain_id: string | null }>('SELECT id, name, prefix, secret_hash, permission, domain_id FROM api_keys WHERE prefix = ? AND revoked_at IS NULL', [prefix]);
   if (!row) return null;
   const supplied = Buffer.from(hashSecret(secret));
   const stored = Buffer.from(row.secret_hash);
   if (supplied.length !== stored.length || !timingSafeEqual(supplied, stored)) return null;
   await execute('UPDATE api_keys SET last_used_at = ? WHERE id = ?', [nowIso(), row.id]);
+  authorizedRequestKeys.set(request, { id: row.id, name: row.name, prefix: row.prefix });
   return { id: row.id, permission: row.permission === 'sending_access' ? 'sending_access' as const : 'full_access' as const, domainId: row.domain_id };
 }
 

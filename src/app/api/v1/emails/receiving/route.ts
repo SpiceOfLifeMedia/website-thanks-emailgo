@@ -1,3 +1,4 @@
+import { withApiRequestLog } from '@/lib/request-logs';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { query, queryOne } from '@/lib/database';
@@ -11,7 +12,7 @@ function error(message: string, status: number) {
   return NextResponse.json({ error: { message } }, { status, headers: privateHeaders });
 }
 
-export async function GET(request: Request) {
+async function __emailgo_GET_handler(request: Request) {
   const key = await authorizeApiKey(request);
   if (!key) return error('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(key)) return error('This API key has sending-only access.', 403);
@@ -38,3 +39,5 @@ function jsonArray(value: string | undefined) {
   if (!value) return [];
   try { return JSON.parse(value) as string[]; } catch { return []; }
 }
+
+export const GET = withApiRequestLog(__emailgo_GET_handler);

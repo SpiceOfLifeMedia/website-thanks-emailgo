@@ -6,6 +6,7 @@ import { WebhooksWorkspace } from '@/components/webhook-workspace';
 import { ReceivingWorkspace } from '@/components/receiving-workspace';
 import { AutomationWorkspace } from '@/components/automation-workspace';
 import { SuppressionsWorkspace } from '@/components/suppression-workspace';
+import { RequestLogsWorkspace } from '@/components/request-logs-workspace';
 
 type Email = { id: string; from: string; to: string[]; subject: string; status: string; error_message: string | null; provider_id: string | null; scheduled_at: string | null; open_count: number; click_count: number; created_at: string };
 type EmailDetail = { id: string; from: string; to: string[]; cc: string[]; bcc: string[]; reply_to: string | null; headers: Record<string, string>; tags: Array<{ name: string; value: string }>; attachments: Array<{ filename: string; contentType?: string; contentId?: string }>; subject: string; text: string | null; html: string | null; status: string; error: string | null; relay_response: string | null; message_id: string | null; scheduled_at: string | null; created_at: string };
@@ -13,8 +14,8 @@ type ApiKey = { id: string; name: string; prefix: string; permission: 'full_acce
 type Domain = { id: string; domain: string; verification_token: string; created_at: string; verified_at: string | null; open_tracking: boolean; click_tracking: boolean };
 type DnsCheck = { checked_at: string; records: { spf: { status: string; host: string; values: string[] }; dmarc: { status: string; host: string; values: string[] }; mx: { status: string; values: Array<{ host: string; priority: number }> }; dkim: { status: string; message: string } } };
 type Dashboard = { smtpConfigured: boolean; scheduledSendsEnabled: boolean; trackingConfigured: boolean; webhookSigningConfigured: boolean; preferencesConfigured: boolean; emails: Email[]; keys: ApiKey[]; domains: Domain[]; metrics: { total: number; sent: number; failed: number; opens: number; clicks: number } };
-type View = 'Overview' | 'Emails' | 'Suppressions' | 'Receiving' | 'Broadcasts' | 'Automations' | 'Domains' | 'API keys' | 'Templates' | 'Contacts' | 'Segments' | 'Topics' | 'Webhooks' | 'Quickstart' | 'Settings';
-const navigation: View[] = ['Overview', 'Emails', 'Suppressions', 'Receiving', 'Broadcasts', 'Automations', 'Domains', 'API keys', 'Templates', 'Contacts', 'Segments', 'Topics', 'Webhooks', 'Quickstart', 'Settings'];
+type View = 'Overview' | 'Emails' | 'Logs' | 'Suppressions' | 'Receiving' | 'Broadcasts' | 'Automations' | 'Domains' | 'API keys' | 'Templates' | 'Contacts' | 'Segments' | 'Topics' | 'Webhooks' | 'Quickstart' | 'Settings';
+const navigation: View[] = ['Overview', 'Emails', 'Logs', 'Suppressions', 'Receiving', 'Broadcasts', 'Automations', 'Domains', 'API keys', 'Templates', 'Contacts', 'Segments', 'Topics', 'Webhooks', 'Quickstart', 'Settings'];
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, { ...init, headers: { ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers } });
@@ -28,6 +29,7 @@ function Icon({ name }: { name: string }) {
   const paths: Record<string, string> = {
     overview: 'M3 3h8v8H3z M14 3h7v5h-7z M14 11h7v10h-7z M3 14h8v7H3z',
     emails: 'M3 5h18v14H3z M3 6l9 7 9-7',
+    logs: 'M5 4h14v16H5z M8 8h8 M8 12h8 M8 16h5',
     suppressions: 'M12 3 20 6v5c0 5.2-3.4 8.5-8 10-4.6-1.5-8-4.8-8-10V6z M8.5 12h7',
     receiving: 'M4 4h16v12H4z M8 20h8 M12 16v4 M7 9h10 M7 12h6',
     campaigns: 'M4 4h16v16H4z M8 8h8 M8 12h8 M8 16h5',
@@ -203,11 +205,11 @@ export default function Home() {
   const metrics = dashboard?.metrics ?? { total: 0, sent: 0, failed: 0, opens: 0, clicks: 0 };
   return <div className="appShell">
     <a className="skipLink" href="#main">Skip to content</a>
-    <aside className="sidebar"><a className="wordmark" href="#overview"><span className="mark">e</span><span>Emailgo<small>EMAIL DELIVERY</small></span></a><div className="workspaceLabel">WORKSPACE</div><nav aria-label="Workspace navigation">{navigation.map((item) => <button key={item} className={`navLink ${view === item ? 'active' : ''}`} onClick={() => setView(item)} aria-current={view === item ? 'page' : undefined}><Icon name={{Overview:'overview',Emails:'emails',Suppressions:'suppressions',Receiving:'receiving',Broadcasts:'campaigns',Automations:'automations',Domains:'domains','API keys':'keys',Templates:'templates',Contacts:'contacts',Segments:'segments',Topics:'topics',Webhooks:'webhooks',Quickstart:'docs',Settings:'settings'}[item]} />{item}</button>)}</nav><div className="sideFooter"><div className="workspaceAvatar">WT</div><div className="workspaceUser">Website Thanks<small>Owner workspace</small></div><button className="logoutButton" onClick={logout} aria-label="Sign out">↗</button></div></aside>
+    <aside className="sidebar"><a className="wordmark" href="#overview"><span className="mark">e</span><span>Emailgo<small>EMAIL DELIVERY</small></span></a><div className="workspaceLabel">WORKSPACE</div><nav aria-label="Workspace navigation">{navigation.map((item) => <button key={item} className={`navLink ${view === item ? 'active' : ''}`} onClick={() => setView(item)} aria-current={view === item ? 'page' : undefined}><Icon name={{Overview:'overview',Emails:'emails',Logs:'logs',Suppressions:'suppressions',Receiving:'receiving',Broadcasts:'campaigns',Automations:'automations',Domains:'domains','API keys':'keys',Templates:'templates',Contacts:'contacts',Segments:'segments',Topics:'topics',Webhooks:'webhooks',Quickstart:'docs',Settings:'settings'}[item]} />{item}</button>)}</nav><div className="sideFooter"><div className="workspaceAvatar">WT</div><div className="workspaceUser">Website Thanks<small>Owner workspace</small></div><button className="logoutButton" onClick={logout} aria-label="Sign out">↗</button></div></aside>
     <dialog ref={mobileMenuRef} className="mobileNavDialog" aria-labelledby="mobileMenuTitle" onClose={() => setMenuOpen(false)}>
       <div className="mobileNavHeader"><a className="wordmark" href="#overview"><span className="mark">e</span><span>Emailgo<small>EMAIL DELIVERY</small></span></a><button className="mobileMenuClose" onClick={() => setMenuOpen(false)} aria-label="Close menu">×</button></div>
       <div className="workspaceLabel" id="mobileMenuTitle">WORKSPACE</div>
-      <nav aria-label="Mobile workspace navigation">{navigation.map((item) => <button key={item} className={`navLink ${view === item ? 'active' : ''}`} onClick={() => { setView(item); setMenuOpen(false); }} aria-current={view === item ? 'page' : undefined}><Icon name={{Overview:'overview',Emails:'emails',Suppressions:'suppressions',Receiving:'receiving',Broadcasts:'campaigns',Automations:'automations',Domains:'domains','API keys':'keys',Templates:'templates',Contacts:'contacts',Segments:'segments',Topics:'topics',Webhooks:'webhooks',Quickstart:'docs',Settings:'settings'}[item]} />{item}</button>)}</nav>
+      <nav aria-label="Mobile workspace navigation">{navigation.map((item) => <button key={item} className={`navLink ${view === item ? 'active' : ''}`} onClick={() => { setView(item); setMenuOpen(false); }} aria-current={view === item ? 'page' : undefined}><Icon name={{Overview:'overview',Emails:'emails',Logs:'logs',Suppressions:'suppressions',Receiving:'receiving',Broadcasts:'campaigns',Automations:'automations',Domains:'domains','API keys':'keys',Templates:'templates',Contacts:'contacts',Segments:'segments',Topics:'topics',Webhooks:'webhooks',Quickstart:'docs',Settings:'settings'}[item]} />{item}</button>)}</nav>
       <div className="mobileNavFooter"><div><strong>Website Thanks</strong><small>Owner workspace</small></div><button className="outlineButton" onClick={() => void logout()}>Sign out</button></div>
     </dialog>
     <main className="mainArea" id="main"><header className="topbar"><button className="mobileMenuButton" onClick={() => setMenuOpen(true)} aria-haspopup="dialog" aria-expanded={menuOpen} aria-label="Open workspace menu"><span></span><span></span><span></span></button><div className="crumb">Workspace <span>/</span> <strong>{view}</strong></div><div className="topbarRight"><span className={`serviceState ${dashboard?.smtpConfigured ? 'ready' : ''}`}>{dashboard?.smtpConfigured ? 'SMTP configured' : 'SMTP setup needed'}</span><button className="userBadge" aria-label="Website Thanks account">WT</button></div></header>
@@ -231,6 +233,7 @@ export default function Home() {
           </div>
         </>}
         {view === 'Suppressions' && <SuppressionsWorkspace />}
+        {view === 'Logs' && <RequestLogsWorkspace />}
         {view === 'Receiving' && <ReceivingWorkspace />}
         {view === 'Broadcasts' && <BroadcastsWorkspace apiKeys={dashboard?.keys ?? []} domains={dashboard?.domains ?? []} canQueue={Boolean(dashboard?.smtpConfigured && dashboard?.scheduledSendsEnabled && dashboard?.preferencesConfigured)} />}
         {view === 'Automations' && <AutomationWorkspace apiKeys={dashboard?.keys ?? []} domains={dashboard?.domains ?? []} />}

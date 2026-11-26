@@ -1,3 +1,4 @@
+import { withApiRequestLog } from '@/lib/request-logs';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { emitAutomationEvent } from '@/lib/automations';
@@ -10,7 +11,7 @@ const emailPattern = /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/;
 const eventPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,149}$/;
 function error(message: string, status: number) { return NextResponse.json({ error: { message } }, { status, headers: { 'Cache-Control': 'private, no-store' } }); }
 
-export async function GET(request: Request) {
+async function __emailgo_GET_handler(request: Request) {
   const key = await authorizeApiKey(request);
   if (!key) return error('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(key)) return error('This API key has sending-only access.', 403);
@@ -18,7 +19,7 @@ export async function GET(request: Request) {
   return NextResponse.json({ object: 'list', data: rows.rows }, { headers: { 'Cache-Control': 'private, no-store' } });
 }
 
-export async function POST(request: Request) {
+async function __emailgo_POST_handler(request: Request) {
   const key = await authorizeApiKey(request);
   if (!key) return error('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(key)) return error('This API key has sending-only access.', 403);
@@ -47,3 +48,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ id: result.eventId, object: 'event', event, run_ids: result.runIds, duplicate: result.duplicate }, { status: result.duplicate ? 200 : 201, headers: { 'Cache-Control': 'private, no-store' } });
   } catch { return error('Could not record automation event.', 500); }
 }
+
+export const GET = withApiRequestLog(__emailgo_GET_handler);
+export const POST = withApiRequestLog(__emailgo_POST_handler);

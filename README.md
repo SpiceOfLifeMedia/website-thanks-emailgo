@@ -40,6 +40,10 @@ Open `http://localhost:3000`. The SQLite database is created under `./data`. Wit
 
 The repository includes a dependency-free Node.js client at `packages/emailgo-sdk`, a shell-friendly CLI, and an OpenAPI document at `GET /api/v1/openapi.json`. Run `npm run emailgo -- --help` to see CLI commands. Set `EMAILGO_BASE_URL` and `EMAILGO_API_KEY` in your local shell; the CLI reads the key from the environment and does not save it to a profile file. These tools cover the API currently implemented in this repository. The SDK is source-only and is not published to npm.
 
+Full-access keys can inspect API request logs with `GET /api/v1/logs` and `GET /api/v1/logs/{log_id}`. Requests that authenticate successfully receive an `x-request-id` header matching the log ID. Bodies are capped at 64 KiB and sanitized before persistence: recipient addresses, names, message content, attachments, headers, contact properties, and credentials are redacted; only the sender domain is retained. Request and response headers are not stored. Non-JSON bodies are omitted, and bodies larger than the cap are marked truncated. The dashboard supports status and ID/endpoint search, detail views, and filtered CSV export. Logs currently have no automatic retention policy.
+
+`GET /api/v1/usage` reports current daily and monthly sent/received counts, contacts, segments, broadcasts, domains and automation runs, with UTC reset times. This self-hosted app does not have subscription plans, billing quotas, or AI credits, so quota limits are reported as `null`. Its existing send limit is 60 requests per minute per API key, rather than a team-wide limit.
+
 Create a key in **API keys**, verify a domain in **Domains**, then send:
 
 ```sh

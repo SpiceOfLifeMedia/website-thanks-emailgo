@@ -1,3 +1,4 @@
+import { withApiRequestLog } from '@/lib/request-logs';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { query, queryOne } from '@/lib/database';
@@ -14,7 +15,7 @@ function toContact(row: ContactRow) {
   return { id: row.id, object: 'contact', email: row.email, name: row.name, properties, tags, unsubscribed: Boolean(row.unsubscribed_at), consent_status: row.consent_status, consent_source: row.consent_source, consented_at: row.consented_at, ...(row.unsubscribed_at ? { unsubscribed_at: row.unsubscribed_at } : {}), created_at: row.created_at, updated_at: row.updated_at };
 }
 
-export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
+async function __emailgo_GET_handler(request: Request, context: { params: Promise<{ id: string }> }) {
   const apiKey = await authorizeApiKey(request);
   if (!apiKey) return errorResponse('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(apiKey)) return errorResponse('This API key has sending-only access.', 403);
@@ -43,3 +44,5 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const data = rows.slice(0, limit);
   return NextResponse.json({ object: 'list', data: data.map(toContact), has_more: hasMore, ...(hasMore ? { next_after: data.at(-1)?.id } : {}) });
 }
+
+export const GET = withApiRequestLog(__emailgo_GET_handler);

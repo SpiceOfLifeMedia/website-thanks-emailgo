@@ -1,3 +1,4 @@
+import { withApiRequestLog } from '@/lib/request-logs';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { execute, queryOne, nowIso } from '@/lib/database';
@@ -7,7 +8,7 @@ import { toTopic, validateTopicBody, type TopicRow } from '@/lib/topics';
 export const runtime = 'nodejs';
 function error(message: string, status: number) { return NextResponse.json({ error: { message } }, { status }); }
 
-export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
+async function __emailgo_GET_handler(request: Request, context: { params: Promise<{ id: string }> }) {
   const apiKey = await authorizeApiKey(request);
   if (!apiKey) return error('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(apiKey)) return error('This API key has sending-only access.', 403);
@@ -16,7 +17,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   return row ? NextResponse.json(await toTopic(row)) : error('Topic not found.', 404);
 }
 
-export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+async function __emailgo_PATCH_handler(request: Request, context: { params: Promise<{ id: string }> }) {
   const apiKey = await authorizeApiKey(request);
   if (!apiKey) return error('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(apiKey)) return error('This API key has sending-only access.', 403);
@@ -33,7 +34,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   return NextResponse.json(await toTopic({ id, ...validated.value, created_at: current.created_at, updated_at: updatedAt }));
 }
 
-export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
+async function __emailgo_DELETE_handler(request: Request, context: { params: Promise<{ id: string }> }) {
   const apiKey = await authorizeApiKey(request);
   if (!apiKey) return error('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(apiKey)) return error('This API key has sending-only access.', 403);
@@ -42,3 +43,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   const changed = await execute('UPDATE topics SET disabled_at=?,updated_at=? WHERE id=? AND disabled_at IS NULL', [disabledAt, disabledAt, id]);
   return changed ? NextResponse.json({ object: 'topic', id, archived: true }) : error('Topic not found.', 404);
 }
+
+export const GET = withApiRequestLog(__emailgo_GET_handler);
+export const PATCH = withApiRequestLog(__emailgo_PATCH_handler);
+export const DELETE = withApiRequestLog(__emailgo_DELETE_handler);

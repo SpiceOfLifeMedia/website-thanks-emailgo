@@ -1,3 +1,4 @@
+import { withApiRequestLog } from '@/lib/request-logs';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { contactPropertyResponse, deleteContactProperty, getContactProperty, parseContactPropertyValue, updateContactProperty, type ContactPropertyType } from '@/lib/contact-properties';
@@ -13,7 +14,7 @@ async function authorize(request: Request) {
   return { key };
 }
 
-export async function GET(request: Request, context: { params: Promise<{ key: string }> }) {
+async function __emailgo_GET_handler(request: Request, context: { params: Promise<{ key: string }> }) {
   const auth = await authorize(request);
   if (auth.error) return auth.error;
   const { key } = await context.params;
@@ -21,7 +22,7 @@ export async function GET(request: Request, context: { params: Promise<{ key: st
   return row ? NextResponse.json(contactPropertyResponse(row), { headers: privateHeaders }) : error('Contact property not found.', 404);
 }
 
-export async function PATCH(request: Request, context: { params: Promise<{ key: string }> }) {
+async function __emailgo_PATCH_handler(request: Request, context: { params: Promise<{ key: string }> }) {
   const auth = await authorize(request);
   if (auth.error) return auth.error;
   const { key } = await context.params;
@@ -46,10 +47,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ key: 
   return updated ? NextResponse.json(contactPropertyResponse(updated), { headers: privateHeaders }) : error('Contact property not found.', 404);
 }
 
-export async function DELETE(request: Request, context: { params: Promise<{ key: string }> }) {
+async function __emailgo_DELETE_handler(request: Request, context: { params: Promise<{ key: string }> }) {
   const auth = await authorize(request);
   if (auth.error) return auth.error;
   const { key } = await context.params;
   if (!await deleteContactProperty(key)) return error('Contact property not found.', 404);
   return NextResponse.json({ id: key, object: 'contact_property', deleted: true, contact_values_preserved: true }, { headers: privateHeaders });
 }
+
+export const GET = withApiRequestLog(__emailgo_GET_handler);
+export const PATCH = withApiRequestLog(__emailgo_PATCH_handler);
+export const DELETE = withApiRequestLog(__emailgo_DELETE_handler);

@@ -1,3 +1,4 @@
+import { withApiRequestLog } from '@/lib/request-logs';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { execute, queryOne } from '@/lib/database';
@@ -19,7 +20,7 @@ async function authorize(request: Request) {
   return { key };
 }
 
-export async function GET(request: Request, context: DomainContext) {
+async function __emailgo_GET_handler(request: Request, context: DomainContext) {
   const auth = await authorize(request);
   if (auth.error) return auth.error;
   const { id } = await context.params;
@@ -27,7 +28,7 @@ export async function GET(request: Request, context: DomainContext) {
   return domain ? NextResponse.json(domain, { headers: privateHeaders }) : apiError('Sender domain not found.', 404);
 }
 
-export async function PATCH(request: Request, context: DomainContext) {
+async function __emailgo_PATCH_handler(request: Request, context: DomainContext) {
   const auth = await authorize(request);
   if (auth.error) return auth.error;
   const { id } = await context.params;
@@ -47,7 +48,7 @@ export async function PATCH(request: Request, context: DomainContext) {
   return NextResponse.json({ id, domain: domain.domain, open_tracking: openTracking, click_tracking: clickTracking }, { headers: privateHeaders });
 }
 
-export async function DELETE(request: Request, context: DomainContext) {
+async function __emailgo_DELETE_handler(request: Request, context: DomainContext) {
   const auth = await authorize(request);
   if (auth.error) return auth.error;
   const { id } = await context.params;
@@ -58,3 +59,7 @@ export async function DELETE(request: Request, context: DomainContext) {
   await execute('DELETE FROM domains WHERE id=?', [id]);
   return NextResponse.json({ id, deleted: true }, { headers: privateHeaders });
 }
+
+export const GET = withApiRequestLog(__emailgo_GET_handler);
+export const PATCH = withApiRequestLog(__emailgo_PATCH_handler);
+export const DELETE = withApiRequestLog(__emailgo_DELETE_handler);

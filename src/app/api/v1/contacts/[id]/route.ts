@@ -1,3 +1,4 @@
+import { withApiRequestLog } from '@/lib/request-logs';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { execute, nowIso, queryOne } from '@/lib/database';
@@ -41,7 +42,7 @@ function toContact(row: ContactRow) {
   };
 }
 
-export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
+async function __emailgo_GET_handler(request: Request, context: { params: Promise<{ id: string }> }) {
   const apiKey = await authorizeApiKey(request);
   if (!apiKey) return errorResponse('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(apiKey)) return errorResponse('This API key has sending-only access.', 403);
@@ -50,7 +51,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   return contact ? NextResponse.json(toContact(contact)) : errorResponse('Contact not found.', 404);
 }
 
-export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+async function __emailgo_PATCH_handler(request: Request, context: { params: Promise<{ id: string }> }) {
   const apiKey = await authorizeApiKey(request);
   if (!apiKey) return errorResponse('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(apiKey)) return errorResponse('This API key has sending-only access.', 403);
@@ -106,7 +107,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   return updated ? NextResponse.json(toContact(updated)) : errorResponse('The updated contact could not be read.', 500);
 }
 
-export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
+async function __emailgo_DELETE_handler(request: Request, context: { params: Promise<{ id: string }> }) {
   const apiKey = await authorizeApiKey(request);
   if (!apiKey) return errorResponse('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(apiKey)) return errorResponse('This API key has sending-only access.', 403);
@@ -118,3 +119,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   await emitWebhookEvent(apiKey.id, 'contact.deleted', { contact_id: id, email: contact.email });
   return NextResponse.json({ object: 'contact', id, deleted: true });
 }
+
+export const GET = withApiRequestLog(__emailgo_GET_handler);
+export const PATCH = withApiRequestLog(__emailgo_PATCH_handler);
+export const DELETE = withApiRequestLog(__emailgo_DELETE_handler);

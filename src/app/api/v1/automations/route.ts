@@ -1,3 +1,4 @@
+import { withApiRequestLog } from '@/lib/request-logs';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { listAutomationsByKey, saveAutomation } from '@/lib/automations';
@@ -7,7 +8,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 function error(message: string, status: number) { return NextResponse.json({ error: { message } }, { status, headers: { 'Cache-Control': 'private, no-store' } }); }
 
-export async function GET(request: Request) {
+async function __emailgo_GET_handler(request: Request) {
   const key = await authorizeApiKey(request);
   if (!key) return error('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(key)) return error('This API key has sending-only access.', 403);
@@ -15,7 +16,7 @@ export async function GET(request: Request) {
   return NextResponse.json({ object: 'list', data }, { headers: { 'Cache-Control': 'private, no-store' } });
 }
 
-export async function POST(request: Request) {
+async function __emailgo_POST_handler(request: Request) {
   const key = await authorizeApiKey(request);
   if (!key) return error('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(key)) return error('This API key has sending-only access.', 403);
@@ -25,3 +26,6 @@ export async function POST(request: Request) {
   if (!saved.ok) return error(saved.error, saved.status);
   return NextResponse.json(saved.automation, { status: 201, headers: { 'Cache-Control': 'private, no-store' } });
 }
+
+export const GET = withApiRequestLog(__emailgo_GET_handler);
+export const POST = withApiRequestLog(__emailgo_POST_handler);

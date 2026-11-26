@@ -1,10 +1,11 @@
+import { withApiRequestLog } from '@/lib/request-logs';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { execute, nowIso, queryOne } from '@/lib/database';
 import { getWebhookSecret, webhookMasterSecret } from '@/lib/webhooks';
 
 export const runtime = 'nodejs';
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+async function __emailgo_POST_handler(request: Request, context: { params: Promise<{ id: string }> }) {
   const apiKey = await authorizeApiKey(request);
   if (!apiKey) return NextResponse.json({ error: { message: 'Invalid or revoked API key.' } }, { status: 401 });
   if (!hasFullApiAccess(apiKey)) return NextResponse.json({ error: { message: 'This API key has sending-only access.' } }, { status: 403 });
@@ -16,3 +17,5 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   await execute('UPDATE webhooks SET secret_generation=?,updated_at=? WHERE id=? AND api_key_id=? AND disabled_at IS NULL', [generation, nowIso(), id, apiKey.id]);
   return NextResponse.json({ id, secret: getWebhookSecret(id, generation), message: 'Save this signing secret now. It is shown only once.' });
 }
+
+export const POST = withApiRequestLog(__emailgo_POST_handler);

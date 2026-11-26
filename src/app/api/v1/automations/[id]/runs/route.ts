@@ -1,3 +1,4 @@
+import { withApiRequestLog } from '@/lib/request-logs';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { query, queryOne } from '@/lib/database';
@@ -6,7 +7,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 type Context = { params: Promise<{ id: string }> };
 
-export async function GET(request: Request, context: Context) {
+async function __emailgo_GET_handler(request: Request, context: Context) {
   const key = await authorizeApiKey(request);
   if (!key) return NextResponse.json({ error: { message: 'Invalid or revoked API key.' } }, { status: 401 });
   if (!hasFullApiAccess(key)) return NextResponse.json({ error: { message: 'This API key has sending-only access.' } }, { status: 403 });
@@ -27,3 +28,5 @@ export async function GET(request: Request, context: Context) {
   const data = rows.rows.slice(0, limit);
   return NextResponse.json({ object: 'list', data, has_more: hasMore, ...(hasMore ? { next_after: data.at(-1)?.id } : {}) }, { headers: { 'Cache-Control': 'private, no-store' } });
 }
+
+export const GET = withApiRequestLog(__emailgo_GET_handler);

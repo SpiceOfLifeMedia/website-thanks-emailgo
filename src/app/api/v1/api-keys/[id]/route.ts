@@ -1,3 +1,4 @@
+import { withApiRequestLog } from '@/lib/request-logs';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { execute, nowIso, queryOne } from '@/lib/database';
@@ -18,7 +19,7 @@ async function requireFullAccess(request: Request) {
   return { key };
 }
 
-export async function GET(request: Request, context: KeyContext) {
+async function __emailgo_GET_handler(request: Request, context: KeyContext) {
   const auth = await requireFullAccess(request);
   if (auth.error) return auth.error;
   const { id } = await context.params;
@@ -27,7 +28,7 @@ export async function GET(request: Request, context: KeyContext) {
   return NextResponse.json(key, { headers: privateHeaders });
 }
 
-export async function PATCH(request: Request, context: KeyContext) {
+async function __emailgo_PATCH_handler(request: Request, context: KeyContext) {
   const auth = await requireFullAccess(request);
   if (auth.error) return auth.error;
   const { id } = await context.params;
@@ -44,10 +45,14 @@ export async function PATCH(request: Request, context: KeyContext) {
   return key ? NextResponse.json(key, { headers: privateHeaders }) : apiError('API key not found.', 404);
 }
 
-export async function DELETE(request: Request, context: KeyContext) {
+async function __emailgo_DELETE_handler(request: Request, context: KeyContext) {
   const auth = await requireFullAccess(request);
   if (auth.error) return auth.error;
   const { id } = await context.params;
   const revoked = await execute('UPDATE api_keys SET revoked_at=? WHERE id=? AND revoked_at IS NULL', [nowIso(), id]);
   return revoked ? NextResponse.json({ id, deleted: true }, { headers: privateHeaders }) : apiError('API key not found.', 404);
 }
+
+export const GET = withApiRequestLog(__emailgo_GET_handler);
+export const PATCH = withApiRequestLog(__emailgo_PATCH_handler);
+export const DELETE = withApiRequestLog(__emailgo_DELETE_handler);

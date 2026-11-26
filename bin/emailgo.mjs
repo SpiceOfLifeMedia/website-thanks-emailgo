@@ -32,6 +32,8 @@ Common commands:
   webhooks list|create|get|update|delete|deliveries|replay|rotate-secret [id] [--data JSON]
   suppressions list|add|get|remove|batch-add|batch-remove [email|id] [--data JSON]
   usage get
+  logs list [--limit 20] [--after id|--before id]
+  logs get <log_id>
 `;
 
 const args = process.argv.slice(2);
@@ -128,6 +130,7 @@ const resourceRoutes = {
     'batch-add': ['POST', '/api/v1/suppressions/batch'], 'batch-remove': ['DELETE', '/api/v1/suppressions/batch'],
   },
   usage: { get: ['GET', '/api/v1/usage'] },
+  logs: { list: ['GET', withQuery('/api/v1/logs')], get: ['GET', item('/api/v1/logs')] },
 };
 
 const route = resourceRoutes[resource]?.[action];

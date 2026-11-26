@@ -1,3 +1,4 @@
+import { withApiRequestLog } from '@/lib/request-logs';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { execute, nowIso, query, randomId } from '@/lib/database';
@@ -7,7 +8,7 @@ import { toTopic, validateTopicBody, type TopicRow } from '@/lib/topics';
 export const runtime = 'nodejs';
 function error(message: string, status: number) { return NextResponse.json({ error: { message } }, { status }); }
 
-export async function GET(request: Request) {
+async function __emailgo_GET_handler(request: Request) {
   const apiKey = await authorizeApiKey(request);
   if (!apiKey) return error('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(apiKey)) return error('This API key has sending-only access.', 403);
@@ -15,7 +16,7 @@ export async function GET(request: Request) {
   return NextResponse.json({ object: 'list', data: await Promise.all(rows.rows.map(toTopic)) });
 }
 
-export async function POST(request: Request) {
+async function __emailgo_POST_handler(request: Request) {
   const apiKey = await authorizeApiKey(request);
   if (!apiKey) return error('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(apiKey)) return error('This API key has sending-only access.', 403);
@@ -29,3 +30,6 @@ export async function POST(request: Request) {
   catch { return error('A topic with that name or slug already exists.', 409); }
   return NextResponse.json(await toTopic({ id, ...validated.value, created_at: timestamp, updated_at: timestamp }), { status: 201 });
 }
+
+export const GET = withApiRequestLog(__emailgo_GET_handler);
+export const POST = withApiRequestLog(__emailgo_POST_handler);

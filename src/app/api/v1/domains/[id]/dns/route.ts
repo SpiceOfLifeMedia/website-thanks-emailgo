@@ -1,3 +1,4 @@
+import { withApiRequestLog } from '@/lib/request-logs';
 import { resolveMx, resolveTxt } from 'node:dns/promises';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
@@ -12,7 +13,7 @@ async function txtRecords(host: string) {
   catch { return []; }
 }
 
-export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
+async function __emailgo_GET_handler(request: Request, context: { params: Promise<{ id: string }> }) {
   const key = await authorizeApiKey(request);
   if (!key) return NextResponse.json({ error: { message: 'Invalid or revoked API key.' } }, { status: 401, headers: privateHeaders });
   if (!hasFullApiAccess(key)) return NextResponse.json({ error: { message: 'This API key has sending-only access.' } }, { status: 403, headers: privateHeaders });
@@ -38,3 +39,5 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     },
   }, { headers: privateHeaders });
 }
+
+export const GET = withApiRequestLog(__emailgo_GET_handler);

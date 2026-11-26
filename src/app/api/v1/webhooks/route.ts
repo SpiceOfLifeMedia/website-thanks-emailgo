@@ -1,3 +1,4 @@
+import { withApiRequestLog } from '@/lib/request-logs';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { execute, nowIso, query, queryOne, randomId } from '@/lib/database';
@@ -10,7 +11,7 @@ type HookRow = { id: string; endpoint: string; events_json: string; secret_gener
 function error(message: string, status: number) { return NextResponse.json({ error: { message } }, { status }); }
 function format(row: HookRow) { return { id: row.id, object: 'webhook', endpoint: row.endpoint, events: JSON.parse(row.events_json) as string[], created_at: row.created_at, updated_at: row.updated_at }; }
 
-export async function GET(request: Request) {
+async function __emailgo_GET_handler(request: Request) {
   const apiKey = await authorizeApiKey(request);
   if (!apiKey) return error('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(apiKey)) return error('This API key has sending-only access.', 403);
@@ -34,7 +35,7 @@ export async function GET(request: Request) {
   return NextResponse.json({ object: 'list', data: data.map(format), has_more: hasMore, ...(hasMore ? { next_after: data.at(-1)?.id } : {}) });
 }
 
-export async function POST(request: Request) {
+async function __emailgo_POST_handler(request: Request) {
   const apiKey = await authorizeApiKey(request);
   if (!apiKey) return error('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(apiKey)) return error('This API key has sending-only access.', 403);
@@ -54,3 +55,6 @@ export async function POST(request: Request) {
   await execute('INSERT INTO webhooks(id,api_key_id,endpoint,events_json,secret_generation,created_at,updated_at) VALUES(?,?,?,?,1,?,?)', [id, apiKey.id, endpoint, JSON.stringify(events), timestamp, timestamp]);
   return NextResponse.json({ id, object: 'webhook', endpoint, events, secret: getWebhookSecret(id, 1), created_at: timestamp, updated_at: timestamp }, { status: 201 });
 }
+
+export const GET = withApiRequestLog(__emailgo_GET_handler);
+export const POST = withApiRequestLog(__emailgo_POST_handler);

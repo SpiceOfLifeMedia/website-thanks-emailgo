@@ -83,6 +83,7 @@ export class Emailgo {
     this.broadcasts = {
       list: () => request('GET', '/api/v1/broadcasts'),
       create: (body) => request('POST', '/api/v1/broadcasts', { body }),
+      get: (id) => request('GET', `/api/v1/broadcasts/${encodeURIComponent(id)}`),
       update: (id, body) => request('PATCH', `/api/v1/broadcasts/${encodeURIComponent(id)}`, { body }),
       delete: (id) => request('DELETE', `/api/v1/broadcasts/${encodeURIComponent(id)}`),
       send: (id, body = {}) => request('POST', `/api/v1/broadcasts/${encodeURIComponent(id)}/send`, { body }),
@@ -123,6 +124,10 @@ export class Emailgo {
       batchRemove: (emails) => request('DELETE', '/api/v1/suppressions/batch', { body: { emails } }),
     };
     this.usage = { get: () => request('GET', '/api/v1/usage') };
+    this.logs = {
+      list: (query) => request('GET', '/api/v1/logs', { query }),
+      get: (id) => request('GET', `/api/v1/logs/${encodeURIComponent(id)}`),
+    };
   }
 
   async downloadReceivedAttachment(id, attachmentId) {

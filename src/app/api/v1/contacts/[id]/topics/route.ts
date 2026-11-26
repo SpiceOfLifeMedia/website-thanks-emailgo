@@ -1,3 +1,4 @@
+import { withApiRequestLog } from '@/lib/request-logs';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { nowIso, query, queryOne, transaction } from '@/lib/database';
@@ -13,9 +14,9 @@ async function authorize(request: Request) {
   return { apiKey } as const;
 }
 
-export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
+async function __emailgo_GET_handler(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
   const auth = await authorize(request);
-  if ('response' in auth) return auth.response;
+  if ('response' in auth && auth.response) return auth.response;
   const { id } = await context.params;
   const contact = await queryOne<{ id: string; unsubscribed_at: string | null; consent_status: string }>('SELECT id,unsubscribed_at,consent_status FROM contacts WHERE id=?', [id]);
   if (!contact) return error('Contact not found.', 404);
@@ -25,9 +26,9 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   return NextResponse.json({ object: 'list', data: rows.rows.map((topic) => ({ ...topic, subscribed: Boolean(topic.subscribed_at && !topic.unsubscribed_at && !contact.unsubscribed_at && contact.consent_status === 'opted_in') })) });
 }
 
-export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
+async function __emailgo_PUT_handler(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
   const auth = await authorize(request);
-  if ('response' in auth) return auth.response;
+  if ('response' in auth && auth.response) return auth.response;
   const { id } = await context.params;
   const contact = await queryOne<{ id: string; email: string; unsubscribed_at: string | null; consent_status: string; consent_source: string | null; consented_at: string | null }>('SELECT id,email,unsubscribed_at,consent_status,consent_source,consented_at FROM contacts WHERE id=?', [id]);
   if (!contact) return error('Contact not found.', 404);
@@ -78,5 +79,8 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
   } else if (existing.rows.some((topic) => topic.unsubscribed_at === null)) {
     await emitWebhookEvent(auth.apiKey.id, 'contact.unsubscribed', { contact_id: id, email: contact.email, topic_ids: existing.rows.map((topic) => topic.topic_id), unsubscribed_at: timestamp });
   }
-  return GET(new Request(request.url, { headers: request.headers }), context);
+  return __emailgo_GET_handler(new Request(request.url, { headers: request.headers }), context);
 }
+
+export const GET = withApiRequestLog(__emailgo_GET_handler);
+export const PUT = withApiRequestLog(__emailgo_PUT_handler);
