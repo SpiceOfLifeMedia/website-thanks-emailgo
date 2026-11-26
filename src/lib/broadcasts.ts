@@ -74,6 +74,7 @@ export async function eligibleBroadcastContacts(input: Pick<BroadcastInput, 'aud
       JOIN contact_topics ct ON ct.contact_id=c.id JOIN topics t ON t.id=ct.topic_id AND t.disabled_at IS NULL
       WHERE ct.topic_id=? AND ct.subscribed_at IS NOT NULL AND ct.unsubscribed_at IS NULL
         AND c.consent_status='opted_in' AND c.unsubscribed_at IS NULL
+        AND NOT EXISTS (SELECT 1 FROM suppressions s WHERE s.normalized_email=lower(c.email))
       ORDER BY c.id ASC LIMIT ?`, [input.audienceId, max]);
     return result.rows;
   }
@@ -86,7 +87,8 @@ export async function eligibleBroadcastContacts(input: Pick<BroadcastInput, 'aud
   const filter = segmentWhere(parsedFilters.filters, input.audienceId);
   const where = filter.where ? ` AND ${filter.where}` : '';
   const result = await query<{ id: string; email: string; name: string | null; properties_json: string }>(`SELECT c.id,c.email,c.name,c.properties_json FROM contacts c
-    WHERE c.consent_status='opted_in' AND c.unsubscribed_at IS NULL ${where}
+    WHERE c.consent_status='opted_in' AND c.unsubscribed_at IS NULL
+      AND NOT EXISTS (SELECT 1 FROM suppressions s WHERE s.normalized_email=lower(c.email)) ${where}
     ORDER BY c.id ASC LIMIT ?`, [...filter.params, max]);
   return result.rows;
 }

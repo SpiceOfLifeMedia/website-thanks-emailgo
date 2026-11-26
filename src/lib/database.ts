@@ -164,6 +164,15 @@ const postgresSchema = [
     consent_status TEXT NOT NULL DEFAULT 'unknown', consent_source TEXT, consented_at TEXT,
     created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS contact_properties (
+    property_key TEXT PRIMARY KEY, type TEXT NOT NULL, fallback_value_json TEXT,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS suppressions (
+    id TEXT PRIMARY KEY, email TEXT NOT NULL, normalized_email TEXT NOT NULL UNIQUE,
+    origin TEXT NOT NULL DEFAULT 'manual', source_id TEXT, created_at TEXT NOT NULL
+  )`,
+  'CREATE INDEX IF NOT EXISTS suppressions_created_at ON suppressions(created_at DESC,id DESC)',
   'ALTER TABLE contacts ADD COLUMN IF NOT EXISTS consent_status TEXT NOT NULL DEFAULT \'unknown\'',
   'ALTER TABLE contacts ADD COLUMN IF NOT EXISTS consent_source TEXT',
   'ALTER TABLE contacts ADD COLUMN IF NOT EXISTS consented_at TEXT',
@@ -350,6 +359,15 @@ function getSqlite() {
       consent_status TEXT NOT NULL DEFAULT 'unknown', consent_source TEXT, consented_at TEXT,
       created_at TEXT NOT NULL, updated_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS contact_properties (
+      property_key TEXT PRIMARY KEY, type TEXT NOT NULL, fallback_value_json TEXT,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS suppressions (
+      id TEXT PRIMARY KEY, email TEXT NOT NULL, normalized_email TEXT NOT NULL UNIQUE,
+      origin TEXT NOT NULL DEFAULT 'manual', source_id TEXT, created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS suppressions_created_at ON suppressions(created_at DESC,id DESC);
     CREATE TABLE IF NOT EXISTS email_events (
       id TEXT PRIMARY KEY, email_id TEXT NOT NULL, type TEXT NOT NULL,
       created_at TEXT NOT NULL, target_domain TEXT, target_path TEXT,

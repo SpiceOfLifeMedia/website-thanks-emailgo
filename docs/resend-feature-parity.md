@@ -16,7 +16,7 @@ Emailgo is an independent mail platform. It must not call the Resend API or requ
 | Open and click tracking | Implemented, local smoke validation passed | Optional per-domain tracking, signed pixels and redirects, event API and aggregate dashboard counts. Custom tracking domains are not implemented. Open counts are approximate because clients can block or prefetch images. |
 | Delivery, bounce and complaint events | Not implemented | SMTP acceptance is not proof of recipient delivery. Spacemail event support is not configured. |
 | Webhook endpoints, signatures, retry and replay | Partial, local smoke validation passed | API and dashboard CRUD, per-key event filters, one-time signing secrets with rotation, HMAC signatures, bounded retry, per-attempt history and manual replay are implemented. Targets must be public HTTPS endpoints; private and loopback addresses are rejected. Events cover Emailgo relay handoff failures/acceptance, tracking, and API contact lifecycle. Provider delivery, bounce and complaint events are not available. Production delivery still depends on a durable database, `EMAILGO_WEBHOOK_SECRET`, `CRON_SECRET`, and a running worker. |
-| Suppression management | Partial | Signed global unsubscribe and per-topic preferences are implemented, including RFC 8058 one-click unsubscribe for broadcasts. Provider bounce/complaint ingestion and provider-wide suppression syncing are absent. |
+| Suppression management | Partial, local smoke validation passed | Workspace-wide manual suppression list supports API/dashboard add, get, paginated list, remove, batch import/remove, dashboard CSV import/export, and `suppression.added`, `suppression.removed`, and `email.suppressed` webhook events. Transactional recipients are filtered from To/Cc/Bcc and scheduled/broadcast messages recheck before relay handoff. Bounce/complaint ingestion and automatic provider-wide syncing are absent until a delivery-event provider is configured. Signed global unsubscribe and topic preferences remain separate and include RFC 8058 one-click handling for broadcasts. |
 | Usage metrics and request logs | Partial | Basic message counts exist. Dashboard message history supports server side search, status filters, cursor pagination and a sandboxed HTML preview. Provider delivery metrics and API request logs are absent. |
 
 ## Workspace and growth tools
@@ -24,6 +24,7 @@ Emailgo is an independent mail platform. It must not call the Resend API or requ
 | Feature | Status | Notes |
 | --- | --- | --- |
 | Contacts, properties, tags and consent state | Partial, local smoke validation passed | API/dashboard CRUD and CSV record unknown consent by default, with opt-in source and time fields. Unsubscribe remains suppressive. Signed public preference pages support topic choices and global unsubscribe. |
+| Contact property definitions and fallbacks | Partial, local smoke validation passed | Typed string/number definitions, per-property fallback values, dashboard, API, SDK and CLI support. Broadcast rendering uses fallback values only when a contact value is missing or null; template-level fallbacks and automatic definition creation during import remain absent. |
 | Audiences, segments and topics | Partial, local smoke validation passed | Saved live segments support tag, opt-in and unsubscribe filters, with counts and paginated contact previews. Topic CRUD, a public signed preference center, and contact topic preferences are available; subscriptions require explicit confirmation when restoring a global opt out. API-key topic targeting and broad segmentation rules are absent. |
 | Broadcasts/newsletters | Partial, local smoke validation passed | Dashboard can save, edit, schedule, cancel and queue personalized campaigns to saved segments or subscribed topics. Only opted-in, non-suppressed contacts are eligible. Messages include signed preferences links and RFC 8058 unsubscribe headers. Each send is limited to 1,000 recipients and is drained by the existing worker. There is no visual editor, campaign analytics, experiments, provider delivery/bounce/complaint ingestion, or production relay verification. |
 | Automations | Partial, local smoke validation passed | Full-access API and dashboard create, activate, pause and archive event-triggered workflows. Supports condition branches, delays up to 30 days, filtered wait-for-event, template email, contact name/property/tag updates, add-to-segment, idempotent custom event sends and per-step run history/cancel. The dashboard has a simple action builder and JSON graph editor; a drag-and-drop visual canvas is absent. A durable database and scheduled worker are required. Contact deletion actions, event schemas and retry/resume for failed runs are absent. |
@@ -52,6 +53,12 @@ Emailgo is an independent mail platform. It must not call the Resend API or requ
 | `GET /api/v1/webhooks/{id}/deliveries` | Paginated delivery state and attempt history. |
 | `POST /api/v1/webhooks/{id}/replay` | Replay one delivered or failed event using `delivery_id`. |
 | `POST /api/v1/webhooks/{id}/rotate-secret` | Rotate the endpoint signing key; the new key is returned once. |
+| `GET`, `POST /api/v1/suppressions` | Paginated workspace list and manual addition of an address. |
+| `GET`, `DELETE /api/v1/suppressions/{id-or-email}` | Retrieve or remove a suppression by identifier or address. |
+| `POST`, `DELETE /api/v1/suppressions/batch` | Add or remove up to 100 addresses in one request. |
+| `GET /api/suppressions?format=csv` | Export the dashboard suppression list. Dashboard CSV import accepts up to 2,000 rows per file. |
+| `GET`, `POST /api/v1/contact-properties` | List or create typed string/number property definitions with optional fallback values. |
+| `GET`, `PATCH`, `DELETE /api/v1/contact-properties/{key}` | Retrieve or update a definition, or delete the definition while preserving saved contact values. |
 | `GET /api/v1/usage` | Current Emailgo message counts, resource counts, resets, and the configured send rate. Plan quotas are `null` because billing and plan limits do not exist. |
 | `POST /api/internal/receiving` | Accept a signed, five-minute-window `email.received` event from a separately configured provider. Requires `EMAILGO_INBOUND_SECRET` and `EMAILGO_RECEIVING_API_KEY_ID`. Provider event IDs are deduplicated. |
 | `GET /api/v1/emails/receiving` | List inbound email received through the provider bridge, scoped to the configured full-access API key. |
@@ -98,6 +105,7 @@ Webhook signatures use `svix-id`, `svix-timestamp`, and `svix-signature` headers
 - [Send email API](https://resend.com/docs/api-reference/emails/send-email)
 - [Domain management](https://resend.com/docs/dashboard/domains/introduction)
 - [Contacts](https://resend.com/docs/dashboard/contacts/introduction)
+- [Resend custom contact properties](https://resend.com/blog/new-contacts-experience)
 - [Broadcasts](https://resend.com/docs/dashboard/broadcasts/introduction)
 - [Automations](https://resend.com/docs/dashboard/automations/introduction)
 - [Receiving](https://resend.com/docs/dashboard/receiving/introduction)

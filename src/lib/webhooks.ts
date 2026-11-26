@@ -5,8 +5,9 @@ import { request as httpsRequest } from 'node:https';
 import { execute, nowIso, query, randomId } from '@/lib/database';
 
 export const WEBHOOK_EVENT_TYPES = [
-  'email.sent', 'email.failed', 'email.opened', 'email.clicked', 'email.received',
+  'email.sent', 'email.failed', 'email.suppressed', 'email.opened', 'email.clicked', 'email.received',
   'contact.created', 'contact.updated', 'contact.deleted', 'contact.subscribed', 'contact.unsubscribed',
+  'suppression.added', 'suppression.removed',
 ] as const;
 export type WebhookEventType = typeof WEBHOOK_EVENT_TYPES[number];
 

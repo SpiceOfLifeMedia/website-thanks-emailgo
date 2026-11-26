@@ -58,6 +58,13 @@ export class Emailgo {
         update: (id, body) => request('PUT', `/api/v1/contacts/${encodeURIComponent(id)}/topics`, { body }),
       },
     };
+    this.contactProperties = {
+      list: () => request('GET', '/api/v1/contact-properties'),
+      create: (body) => request('POST', '/api/v1/contact-properties', { body }),
+      get: (key) => request('GET', `/api/v1/contact-properties/${encodeURIComponent(key)}`),
+      update: (key, body) => request('PATCH', `/api/v1/contact-properties/${encodeURIComponent(key)}`, { body }),
+      delete: (key) => request('DELETE', `/api/v1/contact-properties/${encodeURIComponent(key)}`),
+    };
     this.segments = {
       list: () => request('GET', '/api/v1/segments'),
       create: (body) => request('POST', '/api/v1/segments', { body }),
@@ -106,6 +113,14 @@ export class Emailgo {
       deliveries: (id, query) => request('GET', `/api/v1/webhooks/${encodeURIComponent(id)}/deliveries`, { query }),
       replay: (id, body) => request('POST', `/api/v1/webhooks/${encodeURIComponent(id)}/replay`, { body }),
       rotateSecret: (id) => request('POST', `/api/v1/webhooks/${encodeURIComponent(id)}/rotate-secret`, { body: {} }),
+    };
+    this.suppressions = {
+      list: (query) => request('GET', '/api/v1/suppressions', { query }),
+      add: (email) => request('POST', '/api/v1/suppressions', { body: { email } }),
+      batchAdd: (emails) => request('POST', '/api/v1/suppressions/batch', { body: { emails } }),
+      get: (identifier) => request('GET', `/api/v1/suppressions/${encodeURIComponent(identifier)}`),
+      remove: (identifier) => request('DELETE', `/api/v1/suppressions/${encodeURIComponent(identifier)}`),
+      batchRemove: (emails) => request('DELETE', '/api/v1/suppressions/batch', { body: { emails } }),
     };
     this.usage = { get: () => request('GET', '/api/v1/usage') };
   }

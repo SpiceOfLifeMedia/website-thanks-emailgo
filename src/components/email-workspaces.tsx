@@ -4,11 +4,12 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
 type Template = { id: string; name: string; subject: string; html: string | null; text: string | null; created_at: string; updated_at: string };
 type Contact = { id: string; email: string; name: string | null; properties: Record<string, unknown>; tags: string[]; unsubscribed_at: string | null; consent_status: 'unknown' | 'opted_in'; consent_source: string | null; consented_at: string | null; created_at: string; updated_at: string };
+type ContactProperty = { id: string; key: string; type: 'string' | 'number'; fallback_value: string | number | null; created_at: string; updated_at: string };
 type Segment = { id: string; name: string; filters: { tags_all?: string[]; tags_any?: string[]; consent_status?: 'unknown' | 'opted_in'; unsubscribed?: boolean }; contacts_count: number; created_at: string; updated_at: string };
 type Topic = { id: string; name: string; slug: string; description: string | null; subscribers_count: number; created_at: string; updated_at: string };
 type BroadcastKey = { id: string; name: string; permission: 'full_access' | 'sending_access'; domain_id: string | null };
 type BroadcastDomain = { id: string; domain: string; verified_at: string | null };
-type Broadcast = { id: string; name: string; api_key_id: string; from_address: string; subject: string; text_body: string | null; html_body: string | null; audience_type: 'segment' | 'topic'; audience_id: string; status: string; scheduled_at: string | null; recipient_count: number; sent_count: number; failed_count: number; pending_count: number; created_at: string; updated_at: string };
+type Broadcast = { id: string; name: string; api_key_id: string; from_address: string; subject: string; text_body: string | null; html_body: string | null; audience_type: 'segment' | 'topic'; audience_id: string; status: string; scheduled_at: string | null; recipient_count: number; sent_count: number; failed_count: number; suppressed_count: number; pending_count: number; created_at: string; updated_at: string };
 type BroadcastDraft = { name: string; api_key_id: string; from: string; subject: string; text: string; html: string; audience_type: 'segment' | 'topic'; audience_id: string };
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -91,6 +92,7 @@ export function TemplatesWorkspace() {
 
 export function ContactsWorkspace({ preferencesConfigured }: { preferencesConfigured: boolean }) {
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [contactTab, setContactTab] = useState<'contacts' | 'properties'>('contacts');
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [tags, setTags] = useState('');
@@ -162,6 +164,14 @@ export function ContactsWorkspace({ preferencesConfigured }: { preferencesConfig
     <div className="pageHeading"><div><div className="eyebrow">AUDIENCE</div><h1>Contacts</h1><p>Contact records keep opt-in source and time separate from unsubscribe state.</p></div><button className="outlineButton" onClick={() => void load()}>Refresh</button></div>
     {error && <div className="notice errorNotice" role="alert">{error}</div>}
     {notice && <div className="notice successNotice" role="status">{notice}</div>}
+    <div className="contactTabs" role="tablist" aria-label="Contact workspace" onKeyDown={(event) => {
+      if (event.key === 'ArrowRight' && contactTab === 'contacts') { event.preventDefault(); setContactTab('properties'); document.getElementById('contact-properties-tab')?.focus(); }
+      if (event.key === 'ArrowLeft' && contactTab === 'properties') { event.preventDefault(); setContactTab('contacts'); document.getElementById('contacts-tab')?.focus(); }
+    }}>
+      <button type="button" role="tab" id="contacts-tab" aria-controls="contacts-panel" aria-selected={contactTab === 'contacts'} className={contactTab === 'contacts' ? 'active' : ''} onClick={() => setContactTab('contacts')}>Contacts</button>
+      <button type="button" role="tab" id="contact-properties-tab" aria-controls="contact-properties-panel" aria-selected={contactTab === 'properties'} className={contactTab === 'properties' ? 'active' : ''} onClick={() => setContactTab('properties')}>Properties</button>
+    </div>
+    {contactTab === 'contacts' ? <div className="contactTabPanel" role="tabpanel" id="contacts-panel" aria-labelledby="contacts-tab">
     <form className="addForm panel contactForm" onSubmit={addContact}>
       <label>Email address<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" placeholder="person@example.com" maxLength={254} required /></label>
       <label>Name<input value={name} onChange={(event) => setName(event.target.value)} maxLength={120} placeholder="Optional" /></label>
@@ -188,7 +198,78 @@ export function ContactsWorkspace({ preferencesConfigured }: { preferencesConfig
         {!contact.unsubscribed_at && <button className="dangerButton" onClick={() => void unsubscribe(contact.id)} disabled={busy}>Unsubscribe</button>}
       </article>) : <div className="emptyPanel">No matching contacts. Add a contact to start building an audience.</div>}
     </section>
+    </div> : <div className="contactTabPanel" role="tabpanel" id="contact-properties-panel" aria-labelledby="contact-properties-tab"><ContactPropertiesPanel /></div>}
   </>;
+}
+
+function ContactPropertiesPanel() {
+  const [properties, setProperties] = useState<ContactProperty[]>([]);
+  const [editingKey, setEditingKey] = useState('');
+  const [key, setKey] = useState('');
+  const [type, setType] = useState<'string' | 'number'>('string');
+  const [fallback, setFallback] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  const load = useCallback(async () => {
+    try { const result = await api<{ data: ContactProperty[] }>('/api/contact-properties'); setProperties(result.data); setError(''); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not load contact properties.'); }
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+
+  function beginEdit(property: ContactProperty) {
+    setEditingKey(property.key); setKey(property.key); setType(property.type); setFallback(property.fallback_value === null ? '' : String(property.fallback_value)); setError(''); setNotice('');
+  }
+
+  function resetForm() { setEditingKey(''); setKey(''); setType('string'); setFallback(''); }
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setBusy(true); setError(''); setNotice('');
+    let fallbackValue: string | number | null = fallback === '' ? null : fallback;
+    if (fallback !== '' && type === 'number') {
+      const parsed = Number(fallback);
+      if (!Number.isFinite(parsed)) { setError('Enter a finite number for this fallback.'); setBusy(false); return; }
+      fallbackValue = parsed;
+    }
+    try {
+      const body = { type, fallback_value: fallbackValue };
+      if (editingKey) {
+        await api(`/api/contact-properties/${encodeURIComponent(editingKey)}`, { method: 'PATCH', body: JSON.stringify(body) });
+        setNotice(`${editingKey} was updated.`);
+      } else {
+        await api('/api/contact-properties', { method: 'POST', body: JSON.stringify({ key, ...body }) });
+        setNotice(`${key} was added.`);
+      }
+      resetForm(); await load();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save this property.'); }
+    finally { setBusy(false); }
+  }
+
+  async function remove(property: ContactProperty) {
+    setBusy(true); setError(''); setNotice('');
+    try { await api(`/api/contact-properties/${encodeURIComponent(property.key)}`, { method: 'DELETE' }); setConfirmDelete(''); await load(); setNotice(`${property.key} was deleted. Values already stored on contacts were preserved.`); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not delete this property.'); }
+    finally { setBusy(false); }
+  }
+
+  return <section className="panel contactPropertiesPanel">
+    <div className="panelHeader"><div><h2>Contact properties</h2><p>Define reusable string or number fields. Fallbacks are used by broadcasts only when a contact value is missing.</p></div><div className="contactPropertiesHeaderActions"><span className="recordCount">{properties.length} defined</span><button className="outlineButton" onClick={() => void load()}>Refresh</button></div></div>
+    {error && <div className="notice errorNotice contactPropertyNotice" role="alert">{error}</div>}
+    {notice && <div className="notice successNotice contactPropertyNotice" role="status">{notice}</div>}
+    <form className="contactPropertyForm" onSubmit={(event) => void save(event)}>
+      <label>Property key<input value={key} onChange={(event) => setKey(event.target.value)} disabled={Boolean(editingKey) || busy} placeholder="company_name" pattern="[A-Za-z_][A-Za-z0-9_.-]{0,99}" maxLength={100} required /></label>
+      <label>Type<select value={type} onChange={(event) => setType(event.target.value as 'string' | 'number')} disabled={busy}><option value="string">String</option><option value="number">Number</option></select></label>
+      <label>Fallback value{type === 'string' ? <textarea value={fallback} onChange={(event) => setFallback(event.target.value)} rows={2} maxLength={1000} placeholder="Optional" disabled={busy} /> : <input value={fallback} onChange={(event) => setFallback(event.target.value)} inputMode="decimal" placeholder="Optional number" disabled={busy} />}</label>
+      <div className="contactPropertyFormActions"><button className="primaryButton" disabled={busy}>{busy ? 'Saving…' : editingKey ? 'Save changes' : 'Add property'}</button>{editingKey && <button type="button" className="outlineButton" onClick={resetForm} disabled={busy}>Cancel</button>}</div>
+    </form>
+    {properties.length ? <div className="contactPropertyRows">{properties.map((property) => <article className="contactPropertyRow" key={property.key}>
+      <div className="contactPropertyIdentity"><strong>{property.key}</strong><span>{property.type}</span></div>
+      <div className="contactPropertyFallback"><small>Fallback</small><code>{property.fallback_value === null ? 'None' : String(property.fallback_value)}</code></div>
+      {confirmDelete === property.key ? <div className="contactPropertyConfirm" role="group" aria-label={`Delete ${property.key}`}><span>Delete the definition? Saved contact values stay in place.</span><button className="dangerButton" onClick={() => void remove(property)} disabled={busy}>{busy ? 'Deleting…' : 'Confirm delete'}</button><button className="textButton" onClick={() => setConfirmDelete('')} disabled={busy}>Keep</button></div> : <div className="contactPropertyActions"><button className="textButton" onClick={() => beginEdit(property)} disabled={busy}>Edit</button><button className="textButton" onClick={() => setConfirmDelete(property.key)} disabled={busy}>Delete</button></div>}
+    </article>)}</div> : <div className="emptyPanel contactPropertyEmpty">No contact properties yet. Add a definition when you want consistent fields and broadcast fallbacks.</div>}
+  </section>;
 }
 
 export function SegmentsWorkspace() {
@@ -414,7 +495,7 @@ export function BroadcastsWorkspace({ apiKeys, domains, canQueue }: { apiKeys: B
     </form>
     <section className="panel resourceList broadcastList"><div className="panelHeader"><div><h2>Broadcast history</h2><p>Message handoff status is not recipient delivery confirmation.</p></div></div>
       {broadcasts.length ? broadcasts.map((broadcast) => <article className="resourceRow broadcastRow" key={broadcast.id}>
-        <div className="resourceMain"><strong>{broadcast.name}</strong><span>{broadcast.subject}</span><small>{broadcast.audience_type === 'segment' ? segments.find((segment) => segment.id === broadcast.audience_id)?.name ?? 'Saved segment' : topics.find((topic) => topic.id === broadcast.audience_id)?.name ?? 'Topic'} · {broadcast.recipient_count} queued · {broadcast.sent_count} accepted · {broadcast.failed_count} failed · {broadcast.pending_count} pending</small></div>
+        <div className="resourceMain"><strong>{broadcast.name}</strong><span>{broadcast.subject}</span><small>{broadcast.audience_type === 'segment' ? segments.find((segment) => segment.id === broadcast.audience_id)?.name ?? 'Saved segment' : topics.find((topic) => topic.id === broadcast.audience_id)?.name ?? 'Topic'} · {broadcast.recipient_count} queued · {broadcast.sent_count} accepted · {broadcast.failed_count} failed · {broadcast.suppressed_count} suppressed · {broadcast.pending_count} pending</small></div>
         <div className="resourceMeta"><span className={`plainStatus ${broadcast.status === 'sent' ? 'verified' : broadcast.status === 'canceled' ? 'failed' : ''}`}>{broadcast.status === 'queued' ? 'Queued' : broadcast.status === 'sending' ? 'Sending' : broadcast.status === 'sent' ? 'Complete' : broadcast.status === 'scheduled' ? 'Scheduled' : shortLabel(broadcast.status)}</span>{broadcast.scheduled_at && <small>{localTime(broadcast.scheduled_at)}</small>}</div>
         {broadcast.status === 'draft' && <div className="broadcastRowActions"><button className="textButton" onClick={() => editBroadcast(broadcast)} disabled={busy}>Edit</button><button className="dangerButton" onClick={() => void deleteDraft(broadcast.id)} disabled={busy}>Delete</button></div>}
         {['queued', 'scheduled', 'sending'].includes(broadcast.status) && <button className="dangerButton" onClick={() => void cancelBroadcast(broadcast.id)} disabled={busy}>Cancel</button>}

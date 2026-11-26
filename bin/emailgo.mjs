@@ -23,12 +23,14 @@ Common commands:
   api-keys list|create|get|rename|revoke [id] [--data JSON|--file PATH|--name NAME]
   domains list|create|get|verify|dns|delete [id] [--domain DOMAIN]
   contacts list|create|get|update|delete [id] [--data JSON|--file PATH]
+  contact-properties list|create|get|update|delete [key] [--data JSON|--file PATH]
   segments list|create|get|update|delete|contacts [id] [--data JSON]
   topics list|create|get|update|delete [id] [--data JSON]
   broadcasts list|create|get|update|delete|queue|cancel [id] [--data JSON]
   automations list|create|get|update|archive|start|stop|runs|run|stop-run [id] [--run-id id] [--data JSON]
   events list|send [--data JSON] [--idempotency-key KEY]
   webhooks list|create|get|update|delete|deliveries|replay|rotate-secret [id] [--data JSON]
+  suppressions list|add|get|remove|batch-add|batch-remove [email|id] [--data JSON]
   usage get
 `;
 
@@ -58,7 +60,7 @@ const apiKey = process.env.EMAILGO_API_KEY;
 if (!apiKey) fail('Set EMAILGO_API_KEY in the current shell. The CLI does not save credentials.');
 const baseUrl = (process.env.EMAILGO_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '');
 const query = new URLSearchParams();
-for (const key of ['limit', 'after', 'before', 'search', 'status', 'cursor']) if (flags.has(key)) query.set(key, String(flags.get(key)));
+for (const key of ['limit', 'after', 'before', 'search', 'status', 'cursor', 'format']) if (flags.has(key)) query.set(key, String(flags.get(key)));
 const withQuery = (path) => query.size ? `${path}?${query}` : path;
 const item = (path) => `${path}/${encodeURIComponent(id || '')}`;
 const jsonBody = async () => {
@@ -66,6 +68,7 @@ const jsonBody = async () => {
   if (flags.has('file')) return JSON.parse(await readFile(String(flags.get('file')), 'utf8'));
   if (resource === 'domains' && action === 'create' && flags.has('domain')) return { domain: flags.get('domain') };
   if (resource === 'api-keys' && action === 'rename' && flags.has('name')) return { name: flags.get('name') };
+  if (resource === 'suppressions' && action === 'add' && id) return { email: id };
   return undefined;
 };
 
@@ -86,6 +89,10 @@ const resourceRoutes = {
   contacts: {
     list: ['GET', withQuery('/api/v1/contacts')], create: ['POST', '/api/v1/contacts'], get: ['GET', item('/api/v1/contacts')],
     update: ['PATCH', item('/api/v1/contacts')], delete: ['DELETE', item('/api/v1/contacts')],
+  },
+  'contact-properties': {
+    list: ['GET', '/api/v1/contact-properties'], create: ['POST', '/api/v1/contact-properties'], get: ['GET', item('/api/v1/contact-properties')],
+    update: ['PATCH', item('/api/v1/contact-properties')], delete: ['DELETE', item('/api/v1/contact-properties')],
   },
   segments: {
     list: ['GET', '/api/v1/segments'], create: ['POST', '/api/v1/segments'], get: ['GET', item('/api/v1/segments')],
@@ -114,6 +121,11 @@ const resourceRoutes = {
     update: ['PATCH', item('/api/v1/webhooks')], delete: ['DELETE', item('/api/v1/webhooks')],
     deliveries: ['GET', `${item('/api/v1/webhooks')}/deliveries`], replay: ['POST', `${item('/api/v1/webhooks')}/replay`],
     'rotate-secret': ['POST', `${item('/api/v1/webhooks')}/rotate-secret`],
+  },
+  suppressions: {
+    list: ['GET', withQuery('/api/v1/suppressions')], add: ['POST', '/api/v1/suppressions'],
+    get: ['GET', item('/api/v1/suppressions')], remove: ['DELETE', item('/api/v1/suppressions')],
+    'batch-add': ['POST', '/api/v1/suppressions/batch'], 'batch-remove': ['DELETE', '/api/v1/suppressions/batch'],
   },
   usage: { get: ['GET', '/api/v1/usage'] },
 };

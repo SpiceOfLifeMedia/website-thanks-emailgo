@@ -20,4 +20,4 @@ if (error) throw error;
 console.log(data.id);
 ```
 
-The client covers the currently implemented message, key, domain, contact, segment, topic, broadcast, automation, event, webhook and usage endpoints. API results use `{ data, error }`. Network errors and non-success HTTP responses are returned as `error`; the SDK does not retry automatically.
+The client covers the currently implemented message, key, domain, contact, contact property, segment, topic, broadcast, automation, event, webhook, suppression and usage endpoints. Contact property fallback values are applied to broadcast personalization when a contact value is missing or null. API results use `{ data, error }`. Network errors and non-success HTTP responses are returned as `error`; the SDK does not retry automatically.

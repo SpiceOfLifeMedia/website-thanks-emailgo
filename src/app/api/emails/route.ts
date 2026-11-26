@@ -5,7 +5,7 @@ import { query, queryOne } from '@/lib/database';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 type EmailRow = { id: string; from_address: string; to_json: string; subject: string; status: string; error_message: string | null; provider_id: string | null; scheduled_at: string | null; created_at: string; open_count: number; click_count: number };
-const statuses = new Set(['queued', 'scheduled', 'processing', 'sent', 'failed', 'canceled']);
+const statuses = new Set(['queued', 'scheduled', 'processing', 'sent', 'failed', 'suppressed', 'canceled']);
 function error(message: string, status: number) { return NextResponse.json({ error: message }, { status, headers: { 'Cache-Control': 'private, no-store' } }); }
 function escapeLike(value: string) { return value.replace(/[!%_]/g, '!$&'); }
 function filtersFor(url: URL) {

@@ -72,6 +72,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       await execute("UPDATE broadcasts SET status='draft',updated_at=? WHERE id=? AND status='queuing'", [nowIso(), id]);
       return NextResponse.json({ error: 'A broadcast is limited to 1,000 recipients per send. Narrow the saved audience and create another broadcast for the remaining contacts.' }, { status: 413, headers: privateHeaders });
     }
+    const propertyFallbacks = (await query<{ property_key: string; fallback_value_json: string | null }>('SELECT property_key,fallback_value_json FROM contact_properties WHERE fallback_value_json IS NOT NULL')).rows;
     const baseStatements: Array<{ sql: string; params: readonly unknown[] }> = [];
     for (const recipient of recipients) {
       const preferenceToken = createContactPreferenceToken({ contactId: recipient.id, email: recipient.email });
@@ -79,6 +80,11 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       const unsubscribeUrl = `${publicOrigin.origin}/api/preferences/${preferenceToken}/one-click`;
       let properties: Record<string, unknown> = {};
       try { properties = JSON.parse(recipient.properties_json) as Record<string, unknown>; } catch {}
+      for (const property of propertyFallbacks) {
+        if (properties[property.property_key] === undefined || properties[property.property_key] === null) {
+          try { properties[property.property_key] = JSON.parse(property.fallback_value_json ?? 'null'); } catch {}
+        }
+      }
       const values = { ...properties, email: recipient.email, name: recipient.name ?? '', unsubscribe_url: unsubscribeUrl, preferences_url: preferencesUrl };
       const subject = render(campaign.subject, values, false)?.replace(/[\r\n]/g, ' ').trim() ?? '';
       if (!subject || subject.length > 998) throw new Error('A rendered broadcast subject is invalid.');

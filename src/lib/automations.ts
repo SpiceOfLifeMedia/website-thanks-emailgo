@@ -1,6 +1,7 @@
 import { sendThroughSmtp } from '@/lib/smtp';
 import { execute, hashSecret, nowIso, query, queryOne, randomId, transaction } from '@/lib/database';
 import { emitWebhookEvent } from '@/lib/webhooks';
+import { emitEmailSuppressed, findSuppressedAddresses } from '@/lib/suppressions';
 
 export type AutomationStep = { key: string; type: string; config: Record<string, unknown> };
 export type AutomationConnection = { from: string; to: string; condition?: 'true' | 'false' };
@@ -438,6 +439,14 @@ async function sendAutomationEmail(run: RunRow, step: AutomationStep, context: R
   if (!text && !html) throw new Error('The email template has no text or HTML body.');
   const id = randomId('eml');
   const createdAt = nowIso();
+  const suppression = (await findSuppressedAddresses([recipient]))[0];
+  if (suppression) {
+    const message = 'Emailgo skipped sending because the address is on the workspace suppression list.';
+    await execute(`INSERT INTO emails(id,api_key_id,from_address,to_json,subject,status,error_message,created_at,text_body,html_body)
+      VALUES(?,?,?,?,?,'suppressed',?,?,?,?)`, [id, run.api_key_id, from, JSON.stringify([recipient]), subject, message, createdAt, text, html]);
+    await emitEmailSuppressed(run.api_key_id, id, from, suppression.email, subject);
+    return { email_id: id, status: 'suppressed' };
+  }
   await execute(`INSERT INTO emails(id,api_key_id,from_address,to_json,subject,status,created_at,text_body,html_body)
     VALUES(?,?,?,?,?,'processing',?,?,?)`, [id, run.api_key_id, from, JSON.stringify([recipient]), subject, createdAt, text, html]);
   try {

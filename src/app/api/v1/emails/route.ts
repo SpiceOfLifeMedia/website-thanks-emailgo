@@ -3,6 +3,7 @@ import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { consumeSendLimit, execute, hashSecret, nowIso, query, queryOne, randomId, transaction } from '@/lib/database';
 import { readJsonLimited } from '@/lib/request-json';
 import { sendThroughSmtp, type OutboundAttachment } from '@/lib/smtp';
+import { emitEmailSuppressed, findSuppressedAddresses } from '@/lib/suppressions';
 import { trackedHtml } from '@/lib/tracking';
 import { emitWebhookEvent } from '@/lib/webhooks';
 
@@ -89,6 +90,7 @@ function emailResponse(row: StoredEmail, includeContent = false) {
     ...(includeContent && row.text_body !== null ? { text: row.text_body } : {}),
     ...(includeContent && row.html_body !== null ? { html: row.html_body } : {}),
     status: row.status,
+    ...(row.status === 'suppressed' && row.error_message ? { error: row.error_message } : {}),
     created_at: row.created_at,
     ...(row.message_id ? { messageId: row.message_id } : {}),
     ...(row.provider_id ? { relayResponse: row.provider_id } : {}),
@@ -106,7 +108,14 @@ function parseAddresses(value: unknown, label: string, required: boolean): { ok:
   if (value === undefined && !required) return { ok: true, addresses: [] };
   const addresses = typeof value === 'string' ? [value] : Array.isArray(value) ? value : [];
   if (!addresses.length && required) return { ok: false, error: `${label} must contain at least one valid email address.` };
-  if (addresses.length > 50 || !addresses.every((address) => typeof address === 'string' && address.length <= 254 && emailPattern.test(address))) {
+  const validMailbox = (address: unknown) => {
+    if (typeof address !== 'string' || address.length > 320 || /[\r\n]/.test(address)) return false;
+    const trimmed = address.trim();
+    if (!trimmed) return false;
+    if (/[<>]/.test(trimmed) && !/^.+<[^<>]+>$/.test(trimmed)) return false;
+    return emailPattern.test(mailbox(trimmed));
+  };
+  if (addresses.length > 50 || !addresses.every(validMailbox)) {
     return { ok: false, error: `${label} must contain up to 50 valid email addresses.` };
   }
   const unique = [...new Map((addresses as string[]).map((address) => [mailbox(address), address.trim()])).values()];
@@ -257,9 +266,9 @@ export async function sendEmailRequest(request: Request, options: { countRateLim
   if (!parsedTags.ok) return responseError(parsedTags.error, 400);
   if (!parsedAttachments.ok) return responseError(parsedAttachments.error, 400);
   if (!parsedVariables.ok) return responseError(parsedVariables.error, 400);
-  const to = parsedTo.addresses;
-  const cc = parsedCc.addresses;
-  const bcc = parsedBcc.addresses;
+  let to = parsedTo.addresses;
+  let cc = parsedCc.addresses;
+  let bcc = parsedBcc.addresses;
   const recipients = [...new Set([...to, ...cc, ...bcc].map(mailbox))];
   if (recipients.length > 50) return responseError('to, cc and bcc may contain no more than 50 unique recipients combined.', 400);
 
@@ -288,8 +297,8 @@ export async function sendEmailRequest(request: Request, options: { countRateLim
   const subjectSource = body.subject === undefined ? template?.subject ?? '' : suppliedSubject;
   const subject = (template ? renderTemplate(subjectSource, parsedVariables.variables, false) ?? '' : subjectSource).trim();
   const replyTo = body.reply_to === undefined ? '' : typeof body.reply_to === 'string' ? body.reply_to.trim() : null;
-  if (replyTo === null || (replyTo && (replyTo.length > 254 || !emailPattern.test(mailbox(replyTo))))) return responseError('reply_to must be a valid email address.', 400);
-  if (!from || from.length > 254 || /[\r\n]/.test(from) || !emailPattern.test(sender)) return responseError('A valid from email address is required.', 400);
+  if (replyTo === null || (replyTo && (replyTo.length > 320 || /[\r\n]/.test(replyTo) || !emailPattern.test(mailbox(replyTo))))) return responseError('reply_to must be a valid email address.', 400);
+  if (!from || from.length > 320 || /[\r\n]/.test(from) || !emailPattern.test(sender)) return responseError('A valid from email address is required.', 400);
   if (!subject || subject.length > 998 || /[\r\n]/.test(subject)) return responseError('subject must be 1 to 998 characters and cannot contain line breaks.', 400);
 
   const rawText = typeof body.text === 'string' ? body.text : undefined;
@@ -328,6 +337,13 @@ export async function sendEmailRequest(request: Request, options: { countRateLim
     }
   }
 
+  const suppressedRecipients = await findSuppressedAddresses(recipients);
+  const suppressedEmails = new Set(suppressedRecipients.map((row) => row.normalized_email));
+  to = to.filter((address) => !suppressedEmails.has(mailbox(address)));
+  cc = cc.filter((address) => !suppressedEmails.has(mailbox(address)));
+  bcc = bcc.filter((address) => !suppressedEmails.has(mailbox(address)));
+  const allRecipientsSuppressed = to.length + cc.length + bcc.length === 0;
+
   const id = randomId('em');
   const createdAt = nowIso();
   let trackedBody: string | undefined;
@@ -341,17 +357,19 @@ export async function sendEmailRequest(request: Request, options: { countRateLim
     }
   }
   const metadata = JSON.stringify(parsedAttachments.metadata);
-  const insertSql = `INSERT INTO emails(id,api_key_id,from_address,to_json,cc_json,bcc_json,reply_to,headers_json,tags_json,attachments_json,subject,status,text_body,html_body,attachment_payload_json,scheduled_at,track_opens,track_clicks,created_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
+  const insertSql = `INSERT INTO emails(id,api_key_id,from_address,to_json,cc_json,bcc_json,reply_to,headers_json,tags_json,attachments_json,subject,status,error_message,text_body,html_body,attachment_payload_json,scheduled_at,track_opens,track_clicks,created_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
   const insertParams = [
     id, apiKey.id, from, JSON.stringify(to), cc.length ? JSON.stringify(cc) : null,
     bcc.length ? JSON.stringify(bcc) : null, replyTo || null,
     Object.keys(parsedHeaders.headers).length ? JSON.stringify(parsedHeaders.headers) : null,
     parsedTags.tags.length ? JSON.stringify(parsedTags.tags) : null,
-    parsedAttachments.metadata.length ? metadata : null, subject, scheduledAt ? 'scheduled' : 'queued',
+    parsedAttachments.metadata.length ? metadata : null, subject,
+    allRecipientsSuppressed ? 'suppressed' : scheduledAt ? 'scheduled' : 'queued',
+    allRecipientsSuppressed ? 'Every recipient was skipped because the address is on the Emailgo suppression list.' : null,
     text ?? null, html ?? null,
     scheduledAt && parsedAttachments.attachments.length ? JSON.stringify(parsedAttachments.attachments) : null,
-    scheduledAt, tracking.openTracking ? 1 : 0, tracking.clickTracking ? 1 : 0, createdAt,
+    allRecipientsSuppressed ? null : scheduledAt, tracking.openTracking ? 1 : 0, tracking.clickTracking ? 1 : 0, createdAt,
   ];
   if (idempotencyKey) {
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
@@ -370,6 +388,15 @@ export async function sendEmailRequest(request: Request, options: { countRateLim
     }
   } else {
     await execute(insertSql, insertParams);
+  }
+
+  if (suppressedRecipients.length) {
+    await Promise.all(suppressedRecipients.map((row) => emitEmailSuppressed(apiKey.id, id, from, row.email, subject)));
+  }
+
+  if (allRecipientsSuppressed) {
+    const suppressedEmail = await getStoredEmail(id);
+    return suppressedEmail ? NextResponse.json(emailResponse(suppressedEmail)) : responseError('The suppressed email could not be read.', 500);
   }
 
   if (scheduledAt) {

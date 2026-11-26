@@ -14,6 +14,7 @@ export async function GET(request: Request) {
   const result = await query(`SELECT b.id,b.name,b.api_key_id,b.from_address,b.subject,b.text_body,b.html_body,b.audience_type,b.audience_id,b.status,b.scheduled_at,b.recipient_count,b.created_at,b.updated_at,
     CAST((SELECT COUNT(*) FROM emails e WHERE e.broadcast_id=b.id AND e.status='sent') AS INTEGER) AS sent_count,
     CAST((SELECT COUNT(*) FROM emails e WHERE e.broadcast_id=b.id AND e.status='failed') AS INTEGER) AS failed_count,
+    CAST((SELECT COUNT(*) FROM emails e WHERE e.broadcast_id=b.id AND e.status='suppressed') AS INTEGER) AS suppressed_count,
     CAST((SELECT COUNT(*) FROM emails e WHERE e.broadcast_id=b.id AND e.status IN ('scheduled','processing')) AS INTEGER) AS pending_count
     FROM broadcasts b ORDER BY b.updated_at DESC,b.id DESC`);
   return NextResponse.json({ data: result.rows }, { headers: privateHeaders });

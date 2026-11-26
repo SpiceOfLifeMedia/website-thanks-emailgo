@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { execute, nowIso, query } from '@/lib/database';
 import { sendThroughSmtp, smtpConfigured, type OutboundAttachment } from '@/lib/smtp';
 import { trackedHtml } from '@/lib/tracking';
+import { emitEmailSuppressed, findSuppressedAddresses, normalizeSuppressionAddress } from '@/lib/suppressions';
 import { deliverDueWebhooks, emitWebhookEvent } from '@/lib/webhooks';
 import { processAutomationRuns } from '@/lib/automations';
 
@@ -61,6 +62,7 @@ export async function POST(request: Request) {
   let nextIndex = 0;
   let sent = 0;
   let failed = 0;
+  let suppressed = 0;
   let deferred = 0;
   const workers = Array.from({ length: Math.min(5, due.rows.length) }, async () => {
     while (true) {
@@ -75,6 +77,26 @@ export async function POST(request: Request) {
 
       const attempt = email.attempt_count + 1;
       try {
+        const requestedTo = jsonValue<string[]>(email.to_json, []);
+        const requestedCc = jsonValue<string[]>(email.cc_json, []);
+        const requestedBcc = jsonValue<string[]>(email.bcc_json, []);
+        const allRequestedRecipients = [...requestedTo, ...requestedCc, ...requestedBcc];
+        const blocked = await findSuppressedAddresses(allRequestedRecipients);
+        const blockedEmails = new Set(blocked.map((row) => row.normalized_email));
+        const to = requestedTo.filter((address) => !blockedEmails.has(normalizeSuppressionAddress(address)));
+        const cc = requestedCc.filter((address) => !blockedEmails.has(normalizeSuppressionAddress(address)));
+        const bcc = requestedBcc.filter((address) => !blockedEmails.has(normalizeSuppressionAddress(address)));
+        if (blocked.length) {
+          await Promise.all(blocked.map((row) => emitEmailSuppressed(email.api_key_id, email.id, email.from_address, row.email, email.subject)));
+          await execute('UPDATE emails SET to_json=?,cc_json=?,bcc_json=? WHERE id=? AND status=?', [JSON.stringify(to), cc.length ? JSON.stringify(cc) : null, bcc.length ? JSON.stringify(bcc) : null, email.id, 'processing']);
+        }
+        if (to.length + cc.length + bcc.length === 0) {
+          await execute("UPDATE emails SET status='suppressed',error_message=?,processing_started_at=NULL,next_attempt_at=NULL,attachment_payload_json=NULL WHERE id=? AND status='processing'", [
+            'Every recipient was skipped because the address is on the Emailgo suppression list.', email.id,
+          ]);
+          suppressed += 1;
+          continue;
+        }
         const attachments = jsonValue<OutboundAttachment[]>(email.attachment_payload_json, []);
         if (!Array.isArray(attachments) || attachments.some((attachment) => !attachment || typeof attachment.filename !== 'string' || typeof attachment.content !== 'string')) throw new Error('Scheduled attachment data is invalid.');
         const tracking = { openTracking: Boolean(email.track_opens), clickTracking: Boolean(email.track_clicks) };
@@ -83,9 +105,9 @@ export async function POST(request: Request) {
           : email.html_body;
         const result = await sendThroughSmtp({
           from: email.from_address,
-          to: jsonValue<string[]>(email.to_json, []),
-          cc: jsonValue<string[]>(email.cc_json, []),
-          bcc: jsonValue<string[]>(email.bcc_json, []),
+          to,
+          cc,
+          bcc,
           ...(email.reply_to ? { replyTo: email.reply_to } : {}),
           subject: email.subject,
           ...(email.text_body !== null ? { text: email.text_body } : {}),
@@ -125,5 +147,5 @@ export async function POST(request: Request) {
     WHERE status IN ('queued','scheduled','sending') AND recipient_count>0`, [now, now, nowIso()]);
   const webhooks = await deliverDueWebhooks();
   const automations = await processAutomationRuns(5);
-  return NextResponse.json({ ok: true, checked: due.rows.length, sent, failed, deferred, webhooks, automations, smtp_configured: smtpConfigured(), checked_at: now });
+  return NextResponse.json({ ok: true, checked: due.rows.length, sent, failed, suppressed, deferred, webhooks, automations, smtp_configured: smtpConfigured(), checked_at: now });
 }

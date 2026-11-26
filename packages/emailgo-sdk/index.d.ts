@@ -69,6 +69,13 @@ export declare class Emailgo {
     delete(id: string): Promise<EmailgoResult<JsonObject>>;
     topics: { list(id: string): Promise<EmailgoResult<JsonObject>>; update(id: string, body: JsonObject): Promise<EmailgoResult<JsonObject>> };
   };
+  contactProperties: {
+    list(): Promise<EmailgoResult<EmailgoList>>;
+    create(body: { key: string; type: 'string' | 'number'; fallback_value?: string | number | null }): Promise<EmailgoResult<JsonObject>>;
+    get(key: string): Promise<EmailgoResult<JsonObject>>;
+    update(key: string, body: { type?: 'string' | 'number'; fallback_value?: string | number | null }): Promise<EmailgoResult<JsonObject>>;
+    delete(key: string): Promise<EmailgoResult<JsonObject>>;
+  };
   segments: {
     list(): Promise<EmailgoResult<EmailgoList>>;
     create(body: JsonObject): Promise<EmailgoResult<JsonObject>>;
@@ -82,5 +89,6 @@ export declare class Emailgo {
   automations: { list(): Promise<EmailgoResult<EmailgoList>>; create(body: JsonObject): Promise<EmailgoResult<JsonObject>>; get(id: string): Promise<EmailgoResult<JsonObject>>; update(id: string, body: JsonObject): Promise<EmailgoResult<JsonObject>>; archive(id: string): Promise<EmailgoResult<JsonObject>>; start(id: string): Promise<EmailgoResult<JsonObject>>; stop(id: string): Promise<EmailgoResult<JsonObject>>; runs(id: string, query?: EmailgoQuery): Promise<EmailgoResult<EmailgoList>>; getRun(id: string, runId: string): Promise<EmailgoResult<JsonObject>>; stopRun(id: string, runId: string): Promise<EmailgoResult<JsonObject>> };
   events: { list(): Promise<EmailgoResult<EmailgoList>>; send(body: JsonObject, options?: { idempotencyKey?: string }): Promise<EmailgoResult<JsonObject>> };
   webhooks: { list(): Promise<EmailgoResult<EmailgoList>>; create(body: JsonObject): Promise<EmailgoResult<JsonObject>>; get(id: string): Promise<EmailgoResult<JsonObject>>; update(id: string, body: JsonObject): Promise<EmailgoResult<JsonObject>>; delete(id: string): Promise<EmailgoResult<JsonObject>>; deliveries(id: string, query?: EmailgoQuery): Promise<EmailgoResult<EmailgoList>>; replay(id: string, body: JsonObject): Promise<EmailgoResult<JsonObject>>; rotateSecret(id: string): Promise<EmailgoResult<JsonObject>> };
+  suppressions: { list(query?: EmailgoQuery): Promise<EmailgoResult<EmailgoList>>; add(email: string): Promise<EmailgoResult<JsonObject>>; batchAdd(emails: string[]): Promise<EmailgoResult<EmailgoList>>; get(identifier: string): Promise<EmailgoResult<JsonObject>>; remove(identifier: string): Promise<EmailgoResult<JsonObject>>; batchRemove(emails: string[]): Promise<EmailgoResult<EmailgoList>> };
   usage: { get(): Promise<EmailgoResult<JsonObject>> };
 }

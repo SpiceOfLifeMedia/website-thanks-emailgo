@@ -6,7 +6,7 @@ type ApiKey = { id: string; name: string; prefix: string };
 type Webhook = { id: string; api_key_id: string; key_name: string; endpoint: string; events: string[]; created_at: string; updated_at: string; active: boolean };
 type Attempt = { attempt_number: number; attempted_at: string; duration_ms: number; status_code: number | null; response_excerpt: string | null; error_message: string | null };
 type Delivery = { id: string; event_id: string; event_type: string; status: string; attempt_count: number; created_at: string; last_attempt_at: string | null; last_status_code: number | null; last_error: string | null; delivered_at: string | null; attempts: Attempt[] };
-const eventTypes = ['email.sent', 'email.failed', 'email.opened', 'email.clicked', 'email.received', 'contact.created', 'contact.updated', 'contact.deleted', 'contact.subscribed', 'contact.unsubscribed'];
+const eventTypes = ['email.sent', 'email.failed', 'email.suppressed', 'email.opened', 'email.clicked', 'email.received', 'contact.created', 'contact.updated', 'contact.deleted', 'contact.subscribed', 'contact.unsubscribed', 'suppression.added', 'suppression.removed'];
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, { ...init, headers: { ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers } });

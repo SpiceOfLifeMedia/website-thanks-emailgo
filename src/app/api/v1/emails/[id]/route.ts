@@ -38,6 +38,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     ...(row.provider_id ? { relayResponse: row.provider_id } : {}),
     ...(row.scheduled_at ? { scheduled_at: row.scheduled_at } : {}),
     ...(row.status === 'failed' ? { error: 'Email delivery failed. Check the message details in your Emailgo dashboard.' } : {}),
+    ...(row.status === 'suppressed' ? { error: row.error_message ?? 'Email was not sent because every recipient is on the workspace suppression list.' } : {}),
   }, { headers: privateHeaders });
 }
 
