@@ -3,6 +3,7 @@ import { authorizeApiKey } from '@/lib/auth';
 import { consumeSendLimit, execute, hashSecret, nowIso, query, queryOne, randomId, transaction } from '@/lib/database';
 import { sendThroughSmtp } from '@/lib/smtp';
 import { readJsonLimited } from '@/lib/request-json';
+import { relayMessageIdFromResponse } from '@/lib/ses-events';
 export const runtime = 'nodejs';
 export const maxDuration = 30;
 
@@ -66,7 +67,11 @@ export async function POST(request: Request) {
   const senderDomain = sender.slice(sender.lastIndexOf('@') + 1);
   const verifiedDomains = (await query<{ domain: string }>('SELECT domain FROM domains WHERE verified_at IS NOT NULL')).rows;
   const domainAllowed = verifiedDomains.some(({ domain }) => senderDomain === domain || senderDomain.endsWith(`.${domain}`));
-  if (!domainAllowed) return responseError('The sender domain must be verified in your Emailgo dashboard.', 403);
+  if (!domainAllowed) return responseError('The sender domain must be verified in your Email, thanks dashboard.', 403);
+
+  const recipients = (to as string[]).map(mailbox);
+  const suppressed = (await query<{ address: string }>(`SELECT address FROM suppressions WHERE address IN (${recipients.map(() => '?').join(',')})`, recipients)).rows.map(({ address }) => address);
+  if (suppressed.length) return NextResponse.json({ error: { message: 'Some recipients previously bounced or marked email as spam, so Email, thanks will not send to them.', suppressed } }, { status: 422 });
 
   const idempotencyKey = request.headers.get('idempotency-key');
   if (idempotencyKey !== null && !/^[\x21-\x7E]{1,256}$/.test(idempotencyKey)) return responseError('Idempotency-Key must be 1 to 256 visible ASCII characters.', 400);
@@ -78,7 +83,7 @@ export async function POST(request: Request) {
     if (replay) {
       if (replay.request_hash !== requestHash) return responseError('This Idempotency-Key was already used with a different request.', 409);
       const headers = { 'Idempotency-Replayed': 'true' };
-      if (replay.status === 'failed') return NextResponse.json({ error: { message: 'Email delivery failed. Check the message details in your Emailgo dashboard.' }, id: replay.id }, { status: 502, headers });
+      if (replay.status === 'failed') return NextResponse.json({ error: { message: 'Email delivery failed. Check the message details in your Email, thanks dashboard.' }, id: replay.id }, { status: 502, headers });
       return NextResponse.json(emailResponse(replay), { status: replay.status === 'queued' ? 202 : 200, headers });
     }
   }
@@ -108,13 +113,13 @@ export async function POST(request: Request) {
 
   try {
     const smtpResult = await sendThroughSmtp({ from, to: to as string[], subject, ...(text !== undefined ? { text } : {}), ...(html !== undefined ? { html } : {}) });
-    await execute('UPDATE emails SET status = ?, provider_id = ?, message_id = ? WHERE id = ?', ['sent', smtpResult.response.slice(0, 500), smtpResult.messageId, id]);
+    await execute('UPDATE emails SET status = ?, provider_id = ?, message_id = ?, relay_message_id = ? WHERE id = ?', ['sent', smtpResult.response.slice(0, 500), smtpResult.messageId, relayMessageIdFromResponse(smtpResult.response), id]);
     const storedEmail = await getStoredEmail(id);
     if (!storedEmail) throw new Error('The sent email record could not be read.');
     return NextResponse.json(emailResponse(storedEmail), { status: 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 500) : 'SMTP delivery failed.';
     await execute('UPDATE emails SET status = ?, error_message = ? WHERE id = ?', ['failed', message, id]);
-    return NextResponse.json({ error: { message: 'Email delivery failed. Check the message details in your Emailgo dashboard.' }, id }, { status: 502 });
+    return NextResponse.json({ error: { message: 'Email delivery failed. Check the message details in your Email, thanks dashboard.' }, id }, { status: 502 });
   }
 }

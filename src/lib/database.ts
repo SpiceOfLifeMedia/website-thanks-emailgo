@@ -44,6 +44,17 @@ const postgresSchema = [
     api_key_id TEXT PRIMARY KEY, window_started INTEGER NOT NULL, request_count INTEGER NOT NULL,
     FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
   )`,
+  'ALTER TABLE emails ADD COLUMN IF NOT EXISTS relay_message_id TEXT',
+  'CREATE INDEX IF NOT EXISTS emails_relay_message_id ON emails(relay_message_id)',
+  `CREATE TABLE IF NOT EXISTS delivery_events (
+    id TEXT PRIMARY KEY, sns_message_id TEXT NOT NULL, email_id TEXT, relay_message_id TEXT NOT NULL,
+    event_type TEXT NOT NULL, recipient TEXT NOT NULL, detail TEXT, created_at TEXT NOT NULL,
+    UNIQUE(sns_message_id,recipient), FOREIGN KEY(email_id) REFERENCES emails(id)
+  )`,
+  'CREATE INDEX IF NOT EXISTS delivery_events_email ON delivery_events(email_id)',
+  `CREATE TABLE IF NOT EXISTS suppressions (
+    address TEXT PRIMARY KEY, reason TEXT NOT NULL, detail TEXT, created_at TEXT NOT NULL
+  )`,
   'CREATE TABLE IF NOT EXISTS login_limits (source_hash TEXT PRIMARY KEY, window_started INTEGER NOT NULL, attempt_count INTEGER NOT NULL)',
 ];
 
@@ -98,10 +109,21 @@ function getSqlite() {
       api_key_id TEXT PRIMARY KEY, window_started INTEGER NOT NULL, request_count INTEGER NOT NULL,
       FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
     );
+    CREATE TABLE IF NOT EXISTS delivery_events (
+      id TEXT PRIMARY KEY, sns_message_id TEXT NOT NULL, email_id TEXT, relay_message_id TEXT NOT NULL,
+      event_type TEXT NOT NULL, recipient TEXT NOT NULL, detail TEXT, created_at TEXT NOT NULL,
+      UNIQUE(sns_message_id,recipient), FOREIGN KEY(email_id) REFERENCES emails(id)
+    );
+    CREATE INDEX IF NOT EXISTS delivery_events_email ON delivery_events(email_id);
+    CREATE TABLE IF NOT EXISTS suppressions (
+      address TEXT PRIMARY KEY, reason TEXT NOT NULL, detail TEXT, created_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS login_limits (source_hash TEXT PRIMARY KEY, window_started INTEGER NOT NULL, attempt_count INTEGER NOT NULL);
   `);
   const emailColumns = db.prepare('PRAGMA table_info(emails)').all() as Array<{ name: string }>;
   if (!emailColumns.some(({ name }) => name === 'message_id')) db.exec('ALTER TABLE emails ADD COLUMN message_id TEXT');
+  if (!emailColumns.some(({ name }) => name === 'relay_message_id')) db.exec('ALTER TABLE emails ADD COLUMN relay_message_id TEXT');
+  db.exec('CREATE INDEX IF NOT EXISTS emails_relay_message_id ON emails(relay_message_id)');
   globalForDatabases.emailgoSqlite = db;
   return db;
 }
@@ -178,6 +200,13 @@ export function consumeSendLimit(apiKeyId: string, perMinute = 60) {
     ON CONFLICT(api_key_id) DO UPDATE SET window_started=excluded.window_started,
     request_count=CASE WHEN send_limits.window_started=excluded.window_started THEN send_limits.request_count+1 ELSE 1 END
     RETURNING request_count`, apiKeyId, perMinute);
+}
+
+export function consumeWebhookLimit(sourceHash: string, perMinute = 600) {
+  return consumeLimit(`INSERT INTO login_limits(source_hash,window_started,attempt_count) VALUES(?,?,1)
+    ON CONFLICT(source_hash) DO UPDATE SET window_started=excluded.window_started,
+    attempt_count=CASE WHEN login_limits.window_started=excluded.window_started THEN login_limits.attempt_count+1 ELSE 1 END
+    RETURNING attempt_count`, `webhook:${sourceHash}`, perMinute);
 }
 
 export function consumeLoginAttempt(sourceHash: string, perMinute = 10) {
