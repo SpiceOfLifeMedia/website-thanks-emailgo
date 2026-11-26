@@ -4,6 +4,7 @@ import { emitWebhookEvent } from '@/lib/webhooks';
 import { emitEmailSuppressed, findSuppressedAddresses } from '@/lib/suppressions';
 import { findEmailTemplate, getPublishedTemplateContent } from '@/lib/email-templates';
 import { relayMessageIdFromResponse } from '@/lib/ses-events';
+import { checkEmailLinks } from '@/lib/email-link-checker';
 
 export type AutomationStep = { key: string; type: string; config: Record<string, unknown> };
 export type AutomationConnection = { from: string; to: string; condition?: 'true' | 'false' };
@@ -496,6 +497,7 @@ async function sendAutomationEmail(run: RunRow, step: AutomationStep, context: R
   const text = published.text === null ? null : renderVariables(published.text, values, false);
   const html = published.html === null ? null : renderVariables(published.html, values, true);
   if (!text && !html) throw new Error('The email template has no text or HTML body.');
+  if (checkEmailLinks(html, text).length) throw new Error('The email template contains links that need attention before automation can send.');
   const id = randomId('eml');
   const createdAt = nowIso();
   const suppression = (await findSuppressedAddresses([recipient]))[0];

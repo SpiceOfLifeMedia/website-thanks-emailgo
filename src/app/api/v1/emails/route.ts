@@ -1,4 +1,5 @@
 import { withApiRequestLog } from '@/lib/request-logs';
+import { checkEmailLinks } from '@/lib/email-link-checker';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { consumeSendLimit, execute, hashSecret, nowIso, query, queryOne, randomId, transaction } from '@/lib/database';
@@ -343,6 +344,8 @@ export async function sendEmailRequest(request: Request, options: { countRateLim
   const html = template ? renderTemplate(template.html, parsedVariables.variables, true) : rawHtml;
   if (text === undefined && html === undefined) return responseError('Provide text, html, or a template_id containing text or html.', 400);
   if ((text?.length ?? 0) > 500_000 || (html?.length ?? 0) > 500_000) return responseError('Email content exceeds the 500 KB limit.', 413);
+  const linkIssues = checkEmailLinks(html, text);
+  if (linkIssues.length) return NextResponse.json({ error: { message: 'Review the email links before sending.' }, link_issues: linkIssues }, { status: 422 });
 
   const senderDomain = sender.slice(sender.lastIndexOf('@') + 1).toLowerCase();
   const verifiedDomains = (await query<{ id: string; domain: string; open_tracking: number; click_tracking: number }>('SELECT id,domain,open_tracking,click_tracking FROM domains WHERE verified_at IS NOT NULL')).rows;

@@ -4,11 +4,16 @@ import { execute, nowIso, query, queryOne, randomId, transaction } from '@/lib/d
 import { authorizeBroadcastRequest, eligibleBroadcastContacts, type BroadcastInput, validateBroadcastInput } from '@/lib/broadcasts';
 import { readJsonLimited } from '@/lib/request-json';
 import { smtpConfigured } from '@/lib/smtp';
+import { checkEmailLinks, type EmailLinkIssue } from '@/lib/email-link-checker';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
 const privateHeaders = { 'Cache-Control': 'private, no-store' };
 const emailPattern = /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/;
+
+class BroadcastLinkValidationError extends Error {
+  constructor(readonly issues: EmailLinkIssue[]) { super('Broadcast links need attention.'); }
+}
 
 function htmlEscape(value: string) { return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character] ?? character); }
 function render(source: string | null, values: Record<string, unknown>, html: boolean) {
@@ -93,6 +98,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       const htmlBody = render(campaign.html, values, true);
       const textWithFooter = textBody === null ? null : `${textBody}\n\nManage preferences: ${preferencesUrl}\nUnsubscribe: ${unsubscribeUrl}`;
       const htmlWithFooter = htmlBody === null ? null : `${htmlBody}<div style="margin-top:24px;font-size:12px;color:#666"><a href="${htmlEscape(preferencesUrl)}">Manage preferences</a> · <a href="${htmlEscape(unsubscribeUrl)}">Unsubscribe</a></div>`;
+      const linkIssues = checkEmailLinks(htmlWithFooter, textWithFooter);
+      if (linkIssues.length) throw new BroadcastLinkValidationError(linkIssues);
       const createdAt = nowIso();
       baseStatements.push({
         sql: `INSERT INTO emails(id,api_key_id,from_address,to_json,subject,status,headers_json,text_body,html_body,scheduled_at,track_opens,track_clicks,broadcast_id,created_at)
@@ -111,6 +118,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ id, status: finalStatus, recipient_count: recipients.length, scheduled_at: scheduledAt }, { status: 202, headers: privateHeaders });
   } catch (cause) {
     await execute("UPDATE broadcasts SET status='draft',updated_at=? WHERE id=? AND status='queuing'", [nowIso(), id]);
+    if (cause instanceof BroadcastLinkValidationError) return NextResponse.json({ error: 'Review the broadcast links before queuing this message.', link_issues: cause.issues }, { status: 422, headers: privateHeaders });
     const message = cause instanceof Error ? cause.message : 'Could not queue the broadcast.';
     return NextResponse.json({ error: message }, { status: 500, headers: privateHeaders });
   }
