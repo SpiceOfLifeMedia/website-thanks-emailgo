@@ -42,11 +42,7 @@ export async function POST(request: Request) {
   let recorded = 0;
   for (const event of events) {
     const email = await queryOne<{ id: string; status: string }>('SELECT id,status FROM emails WHERE relay_message_id = ?', [event.relayMessageId]);
-    const inserted = await execute(`INSERT INTO delivery_events(id,sns_message_id,email_id,relay_message_id,event_type,recipient,detail,created_at)
-      VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(sns_message_id,recipient) DO NOTHING`,
-      [randomId('ev'), envelope.MessageId, email?.id ?? null, event.relayMessageId, event.type, event.recipient, event.detail, nowIso()]);
-    if (!inserted) continue;
-    recorded += 1;
+    // Suppression and status writes are idempotent and run before the event is saved, so an SNS retry finishes a failed attempt.
     if (event.suppress) {
       await execute('INSERT INTO suppressions(address,reason,detail,created_at) VALUES(?,?,?,?) ON CONFLICT(address) DO NOTHING',
         [event.recipient, event.type, event.detail, nowIso()]);
@@ -55,6 +51,9 @@ export async function POST(request: Request) {
       const status = strongerStatus(email.status, event.type);
       if (status !== email.status) await execute('UPDATE emails SET status = ? WHERE id = ?', [status, email.id]);
     }
+    recorded += Number(await execute(`INSERT INTO delivery_events(id,sns_message_id,email_id,relay_message_id,event_type,recipient,detail,created_at)
+      VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(sns_message_id,recipient) DO NOTHING`,
+      [randomId('ev'), envelope.MessageId, email?.id ?? null, event.relayMessageId, event.type, event.recipient, event.detail, nowIso()]));
   }
   return NextResponse.json({ received: events.length, recorded });
 }
