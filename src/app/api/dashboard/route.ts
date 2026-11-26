@@ -13,7 +13,8 @@ export async function GET() {
     query('SELECT id, domain, verification_token, created_at, verified_at FROM domains ORDER BY created_at DESC'),
     query(`SELECT
     CAST(COUNT(*) AS INTEGER) AS total,
-    CAST(COALESCE(SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END), 0) AS INTEGER) AS sent,
+    CAST(COALESCE(SUM(CASE WHEN status IN ('sent','deferred','delivered','bounced','complained') THEN 1 ELSE 0 END), 0) AS INTEGER) AS sent,
+    CAST(COALESCE(SUM(CASE WHEN status IN ('bounced','complained') THEN 1 ELSE 0 END), 0) AS INTEGER) AS bounced,
     CAST(COALESCE(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END), 0) AS INTEGER) AS failed
     FROM emails WHERE created_at >= ?`, [new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()]),
   ]);

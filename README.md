@@ -1,20 +1,33 @@
-# Emailgo
+# Email, thanks
 
-Emailgo is an independent email delivery API and workspace for Website Thanks. It owns the API keys, sender domain verification, request validation, message log and dashboard. Outbound transport is configured through standard SMTP credentials. Emailgo does not call Resend or use a Resend API key.
+Internal code name: Emailgo (environment variables keep the `EMAILGO_` prefix).
+
+Email, thanks is an independent email delivery API and workspace for Website Thanks. It owns the API keys, sender domain verification, request validation, message log and dashboard. Outbound transport is configured through standard SMTP credentials. Email, thanks does not call Resend or use a Resend API key.
 
 ## What works
 
 - Admin password sign in with signed, HTTP only sessions.
-- Create and revoke Emailgo API keys. Only key hashes are stored, and a new secret is shown once.
+- Create and revoke Email, thanks API keys. Only key hashes are stored, and a new secret is shown once.
 - Add sender domains and verify ownership through a DNS TXT record.
-- Send transactional emails through the Emailgo API using a configured SMTP relay.
+- Send transactional emails through the Email, thanks API using a configured SMTP relay.
 - Persist recipients, subject lines, relay response IDs, failures and key last-use times in PostgreSQL in production and SQLite during local development. Email bodies are used for SMTP handoff and are not saved to the message log.
 - Filter recent message activity and inspect relay failures.
 - Per-key send limit of 60 requests per minute, a 1 MB request body limit, and 24-hour idempotency keys to prevent accidental duplicate sends.
 - Authenticated `GET /api/v1/emails` and `GET /api/v1/emails/:id` endpoints for message history.
 - Docker image designed for a persistent `./data` volume.
 
-SMTP credentials are only sent over TLS. Port 587 requires STARTTLS; port 465 uses implicit TLS. SMTP acceptance is recorded as `sent`. The first version does not yet track recipient delivery, opens, bounces or complaints. Those need delivery event webhooks from a mail transport or a delivery event ingestion endpoint.
+SMTP credentials are only sent over TLS. Port 587 requires STARTTLS; port 465 uses implicit TLS. SMTP acceptance is recorded as `sent`. Opens and clicks are not tracked.
+
+## Bounces and spam complaints (Amazon SES)
+
+`POST /api/webhooks/ses?token=<EMAILGO_WEBHOOK_TOKEN>` accepts Amazon SNS messages carrying SES Bounce, Complaint and Delivery notifications. Each request must carry the token, come from an allowed topic (`EMAILGO_SNS_TOPIC_ARNS`, if set) and pass SNS signature verification against a certificate served from `sns.<region>.amazonaws.com`. Subscription confirmations are accepted automatically after the same checks.
+
+- The SES message ID from the SMTP reply (`250 Ok <id>`) is stored as `relay_message_id` and links events to messages.
+- Message status moves forward only: `sent` → `deferred` (transient bounce) → `delivered` → `bounced` → `complained`.
+- Permanent bounces and complaints add the recipient to `suppressions`. Later sends to a suppressed address return 422 and list the addresses.
+- Events are de-duplicated per SNS message and recipient, so SNS retries are safe. Only addresses, event types and short reasons are stored, never message bodies.
+
+To connect SES: create an SNS topic, subscribe the URL above over HTTPS, and set the topic as the Bounce, Complaint and (optionally) Delivery notification topic on the SES identity.
 
 ## Run locally
 
@@ -38,7 +51,7 @@ curl -X POST http://localhost:3000/api/v1/emails \
   -H 'Authorization: Bearer eg_live_your_key' \
   -H 'Content-Type: application/json' \
   -H 'Idempotency-Key: order-123-confirmation' \
-  -d '{"from":"hello@example.com","to":"person@example.net","subject":"Hello","text":"Sent with Emailgo."}'
+  -d '{"from":"hello@example.com","to":"person@example.net","subject":"Hello","text":"Sent with Email, thanks."}'
 ```
 
 The `from` domain must be verified. Provide either `text`, `html`, or both. An `Idempotency-Key` makes retries safe for 24 hours. Reusing it with different content returns 409. A `to` value can be one address or an array of up to 50 addresses. Invalid keys receive 401, unverified domains receive 403, and SMTP delivery errors receive 502.
@@ -54,7 +67,7 @@ Follow `next_after` as the `after` query parameter to load the next page. Retrie
 
 ## Domain authentication
 
-Emailgo provides a TXT ownership record at `_emailgo.<domain>`. Configure SPF and DKIM records for your SMTP relay too. The relay remains responsible for final delivery, reputation and its own authentication records.
+Email, thanks provides a TXT ownership record at `_emailgo.<domain>`. Configure SPF and DKIM records for your SMTP relay too. The relay remains responsible for final delivery, reputation and its own authentication records.
 
 ## Production deployment
 
