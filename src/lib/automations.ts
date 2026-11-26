@@ -3,6 +3,7 @@ import { execute, hashSecret, nowIso, query, queryOne, randomId, transaction } f
 import { emitWebhookEvent } from '@/lib/webhooks';
 import { emitEmailSuppressed, findSuppressedAddresses } from '@/lib/suppressions';
 import { findEmailTemplate, getPublishedTemplateContent } from '@/lib/email-templates';
+import { relayMessageIdFromResponse } from '@/lib/ses-events';
 
 export type AutomationStep = { key: string; type: string; config: Record<string, unknown> };
 export type AutomationConnection = { from: string; to: string; condition?: 'true' | 'false' };
@@ -509,7 +510,7 @@ async function sendAutomationEmail(run: RunRow, step: AutomationStep, context: R
     VALUES(?,?,?,?,?,'processing',?,?,?)`, [id, run.api_key_id, from, JSON.stringify([recipient]), subject, createdAt, text, html]);
   try {
     const result = await sendThroughSmtp({ from, to: [recipient], subject, ...(text !== null ? { text } : {}), ...(html !== null ? { html } : {}) });
-    await execute("UPDATE emails SET status='sent',provider_id=?,message_id=?,error_message=NULL WHERE id=?", [result.response.slice(0, 500), result.messageId, id]);
+    await execute("UPDATE emails SET status='sent',provider_id=?,message_id=?,relay_message_id=?,error_message=NULL WHERE id=?", [result.response.slice(0, 500), result.messageId, relayMessageIdFromResponse(result.response), id]);
     await emitWebhookEvent(run.api_key_id, 'email.sent', { email_id: id, from, to: [recipient], subject, message_id: result.messageId });
     return { email_id: id, message_id: result.messageId };
   } catch (cause) {

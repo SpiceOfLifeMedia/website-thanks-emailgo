@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import './styles.css';
 
 export const metadata: Metadata = {
-  title: 'Emailgo · Email delivery API',
-  description: 'Send transactional email through the Emailgo API and see every message in one place.',
+  title: 'Email, thanks · Email delivery API',
+  description: 'Send transactional email through the Email, thanks API and see every message in one place.',
 };
 export const viewport: Viewport = { width: 'device-width', initialScale: 1, themeColor: '#f7f7f3' };
 

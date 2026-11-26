@@ -8,6 +8,7 @@ import { emitEmailSuppressed, findSuppressedAddresses } from '@/lib/suppressions
 import { trackedHtml } from '@/lib/tracking';
 import { emitWebhookEvent } from '@/lib/webhooks';
 import { findEmailTemplate, getPublishedTemplateContent, storedTemplateToContent } from '@/lib/email-templates';
+import { relayMessageIdFromResponse } from '@/lib/ses-events';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -45,6 +46,7 @@ type StoredEmail = {
   error_message: string | null;
   provider_id: string | null;
   message_id: string | null;
+  relay_message_id: string | null;
   scheduled_at: string | null;
   text_body: string | null;
   html_body: string | null;
@@ -101,7 +103,7 @@ function emailResponse(row: StoredEmail, includeContent = false) {
   };
 }
 
-const storedEmailColumns = 'id,from_address,to_json,cc_json,bcc_json,reply_to,headers_json,tags_json,attachments_json,subject,status,error_message,provider_id,message_id,scheduled_at,text_body,html_body,created_at';
+const storedEmailColumns = 'id,from_address,to_json,cc_json,bcc_json,reply_to,headers_json,tags_json,attachments_json,subject,status,error_message,provider_id,message_id,relay_message_id,scheduled_at,text_body,html_body,created_at';
 
 async function getStoredEmail(id: string) {
   return await queryOne<StoredEmail>(`SELECT ${storedEmailColumns} FROM emails WHERE id=?`, [id]);
@@ -447,7 +449,7 @@ export async function sendEmailRequest(request: Request, options: { countRateLim
       ...(Object.keys(parsedHeaders.headers).length ? { headers: parsedHeaders.headers } : {}),
       ...(parsedAttachments.attachments.length ? { attachments: parsedAttachments.attachments } : {}),
     });
-    await execute('UPDATE emails SET status = ?, provider_id = ?, message_id = ? WHERE id = ?', ['sent', smtpResult.response.slice(0, 500), smtpResult.messageId, id]);
+    await execute('UPDATE emails SET status = ?, provider_id = ?, message_id = ?, relay_message_id = ? WHERE id = ?', ['sent', smtpResult.response.slice(0, 500), smtpResult.messageId, relayMessageIdFromResponse(smtpResult.response), id]);
     await emitWebhookEvent(apiKey.id, 'email.sent', { email_id: id, from, to, subject, message_id: smtpResult.messageId });
     const storedEmail = await getStoredEmail(id);
     if (!storedEmail) throw new Error('The sent email record could not be read.');

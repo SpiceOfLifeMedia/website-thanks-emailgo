@@ -6,6 +6,7 @@ import { trackedHtml } from '@/lib/tracking';
 import { emitEmailSuppressed, findSuppressedAddresses, normalizeSuppressionAddress } from '@/lib/suppressions';
 import { deliverDueWebhooks, emitWebhookEvent } from '@/lib/webhooks';
 import { processAutomationRuns } from '@/lib/automations';
+import { relayMessageIdFromResponse } from '@/lib/ses-events';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -115,8 +116,8 @@ export async function POST(request: Request) {
           ...(email.headers_json ? { headers: jsonValue<Record<string, string>>(email.headers_json, {}) } : {}),
           ...(attachments.length ? { attachments } : {}),
         });
-        await execute('UPDATE emails SET status=?,provider_id=?,message_id=?,error_message=NULL,processing_started_at=NULL,next_attempt_at=NULL,attachment_payload_json=NULL WHERE id=? AND status=?', [
-          'sent', result.response.slice(0, 500), result.messageId, email.id, 'processing',
+        await execute('UPDATE emails SET status=?,provider_id=?,message_id=?,relay_message_id=?,error_message=NULL,processing_started_at=NULL,next_attempt_at=NULL,attachment_payload_json=NULL WHERE id=? AND status=?', [
+          'sent', result.response.slice(0, 500), result.messageId, relayMessageIdFromResponse(result.response), email.id, 'processing',
         ]);
         await emitWebhookEvent(email.api_key_id, 'email.sent', { email_id: email.id, from: email.from_address, to: jsonValue<string[]>(email.to_json, []), subject: email.subject, message_id: result.messageId });
         sent += 1;

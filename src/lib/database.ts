@@ -73,13 +73,14 @@ const postgresSchema = [
   `CREATE TABLE IF NOT EXISTS emails (
     id TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, from_address TEXT NOT NULL,
     to_json TEXT NOT NULL, subject TEXT NOT NULL,
-    status TEXT NOT NULL, error_message TEXT, provider_id TEXT, message_id TEXT, created_at TEXT NOT NULL,
+    status TEXT NOT NULL, error_message TEXT, provider_id TEXT, message_id TEXT, relay_message_id TEXT, created_at TEXT NOT NULL,
     cc_json TEXT, bcc_json TEXT, reply_to TEXT, headers_json TEXT, tags_json TEXT, attachments_json TEXT,
     text_body TEXT, html_body TEXT, attachment_payload_json TEXT, scheduled_at TEXT,
     attempt_count INTEGER NOT NULL DEFAULT 0, next_attempt_at TEXT, processing_started_at TEXT,
     track_opens INTEGER NOT NULL DEFAULT 0, track_clicks INTEGER NOT NULL DEFAULT 0, broadcast_id TEXT,
     FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
   )`,
+  'ALTER TABLE emails ADD COLUMN IF NOT EXISTS relay_message_id TEXT',
   'ALTER TABLE emails ADD COLUMN IF NOT EXISTS cc_json TEXT',
   'ALTER TABLE emails ADD COLUMN IF NOT EXISTS bcc_json TEXT',
   'ALTER TABLE emails ADD COLUMN IF NOT EXISTS reply_to TEXT',
@@ -121,6 +122,7 @@ const postgresSchema = [
   )`,
   'CREATE INDEX IF NOT EXISTS received_attachments_email ON received_email_attachments(received_email_id,created_at,id)',
   'CREATE INDEX IF NOT EXISTS emails_created_at ON emails(created_at DESC)',
+  'CREATE INDEX IF NOT EXISTS emails_relay_message_id ON emails(relay_message_id)',
   'CREATE INDEX IF NOT EXISTS emails_api_key_created_at ON emails(api_key_id,created_at DESC,id DESC)',
   'CREATE INDEX IF NOT EXISTS emails_scheduled_queue ON emails(status,scheduled_at,next_attempt_at)',
   `CREATE TABLE IF NOT EXISTS idempotency_keys (
@@ -135,6 +137,7 @@ const postgresSchema = [
     FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
   )`,
   'CREATE TABLE IF NOT EXISTS login_limits (source_hash TEXT PRIMARY KEY, window_started INTEGER NOT NULL, attempt_count INTEGER NOT NULL)',
+  'CREATE TABLE IF NOT EXISTS webhook_limits (source_hash TEXT PRIMARY KEY, window_started INTEGER NOT NULL, request_count INTEGER NOT NULL)',
   `CREATE TABLE IF NOT EXISTS email_templates (
     id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, alias TEXT, from_address TEXT,
     subject TEXT NOT NULL DEFAULT '', reply_to TEXT, html TEXT, text TEXT,
@@ -246,6 +249,12 @@ const postgresSchema = [
     created_at TEXT NOT NULL, target_domain TEXT, target_path TEXT,
     FOREIGN KEY(email_id) REFERENCES emails(id)
   )`,
+  `CREATE TABLE IF NOT EXISTS delivery_events (
+    id TEXT PRIMARY KEY, sns_message_id TEXT NOT NULL, email_id TEXT, relay_message_id TEXT NOT NULL,
+    event_type TEXT NOT NULL, recipient TEXT NOT NULL, detail TEXT, created_at TEXT NOT NULL,
+    UNIQUE(sns_message_id,recipient), FOREIGN KEY(email_id) REFERENCES emails(id)
+  )`,
+  'CREATE INDEX IF NOT EXISTS delivery_events_email ON delivery_events(email_id)',
   'ALTER TABLE email_events ADD COLUMN IF NOT EXISTS target_url TEXT',
   'CREATE INDEX IF NOT EXISTS email_events_email ON email_events(email_id,created_at DESC)',
   'CREATE INDEX IF NOT EXISTS email_events_email_type_created ON email_events(email_id,type,created_at,id)',
@@ -357,7 +366,7 @@ function getSqlite() {
     CREATE TABLE IF NOT EXISTS emails (
       id TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, from_address TEXT NOT NULL,
       to_json TEXT NOT NULL, subject TEXT NOT NULL,
-      status TEXT NOT NULL, error_message TEXT, provider_id TEXT, message_id TEXT, created_at TEXT NOT NULL,
+      status TEXT NOT NULL, error_message TEXT, provider_id TEXT, message_id TEXT, relay_message_id TEXT, created_at TEXT NOT NULL,
       cc_json TEXT, bcc_json TEXT, reply_to TEXT, headers_json TEXT, tags_json TEXT, attachments_json TEXT,
       text_body TEXT, html_body TEXT, attachment_payload_json TEXT, scheduled_at TEXT,
       attempt_count INTEGER NOT NULL DEFAULT 0, next_attempt_at TEXT, processing_started_at TEXT,
@@ -401,6 +410,7 @@ function getSqlite() {
       FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
     );
     CREATE TABLE IF NOT EXISTS login_limits (source_hash TEXT PRIMARY KEY, window_started INTEGER NOT NULL, attempt_count INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS webhook_limits (source_hash TEXT PRIMARY KEY, window_started INTEGER NOT NULL, request_count INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS email_templates (
       id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, alias TEXT, from_address TEXT,
       subject TEXT NOT NULL DEFAULT '', reply_to TEXT, html TEXT, text TEXT,
@@ -488,6 +498,12 @@ function getSqlite() {
       created_at TEXT NOT NULL, target_domain TEXT, target_path TEXT,
       FOREIGN KEY(email_id) REFERENCES emails(id)
     );
+    CREATE TABLE IF NOT EXISTS delivery_events (
+      id TEXT PRIMARY KEY, sns_message_id TEXT NOT NULL, email_id TEXT, relay_message_id TEXT NOT NULL,
+      event_type TEXT NOT NULL, recipient TEXT NOT NULL, detail TEXT, created_at TEXT NOT NULL,
+      UNIQUE(sns_message_id,recipient), FOREIGN KEY(email_id) REFERENCES emails(id)
+    );
+    CREATE INDEX IF NOT EXISTS delivery_events_email ON delivery_events(email_id);
     CREATE INDEX IF NOT EXISTS email_events_email ON email_events(email_id,created_at DESC);
     CREATE INDEX IF NOT EXISTS email_events_email_type_created ON email_events(email_id,type,created_at,id);
     CREATE INDEX IF NOT EXISTS contacts_created_at ON contacts(created_at DESC);
@@ -527,7 +543,7 @@ function getSqlite() {
   const emailColumns = db.prepare('PRAGMA table_info(emails)').all() as Array<{ name: string }>;
   const existingEmailColumns = new Set(emailColumns.map(({ name }) => name));
   const emailMigrations: Array<[string, string]> = [
-    ['message_id', 'TEXT'], ['cc_json', 'TEXT'], ['bcc_json', 'TEXT'], ['reply_to', 'TEXT'],
+    ['message_id', 'TEXT'], ['relay_message_id', 'TEXT'], ['cc_json', 'TEXT'], ['bcc_json', 'TEXT'], ['reply_to', 'TEXT'],
     ['headers_json', 'TEXT'], ['tags_json', 'TEXT'], ['attachments_json', 'TEXT'], ['text_body', 'TEXT'],
     ['html_body', 'TEXT'], ['attachment_payload_json', 'TEXT'], ['scheduled_at', 'TEXT'],
     ['attempt_count', 'INTEGER NOT NULL DEFAULT 0'], ['next_attempt_at', 'TEXT'], ['processing_started_at', 'TEXT'],
@@ -537,6 +553,7 @@ function getSqlite() {
   for (const [column, definition] of emailMigrations) {
     if (!existingEmailColumns.has(column)) db.exec(`ALTER TABLE emails ADD COLUMN ${column} ${definition}`);
   }
+  db.exec('CREATE INDEX IF NOT EXISTS emails_relay_message_id ON emails(relay_message_id)');
   const templateColumns = db.prepare('PRAGMA table_info(email_templates)').all() as Array<{ name: string }>;
   const existingTemplateColumns = new Set(templateColumns.map(({ name }) => name));
   for (const [column, definition] of [
@@ -606,7 +623,10 @@ async function ensurePostgresSchema() {
   if (!process.env.DATABASE_URL) return;
   if (!globalForDatabases.emailgoPostgresInit) {
     const sql = getPostgres();
-    globalForDatabases.emailgoPostgresInit = sql.transaction(postgresSchema.map((statement) => sql.query(statement))).then(() => undefined);
+    globalForDatabases.emailgoPostgresInit = sql.transaction(postgresSchema.map((statement) => sql.query(statement))).then(() => undefined, (error: unknown) => {
+      globalForDatabases.emailgoPostgresInit = undefined;
+      throw error;
+    });
   }
   await globalForDatabases.emailgoPostgresInit;
 }
@@ -676,4 +696,11 @@ export function consumeLoginAttempt(sourceHash: string, perMinute = 10) {
     ON CONFLICT(source_hash) DO UPDATE SET window_started=excluded.window_started,
     attempt_count=CASE WHEN login_limits.window_started=excluded.window_started THEN login_limits.attempt_count+1 ELSE 1 END
     RETURNING attempt_count`, sourceHash, perMinute);
+}
+
+export function consumeWebhookLimit(sourceHash: string, perMinute = 120) {
+  return consumeLimit(`INSERT INTO webhook_limits(source_hash,window_started,request_count) VALUES(?,?,1)
+    ON CONFLICT(source_hash) DO UPDATE SET window_started=excluded.window_started,
+    request_count=CASE WHEN webhook_limits.window_started=excluded.window_started THEN webhook_limits.request_count+1 ELSE 1 END
+    RETURNING request_count`, sourceHash, perMinute);
 }

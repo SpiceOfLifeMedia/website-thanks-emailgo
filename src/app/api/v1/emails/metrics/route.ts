@@ -6,8 +6,8 @@ import { query } from '@/lib/database';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const availableMetrics = ['received', 'sent', 'failed', 'suppressed', 'opened', 'unique_opened', 'clicked', 'unique_clicked'] as const;
-const unavailableMetrics = ['delivered', 'delivery_delayed', 'bounced', 'bounced_transient', 'bounced_permanent', 'bounced_undetermined', 'complained', 'unsubscribed', 'delivery_rate', 'open_rate', 'click_rate', 'bounce_rate', 'complaint_rate', 'unsubscribe_rate'] as const;
+const availableMetrics = ['received', 'sent', 'failed', 'suppressed', 'delivered', 'delivery_delayed', 'bounced', 'complained', 'opened', 'unique_opened', 'clicked', 'unique_clicked'] as const;
+const unavailableMetrics = ['bounced_transient', 'bounced_permanent', 'bounced_undetermined', 'unsubscribed', 'delivery_rate', 'open_rate', 'click_rate', 'bounce_rate', 'complaint_rate', 'unsubscribe_rate'] as const;
 const dimensions = new Set(['period', 'domain', 'email', 'broadcast']);
 const granularities = new Set(['hourly', 'daily', 'weekly', 'monthly']);
 const metricSet = new Set<string>(availableMetrics);
@@ -17,6 +17,7 @@ const MAX_METRIC_ROWS = 50_000;
 type DomainRow = { id: string; domain: string };
 type EmailRow = { id: string; from_address: string; status: string; created_at: string; broadcast_id: string | null };
 type MetricRow = { email_id: string; from_address: string; broadcast_id: string | null; occurred_at: string };
+type DeliveryMetricRow = { id: string; email_id: string; event_type: string; created_at: string; from_address: string; broadcast_id: string | null };
 
 function errorResponse(message: string, status: number, details?: Record<string, unknown>) {
   return NextResponse.json({ error: { message, ...details } }, { status });
@@ -174,6 +175,22 @@ async function __emailgo_GET_handler(request: Request) {
     [...eventParams, MAX_METRIC_ROWS + 1],
   )).rows;
   if (eventRows.length > MAX_METRIC_ROWS) return errorResponse('The selected range contains too many tracking events for one metrics request. Narrow the date range or ID filters.', 413, { max_records: MAX_METRIC_ROWS });
+  const deliveryWhere = ['e.api_key_id=?', 'de.created_at>=?', 'de.created_at<?'];
+  const deliveryParams: Array<string | number> = [key.id, startIso, endIso];
+  if (emailIds.length) {
+    deliveryWhere.push(`e.id IN (${emailIds.map(() => '?').join(',')})`);
+    deliveryParams.push(...emailIds);
+  }
+  if (broadcastIds.length) {
+    deliveryWhere.push(`e.broadcast_id IN (${broadcastIds.map(() => '?').join(',')})`);
+    deliveryParams.push(...broadcastIds);
+  }
+  const deliveryRows = (await query<DeliveryMetricRow>(
+    `SELECT de.id,de.email_id,de.event_type,de.created_at,e.from_address,e.broadcast_id FROM delivery_events de
+      JOIN emails e ON e.id=de.email_id WHERE ${deliveryWhere.join(' AND ')} ORDER BY de.created_at,de.id LIMIT ?`,
+    [...deliveryParams, MAX_METRIC_ROWS + 1],
+  )).rows;
+  if (deliveryRows.length > MAX_METRIC_ROWS) return errorResponse('The selected range contains too many delivery events for one metrics request. Narrow the date range or ID filters.', 413, { max_records: MAX_METRIC_ROWS });
   const domains = (await query<DomainRow>('SELECT id,domain FROM domains')).rows;
   const emailDomain = new Map<string, { id: string | null; name: string | null }>();
   const domainFor = (email: string) => {
@@ -210,7 +227,7 @@ async function __emailgo_GET_handler(request: Request) {
     const group = groupFor(email.id, email.from_address, email.broadcast_id, email.created_at);
     if (!group) continue;
     if (metrics.includes('received')) group.values.received += 1;
-    if (email.status === 'sent' && metrics.includes('sent')) group.values.sent += 1;
+    if (['sent', 'deferred', 'delivered', 'bounced', 'complained'].includes(email.status) && metrics.includes('sent')) group.values.sent += 1;
     if (email.status === 'failed' && metrics.includes('failed')) group.values.failed += 1;
     if (email.status === 'suppressed' && metrics.includes('suppressed')) group.values.suppressed += 1;
   }
@@ -224,6 +241,15 @@ async function __emailgo_GET_handler(request: Request) {
       const seen = group.unique[uniqueMetric] ??= new Set<string>();
       if (!seen.has(event.email_id)) { seen.add(event.email_id); group.values[uniqueMetric] += 1; }
     }
+  }
+  for (const event of deliveryRows) {
+    const group = groupFor(event.email_id, event.from_address, event.broadcast_id, event.created_at);
+    if (!group) continue;
+    const metric = event.event_type === 'delivered' ? 'delivered'
+      : event.event_type === 'deferred' ? 'delivery_delayed'
+        : event.event_type === 'bounced' ? 'bounced'
+          : event.event_type === 'complained' ? 'complained' : null;
+    if (metric && metrics.includes(metric as typeof metrics[number])) group.values[metric] += 1;
   }
   const groupedData = [...aggregate.values()].map((group) => ({ ...group.dimensions, ...group.values }));
   groupedData.sort((left, right) => {
@@ -241,7 +267,7 @@ async function __emailgo_GET_handler(request: Request) {
     totals,
     ...(selectedDimensions.length ? { data: groupedData } : {}),
     unavailable_metrics: unavailableMetrics,
-    measurement_notes: { sent: 'Counts messages accepted by the configured SMTP relay; this is not recipient-server delivery confirmation.' },
+    measurement_notes: { sent: 'Counts messages accepted by the configured SMTP relay; this is not recipient-server delivery confirmation.', delivered: 'Counts recipient delivery events when signed delivery notifications are configured. Delivery metrics count recipients, while sent counts messages.' },
   }, { headers: { 'Cache-Control': 'private, no-store' } });
 }
 
