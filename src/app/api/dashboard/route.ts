@@ -7,7 +7,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  if (!hasAdminSetup()) return NextResponse.json({ setupRequired: true, error: 'Set EMAILGO_ADMIN_PASSWORD and EMAILGO_SESSION_SECRET before signing in.' }, { status: 503 });
+  if (!hasAdminSetup()) return NextResponse.json({ setupRequired: true, error: 'Send, thanks is not configured for sign in.' }, { status: 503 });
   if (!await isAdminSession()) return NextResponse.json({ authenticated: false, error: 'Sign in required.' }, { status: 401 });
 
   const monthStart = new Date();

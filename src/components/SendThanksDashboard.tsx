@@ -80,10 +80,11 @@ const BADGE: Record<string, { cls: string; icon: string }> = {
   Delivered: { cls: 'b-delivered', icon: P.check }, Verified: { cls: 'b-verified', icon: P.check },
   Bounced: { cls: 'b-bounced', icon: P.bounce }, Complained: { cls: 'b-complained', icon: P.flag },
   'Pending DNS': { cls: '', icon: P.clock }, 'Added manually': { cls: '', icon: P.block }, Revoked: { cls: 'b-revoked', icon: P.x },
-  Deferred: { cls: '', icon: P.clock }, Sent: { cls: '', icon: P.check }, Queued: { cls: '', icon: P.clock }, Failed: { cls: 'b-bounced', icon: P.x },
+  Deferred: { cls: '', icon: P.clock }, Sent: { cls: '', icon: P.check }, Queued: { cls: '', icon: P.clock }, Failed: { cls: 'b-failed', icon: P.x },
 };
 
 const fmt = (n: number) => n.toLocaleString('en-AU');
+const shortEmailId = (id: string) => id.length > 16 ? `${id.slice(0, 10)}…${id.slice(-6)}` : id;
 
 function Icon({ d, size = 20, width = 2 }: { d: string; size?: number; width?: number }) {
   return (
@@ -182,7 +183,7 @@ export default function SendThanksDashboard(props: DashboardProps) {
   return (
     <div className={s.root}>
       <aside className={s.sidebar}>
-        <div className={s.brand}><SendThanksLogo withIcon /></div>
+        <div className={s.brand}><SendThanksLogo size={21} withIcon iconSize={32} /></div>
         <div className={s.account}>
           <span className={s.mono}>ACCOUNT</span>
           <span className={s.accountName}>{accountName}</span>
@@ -203,7 +204,7 @@ export default function SendThanksDashboard(props: DashboardProps) {
 
       <div className={s.column}>
         <header className={s.topbar}>
-          <SendThanksLogo size={19} withIcon />
+          <SendThanksLogo size={19} withIcon iconSize={32} />
           <span className={s.topbarAccount}>{accountName}{isDemo && <><br />FICTIONAL DEMO</>}</span>
           <button type="button" className={s.moreButton} aria-expanded={moreOpen} aria-label="More workspace links" onClick={() => setMoreOpen(value => !value)}>More</button>
           {moreOpen && <div className={s.moreMenu}>
@@ -272,9 +273,15 @@ export default function SendThanksDashboard(props: DashboardProps) {
                     <div className={s.emailHead} aria-hidden="true"><span>STATUS</span><span>TO</span><span>SUBJECT</span><span style={{ textAlign: 'right' }}>SENT</span></div>
                     {emails.map(e => (
                       <div key={e.id} className={s.emailRow}>
-                        <div className={s.eStatus}><StatusBadge label={e.status} /></div>
+                        <div className={s.eStatus}>
+                          <StatusBadge label={e.status} />
+                          <span className={`${s.eIdMobile} ${s.mono}`} title={e.id}>{shortEmailId(e.id)}</span>
+                        </div>
                         <div className={s.eTo} title={e.to}>{e.to}</div>
-                        <div className={s.eSubject}><strong title={e.subject}>{e.subject}</strong><span className={s.mono} title={e.id}>{e.id.length > 24 ? `${e.id.slice(0, 10)}…${e.id.slice(-6)}` : e.id}</span></div>
+                        <div className={s.eSubject}>
+                          <strong title={e.subject}>{e.subject}</strong>
+                          <span className={`${s.eIdDesktop} ${s.mono}`} title={e.id}>{shortEmailId(e.id)}</span>
+                        </div>
                         <div className={s.eSent}>{e.sentAt}</div>
                       </div>
                     ))}
@@ -318,9 +325,12 @@ export default function SendThanksDashboard(props: DashboardProps) {
                 {show.usage && (
                   <section aria-label="Usage" className={`${s.card} ${s.usage} ${s.orderUsage}`}>
                     <h2 className={s.h2}>Send requests this month</h2>
-                    <div className={s.usageBig}><strong>{fmt(usage.sent)}</strong>{usage.limit === null ? 'send requests this month' : `of ${fmt(usage.limit)} in your plan`}</div>
+                    <div className={s.usageBig}>
+                      <strong>{fmt(usage.sent)}</strong>
+                      {usage.limit === null ? <><span>so far</span><span className={s.usageNote}>No monthly cap is configured.</span></> : `of ${fmt(usage.limit)} in your plan`}
+                    </div>
                     <Meter usage={usage} large />
-                    <div className={s.usageFoot}>{usage.limit === null ? <span>No monthly cap is configured.</span> : <><span><strong>{pct}% used</strong> · {fmt(Math.max(0, usage.limit - usage.sent))} left</span><span>Resets {usage.resetsOn}</span></>}</div>
+                    {usage.limit !== null && <div className={s.usageFoot}><span><strong>{pct}% used</strong> · {fmt(Math.max(0, usage.limit - usage.sent))} left</span><span>Resets {usage.resetsOn}</span></div>}
                   </section>
                 )}
                 {show.domains && (

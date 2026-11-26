@@ -11,7 +11,9 @@ import { CommaIcon, SendThanksLogo } from './SendThanksLogo';
 import s from './send-thanks-dashboard.module.css';
 
 export type View = 'overview' | 'emails' | 'domains' | 'block' | 'keys';
-export type EmailStatus = 'Delivered' | 'Bounced' | 'Complained';
+/** Existing statuses only. Sent = accepted for handoff; Delivered/Bounced/Complained come from signed delivery notifications. */
+export type EmailStatus = 'Queued' | 'Sent' | 'Deferred' | 'Failed' | 'Delivered' | 'Bounced' | 'Complained';
+const STATUS_ORDER: EmailStatus[] = ['Queued', 'Sent', 'Deferred', 'Delivered', 'Bounced', 'Complained', 'Failed'];
 export type DomainStatus = 'Verified' | 'Pending DNS';
 export type BlockReason = 'Bounced' | 'Complained' | 'Added manually';
 
@@ -20,7 +22,8 @@ export interface DnsRecord { type: string; name: string; value: string; found: b
 export interface DomainRow { name: string; status: DomainStatus; addedAt: string; records?: DnsRecord[] }
 export interface ApiKeyRow { id: string; name: string; prefix: string; permission: string; lastUsed: string; revoked?: boolean }
 export interface BlockRow { address: string; reason: BlockReason; addedAt: string }
-export interface Usage { sent: number; limit: number; resetsOn: string }
+/** limit: null when no monthly cap is configured. */
+export interface Usage { sent: number; limit: number | null; resetsOn?: string }
 
 export interface DashboardProps {
   view: View;
@@ -32,6 +35,8 @@ export interface DashboardProps {
   blockList: BlockRow[];
   hrefs?: Partial<Record<View, string>>;
   isDemo?: boolean;
+  /** Slot for the existing phone top-bar control (e.g. the "More" menu button). */
+  topbarAction?: ReactNode;
   onAddDomain?: () => void;
   onCreateApiKey?: () => void;
   onRevokeApiKey?: (id: string) => void | Promise<void>;
@@ -54,6 +59,8 @@ const P = {
   flag: 'M6 21V4h11l-2.5 4.5L17 13H6',
   clock: 'M12 7v5l3.5 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',
   x: 'M7 7l10 10M17 7L7 17',
+  send: 'M5 12h12M13 6l6 6-6 6',
+  retry: 'M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5',
   plus: 'M12 5v14M5 12h14',
 };
 
@@ -71,12 +78,17 @@ const COPY: Record<View, [string, string]> = {
 };
 
 const BADGE: Record<string, { cls: string; icon: string }> = {
+  Queued: { cls: '', icon: P.clock }, Sent: { cls: '', icon: P.send }, Deferred: { cls: '', icon: P.retry },
+  Failed: { cls: 'b-failed', icon: P.x },
   Delivered: { cls: 'b-delivered', icon: P.check }, Verified: { cls: 'b-verified', icon: P.check },
   Bounced: { cls: 'b-bounced', icon: P.bounce }, Complained: { cls: 'b-complained', icon: P.flag },
   'Pending DNS': { cls: '', icon: P.clock }, 'Added manually': { cls: '', icon: P.block }, Revoked: { cls: 'b-revoked', icon: P.x },
 };
 
 const fmt = (n: number) => n.toLocaleString('en-AU');
+/** Long IDs: first 10 + … + last 6. Always render the full value in title. */
+export const shortId = (id: string) => (id.length > 16 ? `${id.slice(0, 10)}…${id.slice(-6)}` : id);
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 function Icon({ d, size = 20, width = 2 }: { d: string; size?: number; width?: number }) {
   return (
@@ -96,17 +108,17 @@ export function StatusBadge({ label }: { label: string }) {
   );
 }
 
-function Meter({ usage, large }: { usage: Usage; large?: boolean }) {
+function Meter({ usage, large }: { usage: Usage & { limit: number }; large?: boolean }) {
   const pct = Math.min(100, (usage.sent / usage.limit) * 100);
   return (
-    <div role="meter" aria-label="Emails sent this month" aria-valuemin={0} aria-valuemax={usage.limit} aria-valuenow={usage.sent}
+    <div role="meter" aria-label="Send requests this month" aria-valuemin={0} aria-valuemax={usage.limit} aria-valuenow={usage.sent}
       className={`${s.meter} ${large ? s.meterLg : ''}`}>
       <div className={s.meterFill} style={{ width: `${pct.toFixed(1)}%` }} />
     </div>
   );
 }
 
-function Card({ title, meta, action, className, children }: { title: string; meta?: string; action?: ReactNode; className?: string; children: ReactNode }) {
+function Card({ title, meta, action, className, children }: { title: string; meta?: ReactNode; action?: ReactNode; className?: string; children: ReactNode }) {
   return (
     <section aria-label={title} className={`${s.card} ${className ?? ''}`}>
       <div className={s.cardHead}>
@@ -143,9 +155,12 @@ export default function SendThanksDashboard(props: DashboardProps) {
     : view === 'keys' ? { label: 'Create an API key', fn: props.onCreateApiKey } : null;
 
   const show = { usage: ov, emails: ov || view === 'emails', domains: ov || view === 'domains', keys: ov || view === 'keys', block: ov || view === 'block' };
-  const pct = Math.round((usage.sent / usage.limit) * 100);
+  const capped = usage.limit != null;
+  const cap = usage as Usage & { limit: number };
+  const pct = capped ? Math.round((usage.sent / cap.limit) * 100) : 0;
   const seeAll = (v: View, label: string) => ov ? <Link href={hrefs[v]} className={s.secondary}>{label}</Link> : null;
   const verified = props.domains.filter(d => d.status === 'Verified').length;
+  const filters = (['All'] as const as readonly ('All' | EmailStatus)[]).concat(STATUS_ORDER.filter(f => props.emails.some(e => e.status === f)));
 
   const navLinks = (cls: string, iconSize: number, withCount: boolean) => NAV.map(n => (
     <Link key={n.id} href={hrefs[n.id]} className={cls} aria-current={n.id === view ? 'page' : undefined}>
@@ -158,27 +173,35 @@ export default function SendThanksDashboard(props: DashboardProps) {
   return (
     <div className={s.root}>
       <aside className={s.sidebar}>
-        <div className={s.brand}><SendThanksLogo withIcon /></div>
+        <div className={s.brand}><SendThanksLogo size={21} withIcon iconSize={32} /></div>
         <div className={s.account}>
+          <span className={s.mono}>ACCOUNT</span>
           <span className={s.accountName}>{accountName}</span>
-          {isDemo && <span className={s.mono}>FICTIONAL DEMO ACCOUNT</span>}
         </div>
         <nav aria-label="Dashboard" className={s.nav}>{navLinks(s.navItem, 20, true)}</nav>
         <div className={s.sideUsage}>
-          <strong>This month</strong>
-          <Meter usage={usage} />
-          <span><strong>{fmt(usage.sent)}</strong> of {fmt(usage.limit)} sent</span>
+          {capped ? (
+            <><Meter usage={cap} /><span><strong>{fmt(usage.sent)}</strong> of {fmt(cap.limit)} requests this month</span></>
+          ) : (
+            <span><strong>{fmt(usage.sent)}</strong> requests this month</span>
+          )}
         </div>
       </aside>
 
       <div className={s.column}>
         <header className={s.topbar}>
-          <SendThanksLogo size={19} withIcon />
-          <span className={s.topbarAccount}>{accountName}{isDemo && <><br />FICTIONAL DEMO</>}</span>
+          <SendThanksLogo size={19} withIcon iconSize={32} />
+          {props.topbarAction /* e.g. existing "More" menu trigger; account label is hidden on phone */}
         </header>
         <div className={s.usageStrip} role="group" aria-label="Usage this month">
-          <div className={s.usageStripText}><span><strong>{fmt(usage.sent)}</strong> of {fmt(usage.limit)} sent this month</span><strong>{pct}%</strong></div>
-          <Meter usage={usage} />
+          {capped ? (
+            <>
+              <div className={s.usageStripText}><span><strong>{fmt(usage.sent)}</strong> of {fmt(cap.limit)} send requests</span><strong>{pct}%</strong></div>
+              <Meter usage={cap} />
+            </>
+          ) : (
+            <div className={s.usageStripLine}><strong>{fmt(usage.sent)}</strong> send requests this month</div>
+          )}
         </div>
 
         <main className={s.main}>
@@ -193,10 +216,10 @@ export default function SendThanksDashboard(props: DashboardProps) {
             {(show.emails || show.keys) && (
               <div className={s.col}>
                 {show.emails && (
-                  <Card className={s.orderEmails} title={ov ? 'Recent emails' : 'All emails'} meta={ov ? `LATEST ${emails.length}` : `${emails.length} SHOWN`} action={seeAll('emails', 'See all emails')}>
+                  <Card className={s.orderEmails} title={ov ? 'Recent emails' : 'All emails'} meta={ov ? <><span className={s.idDesktop}>LATEST {emails.length}</span><span className={s.idMobile}>LATEST {Math.min(emails.length, 3)}</span></> : `${emails.length} SHOWN`} action={seeAll('emails', 'See all emails')}>
                     {!ov && (
                       <div className={s.toolbar} role="group" aria-label="Filter by status">
-                        {(['All', 'Delivered', 'Bounced', 'Complained'] as const).map(f => (
+                        {filters.map(f => (
                           <button key={f} type="button" className={s.chip} aria-pressed={filter === f} onClick={() => setFilter(f)}>
                             {f}<span>{f === 'All' ? props.emails.length : props.emails.filter(e => e.status === f).length}</span>
                           </button>
@@ -204,14 +227,21 @@ export default function SendThanksDashboard(props: DashboardProps) {
                       </div>
                     )}
                     <div className={s.emailHead} aria-hidden="true"><span>STATUS</span><span>TO</span><span>SUBJECT</span><span style={{ textAlign: 'right' }}>SENT</span></div>
-                    {emails.map(e => (
-                      <div key={e.id} className={s.emailRow}>
-                        <div className={s.eStatus}><StatusBadge label={e.status} /></div>
-                        <div className={s.eTo}>{e.to}</div>
-                        <div className={s.eSubject}><strong>{e.subject}</strong><span className={s.mono}>{e.id}</span></div>
+                    {emails.map((e, i) => (
+                      <div key={e.id} className={s.emailRow} data-phone-hidden={ov && i >= 3 ? 'true' : undefined}>
+                        <div className={s.eStatus}>
+                          <StatusBadge label={e.status} />
+                          <span className={`${s.mono} ${s.idMobile}`} title={e.id}>{shortId(e.id)}</span>
+                        </div>
+                        <div className={s.eTo} title={e.to}>{e.to}</div>
+                        <div className={s.eSubject}>
+                          <strong title={e.subject}>{e.subject}</strong>
+                          <span className={`${s.mono} ${s.idDesktop}`} title={e.id}>{shortId(e.id)}</span>
+                        </div>
                         <div className={s.eSent}>{e.sentAt}</div>
                       </div>
                     ))}
+                    <p className={s.cardNote}>Sent means accepted for handoff. Signed delivery notifications update messages to Delivered, Bounced or Complained.</p>
                   </Card>
                 )}
                 {show.keys && (
@@ -249,14 +279,23 @@ export default function SendThanksDashboard(props: DashboardProps) {
               <div className={s.col}>
                 {show.usage && (
                   <section aria-label="Usage" className={`${s.card} ${s.usage} ${s.orderUsage}`}>
-                    <h2 className={s.h2}>Emails sent this month</h2>
-                    <div className={s.usageBig}><strong>{fmt(usage.sent)}</strong>of {fmt(usage.limit)} in your plan</div>
-                    <Meter usage={usage} large />
-                    <div className={s.usageFoot}><span><strong>{pct}% used</strong> · {fmt(usage.limit - usage.sent)} left</span><span>Resets {usage.resetsOn}</span></div>
+                    <h2 className={s.h2}>Send requests this month</h2>
+                    {capped ? (
+                      <>
+                        <div className={s.usageBig}><strong>{fmt(usage.sent)}</strong>of {fmt(cap.limit)} in your plan</div>
+                        <Meter usage={cap} large />
+                        <div className={s.usageFoot}><span><strong>{pct}% used</strong> · {fmt(cap.limit - usage.sent)} left</span>{usage.resetsOn && <span>Resets {usage.resetsOn}</span>}</div>
+                      </>
+                    ) : (
+                      <div className={s.usageUncapped}>
+                        <div className={s.usageBig}><strong>{fmt(usage.sent)}</strong><b>so far</b></div>
+                        <span>No monthly cap is configured.</span>
+                      </div>
+                    )}
                   </section>
                 )}
                 {show.domains && (
-                  <Card className={s.orderDomains} title="Sending domains" meta={`${verified} OF ${props.domains.length} VERIFIED`} action={seeAll('domains', 'Domains')}>
+                  <Card className={s.orderDomains} title="Sending domains" meta={`${verified}/${props.domains.length} VERIFIED`} action={seeAll('domains', 'Domains')}>
                     {props.domains.map(d => {
                       const isOpen = !ov && !!open[d.name];
                       return (
@@ -289,7 +328,7 @@ export default function SendThanksDashboard(props: DashboardProps) {
                   </Card>
                 )}
                 {show.block && (
-                  <Card className={s.orderBlock} title="Block list" meta={`${props.blockList.length} ADDRESSES`} action={seeAll('block', 'See all')}>
+                  <Card className={s.orderBlock} title="Block list" meta={plural(props.blockList.length, 'ADDRESS', 'ADDRESSES')} action={seeAll('block', 'See all')}>
                     {!ov && (
                       <label className={s.search}>Search the block list
                         <input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Type an email address" />

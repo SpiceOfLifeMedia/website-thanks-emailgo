@@ -59,8 +59,11 @@
 /* Card */
 .card { background: var(--chalk); border: 2px solid var(--ink); border-radius: 18px; box-shadow: 0 3px 0 var(--ink); overflow: hidden; min-width: 0; }
 .cardHead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; min-height: 60px; box-sizing: border-box; border-bottom: 2px solid var(--ink); }
-.cardTitle { display: flex; align-items: baseline; gap: 10px; }
-.h2 { margin: 0; font-size: 19px; font-weight: 800; }
+.cardTitle { display: flex; align-items: baseline; flex-wrap: wrap; column-gap: 10px; row-gap: 2px; min-width: 0; }
+.cardTitle .mono { white-space: nowrap; line-height: 1.2; }
+.h2 { margin: 0; font-size: 19px; font-weight: 800; line-height: 1.2; white-space: nowrap; }
+.cardHead .secondary { white-space: nowrap; flex-shrink: 0; }
+.cardNote { margin: 0; padding: 14px 20px; border-top: 1px solid var(--line); font-size: 13px; line-height: 1.5; color: var(--graphite); text-wrap: pretty; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 20px; border-bottom: 1px solid var(--line); }
 .chip { height: var(--tap); padding: 0 14px; border-radius: 999px; border: 2px solid var(--ink); background: var(--chalk); font-size: 14px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
 .chip[aria-pressed='true'] { background: var(--ink); color: var(--chalk); }
@@ -73,25 +76,31 @@
 .usage { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
 .usageBig { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 17px; color: var(--graphite); }
 .usageBig strong { font-size: 44px; font-weight: 800; letter-spacing: -.035em; line-height: 1; color: var(--ink); }
+.usageUncapped { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 14px; font-size: 15px; color: var(--graphite); }
+.usageUncapped .usageBig b { font-size: 17px; font-weight: 700; color: var(--ink); }
 .usageFoot { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 14px; color: var(--graphite); }
 .usageFoot strong { color: var(--ink); }
 
 /* Badge: always word + icon, colour is a third cue only */
-.badge { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 999px; border: 2px solid var(--ink); font-size: 13px; font-weight: 700; white-space: nowrap; background: var(--chalk); }
+/* Every status badge: 13px bold, 28px tall (border included). */
+.badge { display: inline-flex; align-items: center; gap: 6px; height: 28px; box-sizing: border-box; padding: 0 10px; border-radius: 999px; border: 2px solid var(--ink); font-size: 13px; font-weight: 700; line-height: 1; white-space: nowrap; background: var(--chalk); color: var(--ink); }
 .badge svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
 .b-delivered, .b-verified { background: var(--basil); color: var(--chalk); }
 .b-bounced { background: var(--tomato-tint); }
 .b-complained { background: var(--honey); }
 .b-revoked { background: var(--line); }
+.b-failed { background: var(--chalk); border-style: dashed; }
 
 /* Emails: one markup, grid areas change at the breakpoint */
-.emailHead, .emailRow { display: grid; grid-template-columns: 136px minmax(0, 1fr) minmax(0, 1.4fr) 116px; grid-template-areas: 'status to subject sent'; gap: 16px; padding: 12px 20px; align-items: center; }
+.emailHead, .emailRow { display: grid; grid-template-columns: 116px minmax(0, 1.25fr) minmax(0, 1.35fr) 128px; /* status · to · subject · sent */ grid-template-areas: 'status to subject sent'; gap: 16px; padding: 12px 20px; align-items: center; }
 .emailHead { padding-block: 10px; font-family: var(--mono); font-size: 12px; letter-spacing: .06em; color: var(--pencil); }
 .emailRow { border-top: 1px solid var(--line); }
 .eStatus { grid-area: status; } .eTo { grid-area: to; font-size: 14px; color: var(--graphite); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .eSubject { grid-area: subject; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .eSubject strong { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.eSent { grid-area: sent; font-size: 13px; color: var(--graphite); text-align: right; }
+.eSent { grid-area: sent; font-size: 13px; color: var(--graphite); text-align: right; white-space: nowrap; }
+.eSubject .mono { white-space: nowrap; }
+.idMobile { display: none; }
 
 /* Generic list row (domains, keys, block list) */
 .row { padding: 14px 20px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 12px; }
@@ -120,8 +129,9 @@
   .sidebar { display: none; }
   .column { min-height: 0; }
   .topbar { display: flex; flex-shrink: 0; height: 56px; padding: 0 16px; background: var(--chalk); align-items: center; justify-content: space-between; gap: 12px; }
-  .topbarAccount { font-family: var(--mono); font-size: 12px; color: var(--pencil); text-align: right; }
+
   .usageStrip { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; padding: 10px 16px 12px; background: var(--chalk); border-top: 1px solid var(--line); border-bottom: 2px solid var(--ink); }
+  .usageStripLine { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .usageStripText { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
   .usageStrip .meter { background: var(--paper); }
   .main { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; padding: 20px 16px 24px; }
@@ -136,7 +146,11 @@
   .emailRow { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'to sent' 'subject subject' 'status status'; gap: 8px; padding: 14px 16px; }
   .eTo { font-size: 15px; font-weight: 700; color: var(--ink); }
   .eSubject strong { white-space: normal; font-weight: 400; color: var(--graphite); line-height: 1.35; }
-  .eStatus { display: flex; justify-content: space-between; align-items: center; }
+  .eStatus { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .eSent { white-space: nowrap; }
+  .idDesktop { display: none; }
+  .emailRow[data-phone-hidden='true'] { display: none; } /* Overview: 6 on desktop, 3 on phone */
+  .idMobile { display: inline; white-space: nowrap; }
   .row { padding: 14px 16px; }
   .tabbar { display: grid; flex-shrink: 0; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; padding: 6px 4px calc(10px + env(safe-area-inset-bottom)); background: var(--chalk); border-top: 2px solid var(--ink); }
   .tab { height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border-radius: 12px; border: 2px solid transparent; font-size: 12px; font-weight: 600; color: var(--ink); text-decoration: none; white-space: nowrap; }

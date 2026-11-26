@@ -74,7 +74,7 @@ export default function Home() {
       setSetupRequired(false);
       setError('');
     } catch (cause) {
-      if (cause instanceof Error && cause.message.includes('EMAILGO_ADMIN_PASSWORD')) {
+      if (cause instanceof Error && cause.message.includes('not configured for sign in')) {
         setSetupRequired(true);
         setAuthenticated(false);
       } else if (cause instanceof Error && (cause.message.includes('Sign in') || cause.message.includes('401'))) {
@@ -177,7 +177,7 @@ export default function Home() {
   </div> : view === 'settings' ? <div className={styles.auxStack}>
     <section className={styles.auxCard}><div><h2>SMTP delivery connection</h2><p>Send, thanks provides the API and activity log. Add an SMTP connection to deliver messages.</p><span className={`${styles.connectionState} ${dashboard.smtpConfigured ? styles.connected : ''}`}>{dashboard.smtpConfigured ? 'Configured' : 'Not configured'}</span></div></section>
     <section className={styles.auxCard}><div><h2>Server settings</h2><p>These values are read on the server only and are not shown in the browser.</p><ul><li><code>EMAILGO_SMTP_HOST</code> SMTP server host</li><li><code>EMAILGO_SMTP_PORT</code> SMTP port, usually 587</li><li><code>EMAILGO_SMTP_USER</code> SMTP username</li><li><code>EMAILGO_SMTP_PASSWORD</code> SMTP password</li><li><code>EMAILGO_SMTP_SECURE</code> Set true for TLS on port 465</li></ul></div></section>
-    <section className={styles.auxCard}><div><h2>Delivery notifications</h2><p>Signed events update messages to Delivered, Bounced or Complained. Configure the HTTPS endpoint and a shared token on your event source.</p><ul><li><code>EMAILGO_WEBHOOK_TOKEN</code></li><li><code>EMAILGO_SNS_TOPIC_ARNS</code> Optional event source allow list</li></ul><p><code>/api/webhooks/delivery-events?token=…</code></p></div></section>
+    <section className={styles.auxCard}><div><h2>Delivery notifications</h2><p>Signed events update messages to Delivered, Bounced or Complained. Configure the HTTPS endpoint and a shared token on your event source.</p><ul><li><code>EMAILGO_WEBHOOK_TOKEN</code></li><li>Optional event source restrictions are set on the server.</li></ul><p><code>/api/webhooks/delivery-events?token=…</code></p></div></section>
     <section className={styles.auxCard}><div><h2>Admin access</h2><p>Set a unique workspace password and independent session signing secret.</p><ul><li><code>EMAILGO_ADMIN_PASSWORD</code></li><li><code>EMAILGO_SESSION_SECRET</code></li><li>Mount <code>./data</code> as durable storage when running outside a managed database.</li></ul></div></section>
   </div> : undefined;
 

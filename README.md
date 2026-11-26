@@ -19,7 +19,7 @@ The dashboard labels an email Sent when the SMTP connection accepts it for hando
 
 ## Delivery events
 
-Configure signed delivery notifications at `POST /api/webhooks/delivery-events?token=<EMAILGO_WEBHOOK_TOKEN>`. Set `EMAILGO_WEBHOOK_TOKEN` to a long random value. Optionally set `EMAILGO_SNS_TOPIC_ARNS` to restrict accepted notification topics. Configure the event source to post bounce, complaint and delivery notifications to this HTTPS address.
+Configure signed delivery notifications at `POST /api/webhooks/delivery-events?token=<EMAILGO_WEBHOOK_TOKEN>`. Set `EMAILGO_WEBHOOK_TOKEN` to a long random value. Optionally restrict accepted notification sources in the server configuration. Configure the event source to post bounce, complaint and delivery notifications to this HTTPS address.
 
 Message state moves forward through Queued, Sent, Deferred, Delivered, Bounced and Complained as corresponding events arrive. Permanent bounces and complaints are added to the suppression list. Notifications are verified and deduplicated before they update message history.
 
