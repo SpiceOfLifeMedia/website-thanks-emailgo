@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import SendThanksDashboard, { type ApiKeyRow, type BlockRow, type DomainRow, type EmailRow, type View } from '@/components/SendThanksDashboard';
 import { SendThanksLogo } from '@/components/SendThanksLogo';
+import EmailDetail from '@/components/EmailDetail';
 import { BroadcastsWorkspace, ContactsWorkspace, SegmentsWorkspace, TemplatesWorkspace, TopicsWorkspace } from '@/components/email-workspaces';
 import { WebhooksWorkspace } from '@/components/webhook-workspace';
 import { ReceivingWorkspace } from '@/components/receiving-workspace';
@@ -25,6 +26,18 @@ type DashboardData = {
   domains: Array<{ id: string; domain: string; verification_token: string; created_at: string; verified_at: string | null }>;
   blockedAddresses: Array<{ address: string; reason: string; added_at: string; removable?: boolean }>;
   metrics: { total: number; sent: number; bounced?: number; failed: number; monthToDate: number };
+};
+type EmailDetailResponse = {
+  id: string;
+  from_address: string;
+  from_name?: string;
+  to: string[];
+  subject: string;
+  text: string | null;
+  has_attachments: boolean;
+  status: string;
+  created_at: string;
+  events: Array<{ status: string; at: string; note: string }>;
 };
 
 const viewByHash: Record<string, View> = {
@@ -66,12 +79,26 @@ export default function Home() {
   const [setupRequired, setSetupRequired] = useState(false);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [view, setView] = useState<View>('overview');
+  const [selectedEmailId, setSelectedEmailId] = useState('');
+  const [emailDetail, setEmailDetail] = useState<EmailDetailResponse | null>(null);
+  const [emailDetailLoading, setEmailDetailLoading] = useState(false);
+  const [emailDetailError, setEmailDetailError] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [password, setPassword] = useState('');
 
   useEffect(() => {
-    const readHash = () => setView(viewByHash[window.location.hash.slice(1)] ?? 'overview');
+    const readHash = () => {
+      const hash = window.location.hash.slice(1);
+      const detail = /^emails\/(.+)$/.exec(hash);
+      if (detail) {
+        setView('detail');
+        try { setSelectedEmailId(decodeURIComponent(detail[1])); } catch { setSelectedEmailId(''); }
+      } else {
+        setSelectedEmailId('');
+        setView(viewByHash[hash] ?? 'overview');
+      }
+    };
     readHash();
     window.addEventListener('hashchange', readHash);
     return () => window.removeEventListener('hashchange', readHash);
@@ -97,6 +124,19 @@ export default function Home() {
   }, []);
 
   useEffect(() => { void loadDashboard(); }, [loadDashboard]);
+
+  useEffect(() => {
+    if (view !== 'detail' || !selectedEmailId) { setEmailDetail(null); setEmailDetailError(''); setEmailDetailLoading(false); return; }
+    let active = true;
+    setEmailDetail(null);
+    setEmailDetailLoading(true);
+    setEmailDetailError('');
+    api<EmailDetailResponse>(`/api/emails/${encodeURIComponent(selectedEmailId)}`)
+      .then(value => { if (active) setEmailDetail(value); })
+      .catch(cause => { if (active) setEmailDetailError(cause instanceof Error ? cause.message : 'Could not load this email.'); })
+      .finally(() => { if (active) setEmailDetailLoading(false); });
+    return () => { active = false; };
+  }, [selectedEmailId, view]);
 
   async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -179,7 +219,31 @@ export default function Home() {
     removable: entry.removable,
   }));
 
-  const pageContent = view === 'quickstart' ? <div className={styles.auxStack}>
+  const pageContent = view === 'detail'
+    ? emailDetailLoading ? <div className={styles.auxCard} role="status">Loading email…</div>
+      : emailDetail ? <EmailDetail
+        backHref="#emails"
+        email={{
+          id: emailDetail.id,
+          subject: emailDetail.subject,
+          from: emailDetail.from_address,
+          fromName: emailDetail.from_name,
+          to: emailDetail.to.join(', '),
+          sentAt: emailDetail.created_at,
+          status: emailStatus(emailDetail.status),
+          text: emailDetail.text,
+          hasAttachments: emailDetail.has_attachments,
+          events: emailDetail.events.map(event => ({ status: emailStatus(event.status), at: event.at, note: event.note })),
+        }}
+        onCreateShareLink={async (id, minutes) => {
+          const duration = minutes === 10 ? '10m' : minutes === 60 ? '1h' : minutes === 1440 ? '24h' : '48h';
+          const result = await api<{ share_id: string; url: string; expires_at: string }>(`/api/emails/${encodeURIComponent(id)}/share`, { method: 'POST', body: JSON.stringify({ expires_in: duration }) });
+          return { shareId: result.share_id, url: result.url, expiresAt: result.expires_at };
+        }}
+        onRevokeShareLink={async (id, shareId) => { await api(`/api/emails/${encodeURIComponent(id)}/share/${encodeURIComponent(shareId)}`, { method: 'DELETE' }); }}
+      />
+      : <div className={styles.auxCard} role="alert">{emailDetailError || 'Choose an email to view its details.'}</div>
+    : view === 'quickstart' ? <div className={styles.auxStack}>
     <article className={styles.auxCard}><span>01</span><div><h2>Verify a sender domain</h2><p>Add a domain you own and publish the TXT record shown in <a href="#domains" onClick={() => setView('domains')}>Domains</a>. Configure SPF and DKIM for your sending service too.</p></div></article>
     <article className={styles.auxCard}><span>02</span><div><h2>Create an API key</h2><p>Make a key in <a href="#keys" onClick={() => setView('keys')}>API keys</a>. Store it somewhere private and keep it out of browser code.</p></div></article>
     <article className={styles.auxCard}><span>03</span><div><h2>Send an email</h2><p>Use your own app host and secret key. A request accepted for handoff appears as <strong>Sent</strong>.</p><pre><code>{`curl -X POST http://localhost:3000/api/v1/emails \\\n  -H 'Authorization: Bearer st_live_your_key' \\\n  -H 'Content-Type: application/json' \\\n  -d '{"from":"hello@example.com","to":"person@example.net","subject":"Hello","text":"Sent with Send, thanks."}'`}</code></pre></div></article>

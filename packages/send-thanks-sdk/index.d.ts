@@ -110,6 +110,8 @@ export declare class SendThanks {
     list(query?: SendThanksQuery): Promise<SendThanksResult<SendThanksList>>;
     metrics(query?: SendThanksMetricsQuery): Promise<SendThanksResult<JsonObject>>;
     get(id: string): Promise<SendThanksResult<JsonObject>>;
+    share(id: string, options?: { expiresIn?: string }): Promise<SendThanksResult<JsonObject>>;
+    revokeShare(id: string, shareId: string): Promise<SendThanksResult<JsonObject>>;
     update(id: string, body: JsonObject): Promise<SendThanksResult<JsonObject>>;
     cancel(id: string): Promise<SendThanksResult<JsonObject>>;
     events(id: string): Promise<SendThanksResult<JsonObject>>;

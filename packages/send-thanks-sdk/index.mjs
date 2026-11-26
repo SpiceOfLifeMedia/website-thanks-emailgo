@@ -22,6 +22,8 @@ export class SendThanks {
       list: (query) => request('GET', '/api/v1/emails', { query }),
       metrics: (query = {}) => request('GET', '/api/v1/emails/metrics', { query: Object.fromEntries(Object.entries(query).map(([key, value]) => [key, Array.isArray(value) ? value.join(',') : value])) }),
       get: (id) => request('GET', `/api/v1/emails/${encodeURIComponent(id)}`),
+      share: (id, options = {}) => request('POST', `/api/v1/emails/${encodeURIComponent(id)}/share`, { body: options.expiresIn ? { expires_in: options.expiresIn } : {} }),
+      revokeShare: (id, shareId) => request('DELETE', `/api/v1/emails/${encodeURIComponent(id)}/share/${encodeURIComponent(shareId)}`),
       update: (id, body) => request('PATCH', `/api/v1/emails/${encodeURIComponent(id)}`, { body }),
       cancel: (id) => request('POST', `/api/v1/emails/${encodeURIComponent(id)}/cancel`, { body: {} }),
       events: (id) => request('GET', `/api/v1/emails/${encodeURIComponent(id)}/events`),

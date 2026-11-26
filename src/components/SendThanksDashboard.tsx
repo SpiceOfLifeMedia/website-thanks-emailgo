@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CommaIcon, SendThanksLogo } from './SendThanksLogo';
 import s from './send-thanks-dashboard.module.css';
 
-export type View = 'overview' | 'emails' | 'domains' | 'block' | 'keys' | 'logs' | 'suppressions' | 'receiving' | 'broadcasts' | 'automations' | 'templates' | 'contacts' | 'segments' | 'topics' | 'webhooks' | 'quickstart' | 'settings';
+export type View = 'overview' | 'emails' | 'domains' | 'block' | 'keys' | 'logs' | 'suppressions' | 'receiving' | 'broadcasts' | 'automations' | 'templates' | 'contacts' | 'segments' | 'topics' | 'webhooks' | 'quickstart' | 'settings' | 'detail';
 export type EmailStatus = 'Delivered' | 'Bounced' | 'Complained' | 'Deferred' | 'Sent' | 'Queued' | 'Failed';
 export type DomainStatus = 'Verified' | 'Pending DNS';
 export type BlockReason = 'Bounced' | 'Complained' | 'Added manually';
@@ -44,7 +44,7 @@ export interface DashboardProps {
 }
 
 const DEFAULT_HREFS: Record<View, string> = {
-  overview: '#overview', emails: '#emails', domains: '#domains', block: '#block', keys: '#keys', logs: '#logs', suppressions: '#suppressions', receiving: '#receiving',
+  overview: '#overview', emails: '#emails', domains: '#domains', block: '#block', keys: '#keys', logs: '#logs', suppressions: '#suppressions', receiving: '#receiving', detail: '#emails',
   broadcasts: '#broadcasts', automations: '#automations', templates: '#templates', contacts: '#contacts', segments: '#segments', topics: '#topics', webhooks: '#webhooks', quickstart: '#quickstart', settings: '#settings',
 };
 
@@ -101,6 +101,7 @@ const COPY: Record<View, [string, string]> = {
   webhooks: ['Webhooks', 'Send signed event updates to your application.'],
   quickstart: ['Quickstart', 'Create a key, verify a sender domain, then make your first request.'],
   settings: ['Settings', 'Workspace access and delivery connection.'],
+  detail: ['', ''],
 };
 
 const BADGE: Record<string, { cls: string; icon: string }> = {
@@ -200,7 +201,7 @@ export default function SendThanksDashboard(props: DashboardProps) {
   const availableStatuses = statusOrder.filter(status => props.emails.some(email => email.status === status));
 
   const navLinks = (cls: string, iconSize: number, withCount: boolean) => NAV.map(n => (
-    <Link key={n.id} href={hrefs[n.id]} className={cls} onClick={() => props.onNavigate?.(n.id)} aria-current={n.id === view ? 'page' : undefined}>
+    <Link key={n.id} href={hrefs[n.id]} className={cls} onClick={() => props.onNavigate?.(n.id)} aria-current={n.id === view || (view === 'detail' && n.id === 'emails') ? 'page' : undefined}>
       <Icon d={P[n.id]} size={iconSize} />
       {withCount ? <span className={s.navLabel}>{n.label}</span> : n.label}
       {withCount && n.id === 'block' && <span className={s.navCount}>{props.blockList.length}</span>}
@@ -253,6 +254,7 @@ export default function SendThanksDashboard(props: DashboardProps) {
         </div>
 
         <main className={s.main}>
+          {view === 'detail' ? props.pageContent : <>
           <div className={s.pageHead}>
             <div><h1 className={s.h1}>{COPY[view][0]}</h1><p className={s.lede}>{COPY[view][1]}</p></div>
             {action && (
@@ -313,7 +315,7 @@ export default function SendThanksDashboard(props: DashboardProps) {
                         </div>
                         <div className={s.eTo} title={e.to}>{e.to}</div>
                         <div className={s.eSubject}>
-                          <strong title={e.subject}>{e.subject}</strong>
+                          <strong title={e.subject}><Link className={s.emailDetailLink} href={`${hrefs.emails}/${encodeURIComponent(e.id)}`}>{e.subject}</Link></strong>
                           <span className={`${s.eIdDesktop} ${s.mono}`} title={e.id}>{shortEmailId(e.id)}</span>
                         </div>
                         <div className={s.eSent}>{e.sentAt}</div>
@@ -440,6 +442,7 @@ export default function SendThanksDashboard(props: DashboardProps) {
             )}
             {!(view === 'overview' || view === 'emails' || view === 'domains' || view === 'block' || view === 'keys') && props.pageContent && <div className={s.col}>{props.pageContent}</div>}
           </div>
+          </>}
           {isDemo && <div className={s.footnote}>All names, addresses, domains and keys shown are fictional demo data.</div>}
         </main>
 

@@ -16,6 +16,8 @@ Common commands:
   emails send --data '{"from":"...","to":"...","subject":"...","text":"..."}'
   emails send --file ./message.json
   emails get <id>
+  emails share <id> [--expires-in "2 hours"]
+  emails unshare <id> --share-id <share_id>
   emails cancel <id>
   emails events <id>
   emails receiving [--limit 20] [--after id]
@@ -75,6 +77,7 @@ const item = (path) => `${path}/${encodeURIComponent(id || '')}`;
 const jsonBody = async () => {
   if (flags.has('data')) return JSON.parse(String(flags.get('data')));
   if (flags.has('file')) return JSON.parse(await readFile(String(flags.get('file')), 'utf8'));
+  if (resource === 'emails' && action === 'share') return flags.has('expires-in') ? { expires_in: flags.get('expires-in') } : {};
   if (resource === 'domains' && action === 'create' && flags.has('domain')) return { domain: flags.get('domain') };
   if (resource === 'api-keys' && action === 'rename' && flags.has('name')) return { name: flags.get('name') };
   if (resource === 'suppressions' && action === 'add' && id) return { email: id };
@@ -85,7 +88,9 @@ const resourceRoutes = {
   emails: {
     list: ['GET', withQuery('/api/v1/emails')], send: ['POST', '/api/v1/emails'], batch: ['POST', '/api/v1/emails/batch'],
     metrics: ['GET', withQuery('/api/v1/emails/metrics')],
-    get: ['GET', item('/api/v1/emails')], cancel: ['POST', `${item('/api/v1/emails')}/cancel`], events: ['GET', `${item('/api/v1/emails')}/events`],
+    get: ['GET', item('/api/v1/emails')], share: ['POST', `${item('/api/v1/emails')}/share`],
+    unshare: ['DELETE', `${item('/api/v1/emails')}/share/${encodeURIComponent(String(flags.get('share-id') || ''))}`],
+    cancel: ['POST', `${item('/api/v1/emails')}/cancel`], events: ['GET', `${item('/api/v1/emails')}/events`],
     receiving: ['GET', withQuery('/api/v1/emails/receiving')], received: ['GET', item('/api/v1/emails/receiving')], attachments: ['GET', `${item('/api/v1/emails/receiving')}/attachments`],
   },
   'api-keys': {
@@ -170,6 +175,7 @@ const resourceRoutes = {
 
 const route = resourceRoutes[resource]?.[action];
 if (!route) fail(`Unknown command: ${resource} ${action}. Run with --help for available commands.`, 2);
+if (resource === 'emails' && action === 'unshare' && !flags.get('share-id')) fail('emails unshare requires --share-id.', 2);
 if ((action === 'add-segment' || action === 'remove-segment') && !flags.get('segment-id')) fail(`${action} requires --segment-id.`, 2);
 let body;
 try { body = resource === 'contact-imports' && action === 'create' ? undefined : await jsonBody(); }

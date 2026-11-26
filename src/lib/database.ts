@@ -121,6 +121,13 @@ const postgresSchema = [
     FOREIGN KEY(received_email_id) REFERENCES received_emails(id)
   )`,
   'CREATE INDEX IF NOT EXISTS received_attachments_email ON received_email_attachments(received_email_id,created_at,id)',
+  `CREATE TABLE IF NOT EXISTS email_share_links (
+    id TEXT PRIMARY KEY, token_hash TEXT NOT NULL UNIQUE, api_key_id TEXT NOT NULL,
+    email_id TEXT NOT NULL, email_type TEXT NOT NULL, expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL, revoked_at TEXT,
+    FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
+  )`,
+  'CREATE INDEX IF NOT EXISTS email_share_links_owner_email ON email_share_links(api_key_id,email_type,email_id,created_at DESC)',
   'CREATE INDEX IF NOT EXISTS emails_created_at ON emails(created_at DESC)',
   'CREATE INDEX IF NOT EXISTS emails_relay_message_id ON emails(relay_message_id)',
   'CREATE INDEX IF NOT EXISTS emails_api_key_created_at ON emails(api_key_id,created_at DESC,id DESC)',
@@ -396,6 +403,13 @@ function getSqlite() {
       FOREIGN KEY(received_email_id) REFERENCES received_emails(id)
     );
     CREATE INDEX IF NOT EXISTS received_attachments_email ON received_email_attachments(received_email_id,created_at,id);
+    CREATE TABLE IF NOT EXISTS email_share_links (
+      id TEXT PRIMARY KEY, token_hash TEXT NOT NULL UNIQUE, api_key_id TEXT NOT NULL,
+      email_id TEXT NOT NULL, email_type TEXT NOT NULL, expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL, revoked_at TEXT,
+      FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
+    );
+    CREATE INDEX IF NOT EXISTS email_share_links_owner_email ON email_share_links(api_key_id,email_type,email_id,created_at DESC);
     CREATE INDEX IF NOT EXISTS emails_created_at ON emails(created_at DESC);
     CREATE INDEX IF NOT EXISTS emails_api_key_created_at ON emails(api_key_id,created_at DESC,id DESC);
     CREATE TABLE IF NOT EXISTS idempotency_keys (

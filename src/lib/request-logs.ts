@@ -1,5 +1,6 @@
 import { getAuthorizedRequestKey } from '@/lib/auth';
 import { execute, nowIso, query, queryOne, randomId } from '@/lib/database';
+import { redactShareTokens } from '@/lib/request-log-sanitization';
 
 const BODY_LIMIT = 64 * 1024;
 const sensitiveField = /(?:authorization|cookie|password|secret|token|api[_-]?key|credential|idempotency|email|recipient|\bto\b|\bcc\b|\bbcc\b|reply[_-]?to|subject|text|html|content|attachment|header|propert|tag|name$|phone|address)/i;
@@ -32,7 +33,7 @@ function senderDomain(value: unknown) {
 function redact(value: unknown, parentKey = ''): unknown {
   if (parentKey.toLowerCase() === 'from') return senderDomain(value);
   if (sensitiveField.test(parentKey)) return '[REDACTED]';
-  if (typeof value === 'string') return value.replace(secretValue, '[REDACTED]').replace(emailValue, '[REDACTED_EMAIL]');
+  if (typeof value === 'string') return redactShareTokens(value.replace(secretValue, '[REDACTED]').replace(emailValue, '[REDACTED_EMAIL]'));
   if (Array.isArray(value)) return value.map((entry) => redact(entry));
   if (value && typeof value === 'object') {
     return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, redact(entry, key)]));
@@ -81,7 +82,7 @@ async function captureJsonBody(message: Request | Response): Promise<CapturedBod
 }
 
 function safeKeyName(name: string) {
-  return name.slice(0, 120).replace(secretValue, '[REDACTED]').replace(emailValue, '[REDACTED_EMAIL]');
+  return redactShareTokens(name.slice(0, 120).replace(secretValue, '[REDACTED]').replace(emailValue, '[REDACTED_EMAIL]'));
 }
 
 async function recordLog(

@@ -109,6 +109,8 @@
 .eIdMobile { display: none; }
 .eTo { grid-area: to; font-size: 14px; color: var(--graphite); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .eSubject { grid-area: subject; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.emailDetailLink { color: inherit; text-decoration: none; }
+.emailDetailLink:hover { text-decoration: underline; text-underline-offset: 3px; }
 .eSubject strong { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .eSent { grid-area: sent; font-size: 13px; color: var(--graphite); text-align: right; white-space: nowrap; }
 
