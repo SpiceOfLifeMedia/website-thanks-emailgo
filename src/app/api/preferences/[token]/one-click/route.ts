@@ -17,6 +17,6 @@ export async function POST(request: Request, context: { params: Promise<{ token:
   if (!identity) return NextResponse.json({ error: 'This unsubscribe link is invalid.' }, { status: 404, headers });
   const contact = await queryOne<{ id: string; email: string }>('SELECT id,email FROM contacts WHERE id=?', [identity.contactId]);
   if (!contact || contact.email !== identity.email) return NextResponse.json({ error: 'This unsubscribe link is invalid.' }, { status: 404, headers });
-  await unsubscribeContact(contact.id);
+  await unsubscribeContact(contact.id, identity.emailId);
   return new NextResponse(null, { status: 204, headers });
 }

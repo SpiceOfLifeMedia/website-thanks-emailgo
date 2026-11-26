@@ -37,6 +37,8 @@ export async function POST(request: Request, context: PreferenceContext) {
   const { token } = await context.params;
   const contact = await resolveContact(token);
   if (!contact) return NextResponse.json({ error: 'This preference link is invalid.' }, { status: 404, headers: privateHeaders });
+  const identity = verifyContactPreferenceToken(token);
+  if (!identity) return NextResponse.json({ error: 'This preference link is invalid.' }, { status: 404, headers: privateHeaders });
   const parsed = await readJsonLimited(request, 20_000);
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: parsed.status, headers: privateHeaders });
   if (!parsed.value || typeof parsed.value !== 'object' || Array.isArray(parsed.value)) return NextResponse.json({ error: 'Request body must be a JSON object.' }, { status: 400, headers: privateHeaders });
@@ -48,7 +50,7 @@ export async function POST(request: Request, context: PreferenceContext) {
   if (body.global_unsubscribe !== undefined && typeof body.global_unsubscribe !== 'boolean') return NextResponse.json({ error: 'global_unsubscribe must be a boolean.' }, { status: 400, headers: privateHeaders });
   if (body.confirm_resubscribe !== undefined && typeof body.confirm_resubscribe !== 'boolean') return NextResponse.json({ error: 'confirm_resubscribe must be a boolean.' }, { status: 400, headers: privateHeaders });
   if (body.global_unsubscribe === true) {
-    await unsubscribeContact(contact.id);
+    await unsubscribeContact(contact.id, identity.emailId);
     return NextResponse.json({ updated: true, unsubscribed: true }, { headers: privateHeaders });
   }
   if (contact.unsubscribed_at && topicIds.length && body.confirm_resubscribe !== true) return NextResponse.json({ error: 'Confirm that you want to opt in again before subscribing to topics.' }, { status: 409, headers: privateHeaders });

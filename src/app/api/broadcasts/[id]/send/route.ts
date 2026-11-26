@@ -75,7 +75,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const propertyFallbacks = (await query<{ property_key: string; fallback_value_json: string | null }>('SELECT property_key,fallback_value_json FROM contact_properties WHERE fallback_value_json IS NOT NULL')).rows;
     const baseStatements: Array<{ sql: string; params: readonly unknown[] }> = [];
     for (const recipient of recipients) {
-      const preferenceToken = createContactPreferenceToken({ contactId: recipient.id, email: recipient.email });
+      const emailId = randomId('em');
+      const preferenceToken = createContactPreferenceToken({ contactId: recipient.id, email: recipient.email, emailId });
       const preferencesUrl = `${publicOrigin.origin}/preferences/${preferenceToken}`;
       const unsubscribeUrl = `${publicOrigin.origin}/api/preferences/${preferenceToken}/one-click`;
       let properties: Record<string, unknown> = {};
@@ -92,7 +93,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       const htmlBody = render(campaign.html, values, true);
       const textWithFooter = textBody === null ? null : `${textBody}\n\nManage preferences: ${preferencesUrl}\nUnsubscribe: ${unsubscribeUrl}`;
       const htmlWithFooter = htmlBody === null ? null : `${htmlBody}<div style="margin-top:24px;font-size:12px;color:#666"><a href="${htmlEscape(preferencesUrl)}">Manage preferences</a> · <a href="${htmlEscape(unsubscribeUrl)}">Unsubscribe</a></div>`;
-      const emailId = randomId('em');
       const createdAt = nowIso();
       baseStatements.push({
         sql: `INSERT INTO emails(id,api_key_id,from_address,to_json,subject,status,headers_json,text_body,html_body,scheduled_at,track_opens,track_clicks,broadcast_id,created_at)
