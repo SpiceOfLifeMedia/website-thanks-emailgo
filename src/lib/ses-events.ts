@@ -88,7 +88,9 @@ export function parseSesNotification(message: string): DeliveryEvent[] {
   if (kind === 'Complaint') {
     const complaint = body.complaint as Record<string, unknown> | undefined;
     const detail = String(complaint?.complaintFeedbackType ?? 'complaint').slice(0, 200);
-    return addresses(complaint?.complainedRecipients).map((recipient) => ({ type: 'complained', relayMessageId, recipient, suppress: true, detail }));
+    const complainants = addresses(complaint?.complainedRecipients);
+    // SES may list every possible complainant; only suppress when the complainant is unambiguous.
+    return complainants.map((recipient) => ({ type: 'complained', relayMessageId, recipient, suppress: complainants.length === 1, detail }));
   }
   if (kind === 'Delivery') {
     const delivery = body.delivery as Record<string, unknown> | undefined;
