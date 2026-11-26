@@ -33,8 +33,8 @@ export async function POST(request: Request) {
   const secret = process.env.EMAILGO_INBOUND_SECRET;
   if (!secret || secret.length < 32) return error('Inbound receiving is not configured.', 503);
   if (!request.headers.get('content-type')?.toLowerCase().startsWith('application/json')) return error('Inbound payload must use application/json.', 415);
-  const timestamp = request.headers.get('x-emailgo-timestamp') ?? '';
-  const signature = request.headers.get('x-emailgo-signature') ?? '';
+  const timestamp = request.headers.get('x-send-thanks-timestamp') ?? request.headers.get('x-emailgo-timestamp') ?? '';
+  const signature = request.headers.get('x-send-thanks-signature') ?? request.headers.get('x-emailgo-signature') ?? '';
   if (!/^\d{10}$/.test(timestamp) || Math.abs(Math.floor(Date.now() / 1000) - Number(timestamp)) > 300) return error('Inbound signature timestamp is missing or outside the five-minute window.', 401);
   const text = await readTextLimited(request, 5_500_000);
   if (!text.ok) return error(text.error, text.status);
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     : envelope.email && typeof envelope.email === 'object' && !Array.isArray(envelope.email)
       ? envelope.email as Record<string, unknown>
       : envelope;
-  const eventId = request.headers.get('x-emailgo-event-id') ?? (typeof envelope.event_id === 'string' ? envelope.event_id : typeof envelope.id === 'string' ? envelope.id : '');
+  const eventId = request.headers.get('x-send-thanks-event-id') ?? request.headers.get('x-emailgo-event-id') ?? (typeof envelope.event_id === 'string' ? envelope.event_id : typeof envelope.id === 'string' ? envelope.id : '');
   if (!/^[A-Za-z0-9._:-]{1,200}$/.test(eventId)) return error('Provide a valid provider event ID.', 400);
   const from = typeof payload.from === 'string' ? payload.from.trim() : '';
   const subject = typeof payload.subject === 'string' ? payload.subject : '';
@@ -94,9 +94,9 @@ export async function POST(request: Request) {
     attachments.push({ id: randomId('att'), filename, contentType, contentDisposition, contentId, byteLength: bytes.byteLength, contentBase64 });
   }
   const receivingApiKeyId = process.env.EMAILGO_RECEIVING_API_KEY_ID;
-  if (!receivingApiKeyId) return error('Set EMAILGO_RECEIVING_API_KEY_ID to an active full-access Emailgo key ID.', 503);
+  if (!receivingApiKeyId) return error('Set EMAILGO_RECEIVING_API_KEY_ID to an active full-access Send, thanks key ID.', 503);
   const ownerKey = await queryOne<{ id: string }>("SELECT id FROM api_keys WHERE id=? AND permission='full_access' AND revoked_at IS NULL", [receivingApiKeyId]);
-  if (!ownerKey) return error('EMAILGO_RECEIVING_API_KEY_ID must reference an active full-access Emailgo key.', 503);
+  if (!ownerKey) return error('EMAILGO_RECEIVING_API_KEY_ID must reference an active full-access Send, thanks key.', 503);
   const existing = await queryOne<{ id: string }>('SELECT id FROM received_emails WHERE provider_event_id=?', [eventId]);
   if (existing) return NextResponse.json({ id: existing.id, object: 'received_email', duplicate: true }, { headers: privateHeaders });
   const id = randomId('rx');

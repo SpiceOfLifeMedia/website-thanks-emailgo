@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { execute, nowIso, query, randomId } from '@/lib/database';
 import { readJsonLimited } from '@/lib/request-json';
+import { publicVerificationToken } from '@/lib/domain-verification';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,8 +25,8 @@ async function authorize(request: Request) {
 async function __emailgo_GET_handler(request: Request) {
   const auth = await authorize(request);
   if (auth.error) return auth.error;
-  const result = await query(`SELECT id,domain,verification_token,created_at,verified_at,open_tracking,click_tracking FROM domains ORDER BY created_at DESC,id DESC`);
-  return NextResponse.json({ data: result.rows }, { headers: privateHeaders });
+  const result = await query<{ verification_token: string } & Record<string, unknown>>(`SELECT id,domain,verification_token,created_at,verified_at,open_tracking,click_tracking FROM domains ORDER BY created_at DESC,id DESC`);
+  return NextResponse.json({ data: result.rows.map((domain) => ({ ...domain, verification_token: publicVerificationToken(domain.verification_token) })) }, { headers: privateHeaders });
 }
 
 async function __emailgo_POST_handler(request: Request) {
@@ -38,7 +39,7 @@ async function __emailgo_POST_handler(request: Request) {
   if (Object.keys(body).length !== 1 || typeof body.domain !== 'string') return apiError('Only domain is supported.', 400);
   const domain = body.domain.trim().toLowerCase().replace(/\.$/, '');
   if (!domainPattern.test(domain)) return apiError('Enter a valid sender domain.', 400);
-  const verificationToken = `emailgo-verify=${randomBytes(24).toString('hex')}`;
+  const verificationToken = `send-thanks-verify=${randomBytes(24).toString('hex')}`;
   const id = randomId('dom');
   const createdAt = nowIso();
   try {

@@ -44,7 +44,7 @@ async function exportCsv(url: URL) {
       }
     },
   });
-  return new Response(stream, { headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="emailgo-request-logs.csv"', 'Cache-Control': 'private, no-store' } });
+  return new Response(stream, { headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="send-thanks-request-logs.csv"', 'Cache-Control': 'private, no-store' } });
 }
 
 export async function GET(request: Request) {

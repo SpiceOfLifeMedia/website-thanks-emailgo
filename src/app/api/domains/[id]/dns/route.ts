@@ -28,11 +28,11 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     domain: domain.domain,
     checked_at: new Date().toISOString(),
     records: {
-      ownership: { status: 'see_domain_verification', host: `_emailgo.${domain.domain}` },
+      ownership: { status: 'see_domain_verification', host: `_send-thanks.${domain.domain}` },
       spf: { status: spfRecords.length === 1 ? 'found' : spfRecords.length > 1 ? 'multiple' : 'missing', host: domain.domain, values: spfRecords },
       dmarc: { status: dmarcRecords.length === 1 ? 'found' : dmarcRecords.length > 1 ? 'multiple' : 'missing', host: `_dmarc.${domain.domain}`, values: dmarcRecords },
       mx: { status: mxResult.records.length ? 'found' : 'missing', values: mxResult.records.map(({ exchange, priority }) => ({ host: exchange, priority })) },
-      dkim: { status: 'relay_managed', message: 'Publish the DKIM record supplied by the configured SMTP relay. Emailgo does not generate or sign DKIM keys yet.' },
+      dkim: { status: 'relay_managed', message: 'Publish the DKIM record supplied by the configured SMTP relay. Send, thanks does not generate or sign DKIM keys yet.' },
     },
   });
 }

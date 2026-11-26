@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   const envelope = parseSnsEnvelope(parsed.value);
   if (!envelope) return reject('Expected a signed delivery notification envelope.', 400);
   if (!topicAllowed(envelope.TopicArn)) return reject('Topic not allowed.', 403);
-  if (!await verifySnsSignature(envelope)) return reject('Invalid SNS signature.', 403);
+  if (!await verifySnsSignature(envelope)) return reject('Notification signature is invalid.', 403);
 
   if (envelope.Type === 'SubscriptionConfirmation') {
     const subscribeUrl = trustedSnsUrl(envelope.SubscribeURL);

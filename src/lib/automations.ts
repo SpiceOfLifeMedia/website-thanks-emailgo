@@ -127,7 +127,7 @@ export async function saveAutomation(apiKeyId: string, id: string | null, value:
       if (parsed.definition.status === 'active' && !emailTemplate.published_version_id) return { ok: false, status: 400, error: `Template "${String(template)}" must be published before an active automation can send it.` };
       if (parsed.definition.status === 'active') {
         const domain = extractAddress(String(step.config.from)).split('@').at(-1)?.toLowerCase() ?? '';
-        if (!await queryOne<{ id: string }>('SELECT id FROM domains WHERE lower(domain)=? AND verified_at IS NOT NULL', [domain])) return { ok: false, status: 400, error: `Sender domain "${domain}" is not verified in Emailgo.` };
+        if (!await queryOne<{ id: string }>('SELECT id FROM domains WHERE lower(domain)=? AND verified_at IS NOT NULL', [domain])) return { ok: false, status: 400, error: `Sender domain "${domain}" is not verified in Send, thanks.` };
       }
     }
     if (step.type === 'add_to_segment' && !await queryOne<{ id: string }>('SELECT id FROM segments WHERE id=?', [String(step.config.segment_id)])) return { ok: false, status: 400, error: `Segment "${String(step.config.segment_id)}" does not exist.` };
@@ -491,7 +491,7 @@ async function sendAutomationEmail(run: RunRow, step: AutomationStep, context: R
   if (!from || !emailPattern.test(fromAddress)) throw new Error('Send email needs a verified from address.');
   const domain = fromAddress.split('@').at(-1)?.toLowerCase() ?? '';
   const verified = await queryOne<{ id: string }>('SELECT id FROM domains WHERE lower(domain)=? AND verified_at IS NOT NULL', [domain]);
-  if (!verified) throw new Error('Send email requires a verified Emailgo sender domain.');
+  if (!verified) throw new Error('Send email requires a verified Send, thanks sender domain.');
   const subject = renderVariables(published.subject, values, false);
   const text = published.text === null ? null : renderVariables(published.text, values, false);
   const html = published.html === null ? null : renderVariables(published.html, values, true);
@@ -500,7 +500,7 @@ async function sendAutomationEmail(run: RunRow, step: AutomationStep, context: R
   const createdAt = nowIso();
   const suppression = (await findSuppressedAddresses([recipient]))[0];
   if (suppression) {
-    const message = 'Emailgo skipped sending because the address is on the workspace suppression list.';
+    const message = 'Send, thanks skipped sending because the address is on the workspace suppression list.';
     await execute(`INSERT INTO emails(id,api_key_id,from_address,to_json,subject,status,error_message,created_at,text_body,html_body)
       VALUES(?,?,?,?,?,'suppressed',?,?,?,?)`, [id, run.api_key_id, from, JSON.stringify([recipient]), subject, message, createdAt, text, html]);
     await emitEmailSuppressed(run.api_key_id, id, from, suppression.email, subject);

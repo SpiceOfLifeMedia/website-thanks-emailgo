@@ -8,6 +8,7 @@ import { emitEmailSuppressed, findSuppressedAddresses } from '@/lib/suppressions
 import { trackedHtml } from '@/lib/tracking';
 import { emitWebhookEvent } from '@/lib/webhooks';
 import { findEmailTemplate, getPublishedTemplateContent, storedTemplateToContent } from '@/lib/email-templates';
+import { sanitizeCustomerCopy } from '@/lib/customer-copy';
 import { relayMessageIdFromResponse } from '@/lib/ses-events';
 
 export const runtime = 'nodejs';
@@ -95,10 +96,10 @@ function emailResponse(row: StoredEmail, includeContent = false) {
     ...(includeContent && row.text_body !== null ? { text: row.text_body } : {}),
     ...(includeContent && row.html_body !== null ? { html: row.html_body } : {}),
     status: row.status,
-    ...(row.status === 'suppressed' && row.error_message ? { error: row.error_message } : {}),
+    ...(row.status === 'suppressed' && row.error_message ? { error: sanitizeCustomerCopy(row.error_message) } : {}),
     created_at: row.created_at,
     ...(row.message_id ? { messageId: row.message_id } : {}),
-    ...(row.provider_id ? { relayResponse: row.provider_id } : {}),
+    ...(row.provider_id ? { relayResponse: sanitizeCustomerCopy(row.provider_id) } : {}),
     ...(row.scheduled_at ? { scheduled_at: row.scheduled_at } : {}),
   };
 }
@@ -319,7 +320,7 @@ export async function sendEmailRequest(request: Request, options: { countRateLim
 
   let scheduledAt: string | null = null;
   if (body.scheduled_at !== undefined) {
-    if (!process.env.CRON_SECRET) return responseError('Scheduled sending is not configured on this Emailgo deployment.', 503);
+    if (!process.env.CRON_SECRET) return responseError('Scheduled sending is not configured on this Send, thanks deployment.', 503);
     if (typeof body.scheduled_at !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(body.scheduled_at) || !Number.isFinite(Date.parse(body.scheduled_at))) return responseError('scheduled_at must be an ISO 8601 timestamp.', 400);
     const scheduleTime = Date.parse(body.scheduled_at);
     if (scheduleTime <= Date.now()) return responseError('scheduled_at must be in the future.', 400);
@@ -348,7 +349,7 @@ export async function sendEmailRequest(request: Request, options: { countRateLim
   const senderDomainConfig = verifiedDomains
     .filter(({ domain }) => senderDomain === domain.toLowerCase() || senderDomain.endsWith(`.${domain.toLowerCase()}`))
     .sort((left, right) => right.domain.length - left.domain.length)[0];
-  if (!senderDomainConfig) return responseError('The sender domain must be verified in your Emailgo dashboard.', 403);
+  if (!senderDomainConfig) return responseError('The sender domain must be verified in your Send, thanks dashboard.', 403);
   if (apiKey.permission === 'sending_access' && apiKey.domainId !== senderDomainConfig.id) return responseError('This sending-only API key is restricted to a different sender domain.', 403);
   const tracking = { openTracking: Boolean(senderDomainConfig.open_tracking), clickTracking: Boolean(senderDomainConfig.click_tracking) };
   if ((tracking.openTracking || tracking.clickTracking) && (!process.env.EMAILGO_PUBLIC_URL || !process.env.EMAILGO_TRACKING_SECRET)) return responseError('Tracking is enabled for this sender domain but its public URL or signing secret is not configured.', 503);
@@ -367,7 +368,7 @@ export async function sendEmailRequest(request: Request, options: { countRateLim
     if (replay) {
       if (replay.request_hash !== requestHash) return responseError('This Idempotency-Key was already used with a different request.', 409);
       const headers = { 'Idempotency-Replayed': 'true' };
-      if (replay.status === 'failed') return NextResponse.json({ error: { message: 'Email delivery failed. Check the message details in your Emailgo dashboard.' }, id: replay.id }, { status: 502, headers });
+      if (replay.status === 'failed') return NextResponse.json({ error: { message: 'Email delivery failed. Check the message details in your Send, thanks dashboard.' }, id: replay.id }, { status: 502, headers });
       return NextResponse.json(emailResponse(replay), { status: ['queued', 'scheduled', 'processing'].includes(replay.status) ? 202 : 200, headers });
     }
   }
@@ -401,7 +402,7 @@ export async function sendEmailRequest(request: Request, options: { countRateLim
     parsedTags.tags.length ? JSON.stringify(parsedTags.tags) : null,
     parsedAttachments.metadata.length ? metadata : null, subject,
     allRecipientsSuppressed ? 'suppressed' : scheduledAt ? 'scheduled' : 'queued',
-    allRecipientsSuppressed ? 'Every recipient was skipped because the address is on the Emailgo suppression list.' : null,
+    allRecipientsSuppressed ? 'Every recipient was skipped because the address is on the Send, thanks suppression list.' : null,
     text ?? null, html ?? null,
     scheduledAt && parsedAttachments.attachments.length ? JSON.stringify(parsedAttachments.attachments) : null,
     allRecipientsSuppressed ? null : scheduledAt, tracking.openTracking ? 1 : 0, tracking.clickTracking ? 1 : 0, createdAt,
@@ -458,7 +459,7 @@ export async function sendEmailRequest(request: Request, options: { countRateLim
     const message = error instanceof Error ? error.message.slice(0, 500) : 'SMTP delivery failed.';
     await execute('UPDATE emails SET status = ?, error_message = ? WHERE id = ?', ['failed', message, id]);
     await emitWebhookEvent(apiKey.id, 'email.failed', { email_id: id, error: 'SMTP handoff failed.' });
-    return NextResponse.json({ error: { message: 'Email delivery failed. Check the message details in your Emailgo dashboard.' }, id }, { status: 502 });
+    return NextResponse.json({ error: { message: 'Email delivery failed. Check the message details in your Send, thanks dashboard.' }, id }, { status: 502 });
   }
 }
 

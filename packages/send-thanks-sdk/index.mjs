@@ -1,15 +1,15 @@
-export class EmailgoApiError extends Error {
+export class SendThanksApiError extends Error {
   constructor(message, status, details) {
     super(message);
-    this.name = 'EmailgoApiError';
+    this.name = 'SendThanksApiError';
     this.status = status;
     this.details = details;
   }
 }
 
-export class Emailgo {
+export class SendThanks {
   constructor(apiKey, options = {}) {
-    if (typeof apiKey !== 'string' || !apiKey.trim()) throw new TypeError('An Emailgo API key is required.');
+    if (typeof apiKey !== 'string' || !apiKey.trim()) throw new TypeError('A Send, thanks API key is required.');
     this.apiKey = apiKey;
     this.baseUrl = (options.baseUrl ?? 'http://localhost:3000').replace(/\/+$/, '');
     this.fetch = options.fetch ?? globalThis.fetch;
@@ -188,11 +188,11 @@ export class Emailgo {
         try { details = text ? JSON.parse(text) : null; } catch { details = { message: text || response.statusText }; }
         const error = details?.error;
         const message = typeof error === 'string' ? error : error?.message ?? details?.message ?? response.statusText;
-        return { data: null, error: new EmailgoApiError(message, response.status, details) };
+        return { data: null, error: new SendThanksApiError(message, response.status, details) };
       }
       return { data: await response.arrayBuffer(), error: null };
     } catch (error) {
-      return { data: null, error: error instanceof Error ? error : new Error('Emailgo download failed.') };
+      return { data: null, error: error instanceof Error ? error : new Error('Send, thanks download failed.') };
     }
   }
 
@@ -215,11 +215,11 @@ export class Emailgo {
       if (!response.ok) {
         const errorData = data?.error;
         const message = typeof errorData === 'string' ? errorData : errorData?.message ?? data?.message ?? response.statusText;
-        return { data: null, error: new EmailgoApiError(message, response.status, data) };
+        return { data: null, error: new SendThanksApiError(message, response.status, data) };
       }
       return { data, error: null };
     } catch (error) {
-      return { data: null, error: error instanceof Error ? error : new Error('Emailgo request failed.') };
+      return { data: null, error: error instanceof Error ? error : new Error('Send, thanks request failed.') };
     }
   }
 }

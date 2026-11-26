@@ -42,7 +42,7 @@ async function __emailgo_POST_handler(request: Request) {
     const domain = await queryOne<{ id: string }>('SELECT id FROM domains WHERE id=? AND verified_at IS NOT NULL', [domainId]);
     if (!domain) return apiError('Choose an existing verified sender domain.', 400);
   }
-  const secret = `eg_live_${randomBytes(32).toString('base64url')}`;
+  const secret = `st_live_${randomBytes(32).toString('base64url')}`;
   const id = randomId('key');
   const createdAt = nowIso();
   const prefix = secret.slice(0, 20);

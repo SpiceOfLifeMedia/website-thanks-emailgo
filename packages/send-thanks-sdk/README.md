@@ -1,15 +1,15 @@
-# @emailgo/sdk
+# @send-thanks/sdk
 
-Small dependency-free Node.js client for the Emailgo REST API.
+Small dependency-free Node.js client for the Send, thanks REST API.
 
 ```js
-import { Emailgo } from '@emailgo/sdk';
+import { SendThanks } from '@send-thanks/sdk';
 
-const emailgo = new Emailgo(process.env.EMAILGO_API_KEY, {
+const sendThanks = new SendThanks(process.env.EMAILGO_API_KEY, {
   baseUrl: process.env.EMAILGO_BASE_URL,
 });
 
-const { data, error } = await emailgo.emails.send({
+const { data, error } = await sendThanks.emails.send({
   from: 'hello@example.com',
   to: 'person@example.net',
   subject: 'Welcome',

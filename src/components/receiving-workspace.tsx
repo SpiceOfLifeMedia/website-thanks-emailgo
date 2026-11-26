@@ -65,7 +65,7 @@ export function ReceivingWorkspace() {
 
   return <>
     <div className="pageHeading receivingHeading"><div><div className="eyebrow">INBOUND EMAIL</div><h1>Receiving</h1><p>Inspect email forwarded from your configured receiving provider.</p></div><button className="outlineButton" onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button></div>
-    <div className="receivingNotice"><strong>Provider connection required</strong><span>Emailgo stores messages forwarded to its signed receiving endpoint. It does not host inbound SMTP or manage MX records.</span></div>
+    <div className="receivingNotice"><strong>Provider connection required</strong><span>Send, thanks stores messages forwarded to its signed receiving endpoint. It does not host inbound SMTP or manage MX records.</span></div>
     {error && <p className="inlineError receivingError" role="alert">{error}</p>}
     <section className="receivingLayout" aria-label="Received email inbox">
       <div className="panel receivingList">

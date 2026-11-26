@@ -3,7 +3,8 @@
   "regions": ["syd1"],
   "git": {
     "deploymentEnabled": {
-      "feat/emailgo-resend-parity": false
+      "feat/emailgo-resend-parity": false,
+      "feat/send-thanks-rebrand": false
     }
   },
   "crons": [

@@ -1,13 +1,13 @@
-# Emailgo
+# Send, thanks
 
-Emailgo is an independent email delivery API and workspace for Website Thanks. It owns the API keys, sender domain verification, request validation, message log and dashboard. Outbound transport is configured through standard SMTP credentials.
+Send, thanks is an independent email delivery API and workspace for Website Thanks. It owns the API keys, sender domain verification, request validation, message log and dashboard. Outbound transport is configured through standard SMTP credentials.
 
 ## What works
 
 - Admin password sign in with signed, HTTP only sessions.
-- Create and revoke Emailgo API keys. Only key hashes are stored, and a new secret is shown once. Keys support full access or sending-only access restricted to a verified sender domain. Full-access keys can also list, create, inspect, rename and revoke keys through `/api/v1/api-keys`.
+- Create and revoke Send, thanks API keys. Only key hashes are stored, and a new secret is shown once. Keys support full access or sending-only access restricted to a verified sender domain. Full-access keys can also list, create, inspect, rename and revoke keys through `/api/v1/api-keys`.
 - Add sender domains, verify ownership through a DNS TXT record, and inspect SPF, DMARC and MX records. DKIM is provided by the selected SMTP relay.
-- Send transactional emails through the Emailgo API using a configured SMTP relay.
+- Send transactional emails through the Send, thanks API using a configured SMTP relay.
 - Persist message metadata and text or HTML bodies in PostgreSQL in production and SQLite during local development. Encoded attachment bytes are removed after scheduled sends complete and are not retained for immediate sends. Retention windows and self-service message deletion are not implemented yet.
 - Filter recent message activity and inspect relay failures.
 - Per-key send limit of 60 requests per minute, a 1 MB request body limit, and 24-hour idempotency keys to prevent accidental duplicate sends.
@@ -15,13 +15,13 @@ Emailgo is an independent email delivery API and workspace for Website Thanks. I
 - To, Cc, Bcc, reply-to, custom headers, tags, base64 attachments, reusable versioned templates with draft/publish, aliases, variables, and batch sends.
 - Workspace contacts with properties, tags, explicit opt-in source and recorded time. New contacts default to unknown consent. Unsubscribe state is separate and preserved during imports.
 - Optional domain-level open and link tracking, disabled by default, with authenticated event retrieval.
-- Full-access API and dashboard webhook management with signed event delivery, secret rotation, bounded retries, attempt history and replay. Events include Emailgo activity, provider-bridged inbound email and verified delivery outcomes when a compatible event source is configured.
-- A full-access usage endpoint reports message and resource counts. It does not enforce paid plan quotas because Emailgo has no billing or plan system.
+- Full-access API and dashboard webhook management with signed event delivery, secret rotation, bounded retries, attempt history and replay. Events include Send, thanks activity, provider-bridged inbound email and verified delivery outcomes when a compatible event source is configured.
+- A full-access usage endpoint reports message and resource counts. It does not enforce paid plan quotas because Send, thanks has no billing or plan system.
 - Docker image designed for a persistent `./data` volume.
 
 SMTP credentials are only sent over TLS. Port 587 requires STARTTLS; port 465 uses implicit TLS. SMTP acceptance is recorded as `sent`. A signed notification endpoint can later update a message to `delivered`, `deferred`, `bounced` or `complained`; no external event source is configured by this repository.
 
-Open and click tracking are separate from transport delivery events. Configure `EMAILGO_PUBLIC_URL` and an independent `EMAILGO_TRACKING_SECRET`, then enable tracking per verified domain. Emailgo records event time and clicked URL domain and path, not the recipient's IP address, location or device. Open pixels can be blocked or prefetched by mail clients, so an open is an approximate signal. Custom tracking domains and bounce, complaint or delivery events still require additional infrastructure.
+Open and click tracking are separate from transport delivery events. Configure `EMAILGO_PUBLIC_URL` and an independent `EMAILGO_TRACKING_SECRET`, then enable tracking per verified domain. Send, thanks records event time and clicked URL domain and path, not the recipient's IP address, location or device. Open pixels can be blocked or prefetched by mail clients, so an open is an approximate signal. Custom tracking domains and bounce, complaint or delivery events still require additional infrastructure.
 
 ## Run locally
 
@@ -38,7 +38,7 @@ Open `http://localhost:3000`. The SQLite database is created under `./data`. Wit
 
 ## API
 
-The repository includes a dependency-free Node.js client at `packages/emailgo-sdk`, a shell-friendly CLI, and an OpenAPI document at `GET /api/v1/openapi.json`. Run `npm run emailgo -- --help` to see CLI commands. Set `EMAILGO_BASE_URL` and `EMAILGO_API_KEY` in your local shell; the CLI reads the key from the environment and does not save it to a profile file. These tools cover the API currently implemented in this repository. The SDK is source-only and is not published to npm.
+The repository includes a dependency-free Node.js client a shell-friendly CLI, and an OpenAPI document at `GET /api/v1/openapi.json`. Run `npm run send-thanks -- --help` to see CLI commands. Set `EMAILGO_BASE_URL` and `EMAILGO_API_KEY` in your local shell; the CLI reads the key from the environment and does not save it to a profile file. These tools cover the API currently implemented in this repository. The SDK is source-only and is not published to npm.
 
 Full-access keys can inspect API request logs with `GET /api/v1/logs` and `GET /api/v1/logs/{log_id}`. Requests that authenticate successfully receive an `x-request-id` header matching the log ID. Bodies are capped at 64 KiB and sanitized before persistence: recipient addresses, names, message content, attachments, headers, contact properties, and credentials are redacted; only the sender domain is retained. Request and response headers are not stored. Non-JSON bodies are omitted, and bodies larger than the cap are marked truncated. The dashboard supports status and ID/endpoint search, detail views, and filtered CSV export. Logs currently have no automatic retention policy.
 
@@ -48,10 +48,10 @@ Create a key in **API keys**, verify a domain in **Domains**, then send:
 
 ```sh
 curl -X POST http://localhost:3000/api/v1/emails \
-  -H 'Authorization: Bearer eg_live_your_key' \
+  -H 'Authorization: Bearer st_live_your_key' \
   -H 'Content-Type: application/json' \
   -H 'Idempotency-Key: order-123-confirmation' \
-  -d '{"from":"hello@example.com","to":"person@example.net","subject":"Hello","text":"Sent with Emailgo."}'
+  -d '{"from":"hello@example.com","to":"person@example.net","subject":"Hello","text":"Sent with Send, thanks."}'
 ```
 
 The `from` domain must be verified. Provide either `text`, `html`, or both. An `Idempotency-Key` makes retries safe for 24 hours. Reusing it with different content returns 409. A `to` value can be one address or an array of up to 50 addresses. Invalid keys receive 401, unverified domains receive 403, and SMTP delivery errors receive 502.
@@ -60,7 +60,7 @@ List the latest messages with optional pagination:
 
 ```sh
 curl 'http://localhost:3000/api/v1/emails?limit=20' \
-  -H 'Authorization: Bearer eg_live_your_key'
+  -H 'Authorization: Bearer st_live_your_key'
 ```
 
 Follow `next_after` as the `after` query parameter to load the next page. Use `before` with the first ID on a page to navigate back toward newer messages; the response returns `next_before` when more results remain in that direction. Cursors are scoped to the API key. Retrieve one message with `GET /api/v1/emails/{email_id}` to read its stored text and HTML body. The authenticated dashboard also provides searchable and filterable message history through `/api/emails` and opens a sandboxed HTML preview from the message detail view.
@@ -71,7 +71,7 @@ Send multiple messages in one request, up to 100 per batch:
 
 ```sh
 curl -X POST http://localhost:3000/api/v1/emails/batch \
-  -H 'Authorization: Bearer eg_live_your_key' \
+  -H 'Authorization: Bearer st_live_your_key' \
   -H 'Content-Type: application/json' \
   -H 'Idempotency-Key: order-123-receipts' \
   -d '[{"from":"hello@example.com","to":"one@example.net","subject":"First","text":"Hello."},{"from":"hello@example.com","to":"two@example.net","subject":"Second","text":"Hello."}]'
@@ -87,13 +87,13 @@ Use `template: { id, variables }` to send a published template by ID or alias. T
 
 `GET /api/v1/segments/metrics` returns point-in-time contact counts for `all_contacts`, `subscribers`, and `unsubscribers`, optionally grouped by saved segment or filtered by `segment_id`. Segment membership honors live filters and manual exclusions.
 
-Contacts can also be managed with `GET` and `POST /api/v1/contacts`, plus `GET`, `PATCH` and `DELETE /api/v1/contacts/{contact_id}`. Full-access Emailgo keys support pagination, names, tags, custom properties, consent status and unsubscribe state. New contacts default to `consent_status: unknown`; recording `opted_in` requires a `consent_source` and the app records the time it received that statement. This is an account record, not independent proof of consent. Clearing an unsubscribe requires a new explicit opt-in and source. The dashboard imports UTF-8 CSV files up to 2 MB, can skip or update matching addresses, and exports up to 10,000 contacts. CSV opt-in rows require a source and valid `consented_at` timestamp. Re-importing opt-outs never resubscribes them. Saved segments at `/api/v1/segments` support tag, consent and unsubscribe filters, with a paginated contact preview. Add or remove a contact from a segment with `POST` or `DELETE /api/v1/contacts/{contact_id}/segments/{segment_id}`, and list memberships with `GET /api/v1/contacts/{contact_id}/segments`. Manual removals are stored as exclusions so a contact does not reappear through the segment's filters. Topics can be managed in the dashboard and API; `GET` and `PUT /api/v1/contacts/{contact_id}/topics` read or replace preferences. Subscribing requires explicit consent source text. Set an independent `EMAILGO_PREFERENCES_SECRET` of at least 32 characters to create signed preference links from the Contacts dashboard. Public preference pages manage topic subscriptions and global unsubscribe, and require a clear confirmation to opt back in after a global opt out.
+Contacts can also be managed with `GET` and `POST /api/v1/contacts`, plus `GET`, `PATCH` and `DELETE /api/v1/contacts/{contact_id}`. Full-access Send, thanks keys support pagination, names, tags, custom properties, consent status and unsubscribe state. New contacts default to `consent_status: unknown`; recording `opted_in` requires a `consent_source` and the app records the time it received that statement. This is an account record, not independent proof of consent. Clearing an unsubscribe requires a new explicit opt-in and source. The dashboard imports UTF-8 CSV files up to 2 MB, can skip or update matching addresses, and exports up to 10,000 contacts. CSV opt-in rows require a source and valid `consented_at` timestamp. Re-importing opt-outs never resubscribes them. Saved segments at `/api/v1/segments` support tag, consent and unsubscribe filters, with a paginated contact preview. Add or remove a contact from a segment with `POST` or `DELETE /api/v1/contacts/{contact_id}/segments/{segment_id}`, and list memberships with `GET /api/v1/contacts/{contact_id}/segments`. Manual removals are stored as exclusions so a contact does not reappear through the segment's filters. Topics can be managed in the dashboard and API; `GET` and `PUT /api/v1/contacts/{contact_id}/topics` read or replace preferences. Subscribing requires explicit consent source text. Set an independent `EMAILGO_PREFERENCES_SECRET` of at least 32 characters to create signed preference links from the Contacts dashboard. Public preference pages manage topic subscriptions and global unsubscribe, and require a clear confirmation to opt back in after a global opt out.
 
 `POST /api/v1/contacts/imports` accepts a multipart CSV upload with a `column_map`, conflict policy, and optional segment/topic assignments. Imports are limited to 2 MB and 2,000 data rows, run synchronously, and return a completed import record. Use `GET /api/v1/contacts/imports` and `GET /api/v1/contacts/imports/{id}` to inspect saved counts. Topic opt-in imports require explicit `consent_status`, `consent_source`, and `consented_at` columns; the importer does not infer consent from an address list.
 
 Contact property definitions can be managed with `GET`, `POST /api/v1/contact-properties` and `GET`, `PATCH`, `DELETE /api/v1/contact-properties/{key}`. Definitions support `string` and `number` types with optional fallback values. Broadcast personalization uses the fallback only when the contact property is missing or `null`; deleting a definition preserves values already stored on contacts.
 
-The Broadcasts workspace creates personalized campaign drafts from saved segments or subscribed topics, then queues them immediately or up to 30 days in advance. Only contacts with recorded opt-in consent and no global unsubscribe are eligible. Emailgo inserts a signed preferences link and RFC 8058 one-click unsubscribe header. A campaign is capped at 1,000 recipients per queue operation and uses the scheduled worker and SMTP relay. Delivery counts show SMTP handoff acceptance until signed outcome notifications arrive. There is no visual campaign editor. Campaign sending remains unavailable until `EMAILGO_SMTP_*`, `EMAILGO_PUBLIC_URL`, `EMAILGO_PREFERENCES_SECRET` and `CRON_SECRET` are configured.
+The Broadcasts workspace creates personalized campaign drafts from saved segments or subscribed topics, then queues them immediately or up to 30 days in advance. Only contacts with recorded opt-in consent and no global unsubscribe are eligible. Send, thanks inserts a signed preferences link and RFC 8058 one-click unsubscribe header. A campaign is capped at 1,000 recipients per queue operation and uses the scheduled worker and SMTP relay. Delivery counts show SMTP handoff acceptance until signed outcome notifications arrive. There is no visual campaign editor. Campaign sending remains unavailable until `EMAILGO_SMTP_*`, `EMAILGO_PUBLIC_URL`, `EMAILGO_PREFERENCES_SECRET` and `CRON_SECRET` are configured.
 
 Full-access API keys can create and manage broadcast drafts with `GET`, `POST /api/v1/broadcasts`, `PATCH` or `DELETE /api/v1/broadcasts/{broadcast_id}`, then queue or schedule them with `POST /api/v1/broadcasts/{broadcast_id}/send`. Pending messages can be canceled with `POST /api/v1/broadcasts/{broadcast_id}/cancel`.
 
@@ -146,13 +146,13 @@ Custom event definitions use a flat `schema`: `POST /api/v1/events` creates a na
 
 Retrieve tracking events for an email with `GET /api/v1/emails/{email_id}/events`. Event access is scoped to the API key that sent the email.
 
-Emailgo retains submitted text and HTML bodies in its database so message details can show their contents. Encoded attachment bytes are removed after scheduled sends complete, and immediate-send attachment bytes are not retained. Configure protected, durable database storage and backups for production. Retention windows and self-service message deletion are not implemented yet.
+Send, thanks retains submitted text and HTML bodies in its database so message details can show their contents. Encoded attachment bytes are removed after scheduled sends complete, and immediate-send attachment bytes are not retained. Configure protected, durable database storage and backups for production. Retention windows and self-service message deletion are not implemented yet.
 
 ### Receiving email
 
-Emailgo can accept normalized inbound mail events from a separately configured receiving provider. The signed provider bridge is `POST /api/internal/receiving`; set an independent `EMAILGO_INBOUND_SECRET` and set `EMAILGO_RECEIVING_API_KEY_ID` to an active full-access key ID. Sign the exact raw JSON body with HMAC SHA 256 over `<unix_timestamp>.<raw_body>`, then send the base64url digest in `x-emailgo-signature`, the timestamp in `x-emailgo-timestamp`, and a stable event ID in `x-emailgo-event-id`. The endpoint rejects stale or invalid signatures and deduplicates provider event IDs.
+Send, thanks can accept normalized inbound mail events from a separately configured receiving service. The signed bridge is `POST /api/internal/receiving`; set an independent `EMAILGO_INBOUND_SECRET` and set `EMAILGO_RECEIVING_API_KEY_ID` to an active full-access key ID. Sign the exact raw JSON body with HMAC SHA 256 over `<unix_timestamp>.<raw_body>`, then send the base64url digest in `x-send-thanks-signature`, the timestamp in `x-send-thanks-timestamp`, and a stable event ID in `x-send-thanks-event-id`. The endpoint rejects stale or invalid signatures and deduplicates event IDs.
 
-The normalized payload contains `from`, `to`, optional `cc`, `bcc`, `subject`, `message_id`, `headers`, `text`, `html` and optional base64 `attachments`. `GET /api/v1/emails/receiving` lists messages. Retrieve content and attachment metadata with `GET /api/v1/emails/receiving/{id}`, list attachments with `/attachments`, and download a file from `/attachments/{attachment_id}`. Bodies and attachments are retained in the configured database. Emailgo does not provide inbound SMTP service, MX routing or a receiving provider, so mail will not arrive until an upstream service is configured to forward signed events to the bridge.
+The normalized payload contains `from`, `to`, optional `cc`, `bcc`, `subject`, `message_id`, `headers`, `text`, `html` and optional base64 `attachments`. `GET /api/v1/emails/receiving` lists messages. Retrieve content and attachment metadata with `GET /api/v1/emails/receiving/{id}`, list attachments with `/attachments`, and download a file from `/attachments/{attachment_id}`. Bodies and attachments are retained in the configured database. Send, thanks does not provide inbound SMTP service, MX routing or a receiving provider, so mail will not arrive until an upstream service is configured to forward signed events to the bridge.
 
 ### Webhooks
 
@@ -162,17 +162,17 @@ Webhook event history is available at `GET /api/v1/webhooks/{webhook_id}/events`
 
 ### Suppression management
 
-Manage workspace-wide do-not-send addresses in **Suppressions** or through `GET` and `POST /api/v1/suppressions`, `GET` and `DELETE /api/v1/suppressions/{id-or-email}`, and `POST` or `DELETE /api/v1/suppressions/batch` for up to 100 addresses. The dashboard supports CSV import and export. Before SMTP handoff, Emailgo removes suppressed addresses from To, Cc, and Bcc; if every recipient is suppressed, the message is recorded with `suppressed` status and no relay call is made. Scheduled and broadcast sends recheck the list immediately before handoff. Permanent-bounce and complaint notifications add suppressions when a compatible event source is configured.
+Manage workspace-wide do-not-send addresses in **Suppressions** or through `GET` and `POST /api/v1/suppressions`, `GET` and `DELETE /api/v1/suppressions/{id-or-email}`, and `POST` or `DELETE /api/v1/suppressions/batch` for up to 100 addresses. The dashboard supports CSV import and export. Before SMTP handoff, Send, thanks removes suppressed addresses from To, Cc, and Bcc; if every recipient is suppressed, the message is recorded with `suppressed` status and no relay call is made. Scheduled and broadcast sends recheck the list immediately before handoff. Permanent-bounce and complaint notifications add suppressions when a compatible event source is configured.
 
-Emailgo returns a `whsec_` signing secret once. The database stores only the secret generation, and the secret is derived from the server master secret and webhook ID. Rotating `EMAILGO_WEBHOOK_SECRET` invalidates all existing endpoint secrets, so use the per-endpoint rotation API when needed. The receiver gets `svix-id`, `svix-timestamp`, and `svix-signature`; verify HMAC SHA 256 over `<svix-id>.<svix-timestamp>.<raw request body>` using the base64url value after `whsec_` as the key. Verify the timestamp window to reject replay attacks.
+Send, thanks returns a `whsec_` signing secret once. The database stores only the secret generation, and the secret is derived from the server master secret and webhook ID. Rotating `EMAILGO_WEBHOOK_SECRET` invalidates all existing endpoint secrets, so use the per-endpoint rotation API when needed. The receiver gets `svix-id`, `svix-timestamp`, and `svix-signature`; verify HMAC SHA 256 over `<svix-id>.<svix-timestamp>.<raw request body>` using the base64url value after `whsec_` as the key. Verify the timestamp window to reject replay attacks.
 
-Emailgo retries failed delivery up to five attempts with increasing delay and stores attempt status, duration and a bounded response excerpt. Individual delivered or failed events can be replayed. The worker must run for delivery to progress. Targets require public HTTPS on port 443; DNS results are checked and pinned per attempt, private addresses are blocked, and redirects are not followed. Keep event receiver responses free of secrets because response excerpts appear in the authenticated dashboard and API delivery history.
+Send, thanks retries failed delivery up to five attempts with increasing delay and stores attempt status, duration and a bounded response excerpt. Individual delivered or failed events can be replayed. The worker must run for delivery to progress. Targets require public HTTPS on port 443; DNS results are checked and pinned per attempt, private addresses are blocked, and redirects are not followed. Keep event receiver responses free of secrets because response excerpts appear in the authenticated dashboard and API delivery history.
 
 `GET /api/v1/usage` reports current day and month sent and received counts, contacts, domains, webhooks, segments, topics, broadcasts, automation runs and the per-key send limit. It has no paid-plan quotas or billing data.
 
 ## Domain authentication
 
-Emailgo provides a TXT ownership record at `_emailgo.<domain>`. The dashboard can inspect SPF, DMARC and MX records but does not configure them. Publish SPF and DKIM records supplied by your SMTP relay. The relay remains responsible for final delivery, reputation and its own authentication records.
+Send, thanks provides a TXT ownership record at `_send-thanks.<domain>`. The dashboard can inspect SPF, DMARC and MX records but does not configure them. Publish SPF and DKIM records supplied by your SMTP relay. The relay remains responsible for final delivery, reputation and its own authentication records.
 
 ## Production deployment
 

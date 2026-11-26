@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { isAdminSession } from '@/lib/auth';
 import { query, queryOne } from '@/lib/database';
+import { sanitizeCustomerCopy } from '@/lib/customer-copy';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -50,7 +51,13 @@ export async function GET(request: Request) {
       FROM emails e WHERE ${where} ORDER BY e.created_at DESC,e.id DESC LIMIT ?`, [...params, limit + 1])).rows;
   }
   const hasMore = rows.length > limit;
-  const data = rows.slice(0, limit).map((row) => ({ ...row, to: parseRecipients(row.to_json), to_json: undefined }));
+  const data = rows.slice(0, limit).map((row) => ({
+    ...row,
+    error_message: row.error_message ? sanitizeCustomerCopy(row.error_message) : null,
+    provider_id: row.provider_id ? sanitizeCustomerCopy(row.provider_id) : null,
+    to: parseRecipients(row.to_json),
+    to_json: undefined,
+  }));
   return NextResponse.json({ object: 'list', data, total: Number(totalResult?.count ?? 0), has_more: hasMore, ...(hasMore ? { next_after: rows[limit - 1]?.id } : {}) }, { headers: { 'Cache-Control': 'private, no-store' } });
 }
 

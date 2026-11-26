@@ -3,7 +3,7 @@ import { execute, nowIso, query, queryOne, randomId } from '@/lib/database';
 
 const BODY_LIMIT = 64 * 1024;
 const sensitiveField = /(?:authorization|cookie|password|secret|token|api[_-]?key|credential|idempotency|email|recipient|\bto\b|\bcc\b|\bbcc\b|reply[_-]?to|subject|text|html|content|attachment|header|propert|tag|name$|phone|address)/i;
-const secretValue = /\b(?:eg_live_|whsec_)[A-Za-z0-9_-]{16,}\b/g;
+const secretValue = /\b(?:(?:eg|st)_live_|whsec_)[A-Za-z0-9_-]{16,}\b/g;
 const emailValue = /[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 
 type CapturedBody = { json: string | null; bytes: number | null };

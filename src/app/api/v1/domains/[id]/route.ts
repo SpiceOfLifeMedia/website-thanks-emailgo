@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { execute, queryOne } from '@/lib/database';
 import { readJsonLimited } from '@/lib/request-json';
+import { publicVerificationToken } from '@/lib/domain-verification';
 
 export const runtime = 'nodejs';
 const privateHeaders = { 'Cache-Control': 'private, no-store' };
@@ -25,7 +26,7 @@ async function __emailgo_GET_handler(request: Request, context: DomainContext) {
   if (auth.error) return auth.error;
   const { id } = await context.params;
   const domain = await queryOne<DomainRow>('SELECT id,domain,verification_token,created_at,verified_at,open_tracking,click_tracking FROM domains WHERE id=?', [id]);
-  return domain ? NextResponse.json(domain, { headers: privateHeaders }) : apiError('Sender domain not found.', 404);
+  return domain ? NextResponse.json({ ...domain, verification_token: publicVerificationToken(domain.verification_token) }, { headers: privateHeaders }) : apiError('Sender domain not found.', 404);
 }
 
 async function __emailgo_PATCH_handler(request: Request, context: DomainContext) {

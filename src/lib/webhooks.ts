@@ -59,7 +59,7 @@ export async function emitWebhookEvent(apiKeyId: string, type: WebhookEventType,
       [randomId('whd'), eventId, webhook.id, apiKeyId, type, payload, createdAt],
     )));
   } catch {
-    console.error('Emailgo could not queue a webhook event.', { type });
+    console.error('Send, thanks could not queue a webhook event.', { type });
   }
 }
 
@@ -122,7 +122,7 @@ function postWebhook(urlValue: string, payload: string, deliveryId: string, sign
       headers: {
         'content-type': 'application/json',
         'content-length': Buffer.byteLength(payload),
-        'user-agent': 'Emailgo-Webhooks/1.0',
+        'user-agent': 'Send, thanks-Webhooks/1.0',
         'svix-id': deliveryId,
         'svix-timestamp': timestamp,
         'svix-signature': `v1,${signature}`,

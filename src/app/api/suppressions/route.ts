@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     if (rows.length > 100_000) return error('The suppression export exceeds 100,000 rows. Use the paginated API.', 413);
     const quote = (value: string) => `"${value.replaceAll('"', '""')}"`;
     const csv = ['email,origin,source_id,created_at', ...rows.map((row) => [row.email, row.origin, row.source_id ?? '', row.created_at].map(quote).join(','))].join('\r\n');
-    return new Response(csv, { headers: { ...privateHeaders, 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="emailgo-suppressions.csv"' } });
+    return new Response(csv, { headers: { ...privateHeaders, 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="send-thanks-suppressions.csv"' } });
   }
   const rawLimit = url.searchParams.get('limit');
   const limit = rawLimit === null ? 100 : Number(rawLimit);

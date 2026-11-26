@@ -56,7 +56,7 @@ export async function validateBroadcastInput(input: BroadcastInput) {
   const senderDomain = sender.slice(sender.lastIndexOf('@') + 1).toLowerCase();
   const domains = await query<{ id: string; domain: string }>('SELECT id,domain FROM domains WHERE verified_at IS NOT NULL');
   const domain = domains.rows.filter((entry) => senderDomain === entry.domain.toLowerCase() || senderDomain.endsWith(`.${entry.domain.toLowerCase()}`)).sort((a, b) => b.domain.length - a.domain.length)[0];
-  if (!domain) return { error: 'The sender domain must be verified in Emailgo.', status: 403 } as const;
+  if (!domain) return { error: 'The sender domain must be verified in Send, thanks.', status: 403 } as const;
   if (key.permission === 'sending_access' && key.domain_id !== domain.id) return { error: 'The selected sending-only key is restricted to a different sender domain.', status: 403 } as const;
   if (input.audienceType === 'segment') {
     const segment = await queryOne<{ id: string }>('SELECT id FROM segments WHERE id=?', [input.audienceId]);

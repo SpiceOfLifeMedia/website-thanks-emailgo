@@ -3,7 +3,9 @@ import { NextResponse } from 'next/server';
 import { hasTrustedBrowserOrigin, isAdminSession } from '@/lib/auth';
 import { execute, hashSecret, nowIso, queryOne, randomId } from '@/lib/database';
 import { readJsonLimited } from '@/lib/request-json';
+
 export const runtime = 'nodejs';
+
 export async function POST(request: Request) {
   if (!hasTrustedBrowserOrigin(request)) return NextResponse.json({ error: 'Request origin is not allowed.' }, { status: 403 });
   if (!await isAdminSession()) return NextResponse.json({ error: 'Sign in required.' }, { status: 401 });
@@ -23,7 +25,7 @@ export async function POST(request: Request) {
     const domain = await queryOne<{ id: string }>('SELECT id FROM domains WHERE id=? AND verified_at IS NOT NULL', [domainId]);
     if (!domain) return NextResponse.json({ error: 'Choose an existing verified sender domain.' }, { status: 400 });
   }
-  const secret = `eg_live_${randomBytes(32).toString('base64url')}`;
+  const secret = `st_live_${randomBytes(32).toString('base64url')}`;
   const id = randomId('key');
   const createdAt = nowIso();
   const prefix = secret.slice(0, 20);

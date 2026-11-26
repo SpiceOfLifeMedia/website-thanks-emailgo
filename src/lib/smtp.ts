@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { sanitizeCustomerCopy } from '@/lib/customer-copy';
 
 export function smtpConfigured() {
   return Boolean(process.env.EMAILGO_SMTP_HOST?.trim() && process.env.EMAILGO_SMTP_USER?.trim() && process.env.EMAILGO_SMTP_PASSWORD);
@@ -72,7 +73,10 @@ export async function sendThroughSmtp(message: OutboundMessage) {
         ...(attachment.contentId ? { cid: attachment.contentId } : {}),
       })) } : {}),
     });
-    return { messageId: result.messageId, response: result.response };
+    return { messageId: result.messageId, response: sanitizeCustomerCopy(result.response) };
+  } catch (error) {
+    if (error instanceof Error) throw new Error(sanitizeCustomerCopy(error.message), { cause: error });
+    throw error;
   } finally {
     transport.close();
   }

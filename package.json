@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "node scripts/start.mjs",
-    "emailgo": "node bin/emailgo.mjs",
+    "send-thanks": "node bin/send-thanks.mjs",
+    "emailgo": "node bin/send-thanks.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node --test --disable-warning=MODULE_TYPELESS_PACKAGE_JSON tests/*.test.mjs",
     "check": "npm run typecheck && npm test && npm run build"

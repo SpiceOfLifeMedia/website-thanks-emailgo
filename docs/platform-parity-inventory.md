@@ -1,6 +1,6 @@
-# Emailgo feature parity
+# Send, thanks feature parity
 
-Emailgo is an independent mail platform. It must not call the Resend API or require a Resend API key. This checklist tracks behavior, not visual resemblance. Statuses describe the current source tree and are updated as each feature is implemented and verified.
+Send, thanks is an independent mail platform. It must not call the external mail API or require a external mail API key. This checklist tracks behavior, not visual resemblance. Statuses describe the current source tree and are updated as each feature is implemented and verified.
 
 ## Core sending and deliverability
 
@@ -12,7 +12,7 @@ Emailgo is an independent mail platform. It must not call the Resend API or requ
 | Reusable templates with variables | Implemented, local smoke validation passed | Draft and published versions, immutable version history, aliases, fallback values, duplicate/publish operations, HTML escaping, and protection against deleting templates referenced by automations. No visual editor, preview, or per-workspace isolation. |
 | Batch send | Implemented, local smoke validation passed | Accepts the standard direct JSON array and the earlier `{ "emails": [...] }` wrapper. Up to 100 messages, one API rate-limit unit, five SMTP sends in parallel, per-item results and idempotency keys. Each send is synchronous and can exceed a serverless execution window. |
 | Scheduled sends and retry queue | Implemented, local worker smoke validation passed; production activation pending | Durable database records, reschedule/cancel endpoints, three total attempts and a protected worker. Requires `CRON_SECRET`, durable database storage, a production deployment, and a Vercel plan that meets the desired cadence. |
-| Domain verification and authentication guidance | Partial | Emailgo TXT ownership checks and read-only SPF, DMARC and MX diagnostics are available. DKIM, custom return paths and custom tracking domains still rely on the selected relay or manual DNS configuration. |
+| Domain verification and authentication guidance | Partial | Send, thanks TXT ownership checks and read-only SPF, DMARC and MX diagnostics are available. DKIM, custom return paths and custom tracking domains still rely on the selected relay or manual DNS configuration. |
 | Open and click tracking | Implemented, local smoke validation passed | Optional per-domain tracking, signed pixels and redirects, event API and aggregate dashboard counts. Custom tracking domains are not implemented. Open counts are approximate because clients can block or prefetch images. |
 | Delivery, bounce and complaint events | Partial, local signature and parser tests passed | A signed delivery-notification endpoint validates envelopes, deduplicates events, links outcomes to saved relay message IDs, advances message status without downgrades, and adds permanent bounces and complaints to the workspace suppression list. A compatible event source is not configured or production verified. |
 | Webhook endpoints, signatures, retry and replay | Partial, local smoke validation passed | API and dashboard CRUD, per-key event filters, event/attempt history, one-time signing secrets with rotation, HMAC signatures, bounded retry and replay are implemented. Targets must be public HTTPS endpoints; private and loopback addresses are rejected. Events cover relay handoff failures/acceptance, tracking, API contact lifecycle, and signed recipient delivery outcomes when configured. Production delivery still depends on a durable database, `EMAILGO_WEBHOOK_SECRET`, `CRON_SECRET`, and a running worker. |
@@ -37,17 +37,17 @@ Emailgo is an independent mail platform. It must not call the Resend API or requ
 | --- | --- | --- |
 | API keys and REST reference | Partial, local smoke validation passed | Keys are stored as hashes. Full-access and domain-restricted sending-only keys are implemented. Full-access keys can list, create, inspect, rename and revoke keys through `/api/v1/api-keys`; raw key material is returned only at creation. An OpenAPI 3.1 document is served at `/api/v1/openapi.json`. API key scopes remain coarse and OAuth is absent. |
 | Domain management API | Partial | Full-access keys can list, create, inspect, verify, update tracking settings and delete unused sender domains through `/api/v1/domains`. DNS checks cover ownership, SPF, DMARC and MX; DKIM and return-path setup still come from the SMTP relay. |
-| SDK, CLI and MCP tools | Partial, local smoke validation passed | A dependency-free source Node SDK and repository CLI cover implemented Emailgo API methods, including automation/event methods. The SDK is not published, CLI has no keychain-backed profiles or local webhook tunnel, MCP is absent, and other language SDKs are absent. |
+| SDK, CLI and MCP tools | Partial, local smoke validation passed | A dependency-free source Node SDK and repository CLI cover implemented Send, thanks API methods, including automation/event methods. The SDK is not published, CLI has no keychain-backed profiles or local webhook tunnel, MCP is absent, and other language SDKs are absent. |
 | Multiple workspaces, members and roles | Not implemented | Current admin is a single shared password session. |
 | OAuth, SSO and audit log | Not implemented | Requires identity and account-security design. |
 | Billing, quotas and plan controls | Not implemented | No billing provider or usage enforcement exists. |
-| Agent inboxes and inbox automation | Not implemented | Emailgo has no inbox threads, assignments or agent actions. |
+| Agent inboxes and inbox automation | Not implemented | Send, thanks has no inbox threads, assignments or agent actions. |
 
-## Newly implemented Emailgo endpoints
+## Newly implemented Send, thanks endpoints
 
 | Endpoint | Behavior |
 | --- | --- |
-| `POST /api/v1/webhooks` | Create an HTTPS endpoint for supported Emailgo events. Returns a signing secret once. |
+| `POST /api/v1/webhooks` | Create an HTTPS endpoint for supported Send, thanks events. Returns a signing secret once. |
 | `GET /api/v1/webhooks` | List endpoints owned by the authenticated full-access API key. |
 | `GET`, `PATCH`, `DELETE /api/v1/webhooks/{id}` | Retrieve, update, or disable an owned endpoint. |
 | `GET /api/v1/webhooks/{id}/deliveries` | Paginated delivery state and attempt history. |
@@ -59,7 +59,7 @@ Emailgo is an independent mail platform. It must not call the Resend API or requ
 | `GET /api/suppressions?format=csv` | Export the dashboard suppression list. Dashboard CSV import accepts up to 2,000 rows per file. |
 | `GET`, `POST /api/v1/contact-properties` | List or create typed string/number property definitions with optional fallback values. |
 | `GET`, `PATCH`, `DELETE /api/v1/contact-properties/{key}` | Retrieve or update a definition, or delete the definition while preserving saved contact values. |
-| `GET /api/v1/usage` | Current Emailgo message counts, resource counts, resets, and the configured send rate. Plan quotas are `null` because billing and plan limits do not exist. |
+| `GET /api/v1/usage` | Current Send, thanks message counts, resource counts, resets, and the configured send rate. Plan quotas are `null` because billing and plan limits do not exist. |
 | `POST /api/internal/receiving` | Accept a signed, five-minute-window `email.received` event from a separately configured provider. Requires `EMAILGO_INBOUND_SECRET` and `EMAILGO_RECEIVING_API_KEY_ID`. Provider event IDs are deduplicated. |
 | `GET /api/v1/emails/receiving` | List inbound email received through the provider bridge, scoped to the configured full-access API key. |
 | `GET /api/v1/emails/receiving/{id}` | Retrieve inbound content and attachment metadata. |
@@ -118,19 +118,6 @@ Webhook signatures use `svix-id`, `svix-timestamp`, and `svix-signature` headers
 
 ## Verified official references
 
-- [Resend API reference](https://resend.com/docs/api-reference/introduction)
-- [Send email API](https://resend.com/docs/api-reference/emails/send-email)
-- [Domain management](https://resend.com/docs/dashboard/domains/introduction)
-- [Contacts](https://resend.com/docs/dashboard/contacts/introduction)
-- [Resend custom contact properties](https://resend.com/blog/new-contacts-experience)
-- [Broadcasts](https://resend.com/docs/dashboard/broadcasts/introduction)
-- [Automations](https://resend.com/docs/dashboard/automations/introduction)
-- [Receiving](https://resend.com/docs/dashboard/receiving/introduction)
-- [Inboxes](https://resend.com/docs/dashboard/inboxes/introduction)
-- [Webhooks](https://resend.com/features/webhooks)
-- [CLI](https://resend.com/changelog/cli)
-- [MCP](https://resend.com/changelog/mcp)
-- [Resend Inboxes announcement](https://resend.com/blog/announcing-inboxes)
 - [Vercel Cron Jobs](https://vercel.com/docs/cron-jobs)
 
-Do not describe Emailgo as a complete Resend clone until every applicable row has implemented behavior and verification evidence. Features requiring a delivery event provider, inbound mail provider, team identity system or worker must remain listed as dependencies until configured.
+Do not describe Send, thanks as a complete email platform until every applicable row has implemented behavior and verification evidence. Features requiring a delivery event provider, inbound mail provider, team identity system or worker must remain listed as dependencies until configured.

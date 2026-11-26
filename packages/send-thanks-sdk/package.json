@@ -1,7 +1,7 @@
 {
-  "name": "@emailgo/sdk",
+  "name": "@send-thanks/sdk",
   "version": "0.1.0",
-  "description": "Node.js SDK for the Emailgo email platform API",
+  "description": "Node.js SDK for the Send, thanks email API",
   "type": "module",
   "main": "./index.mjs",
   "types": "./index.d.ts",

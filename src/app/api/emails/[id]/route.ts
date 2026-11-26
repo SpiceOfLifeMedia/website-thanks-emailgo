@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { isAdminSession } from '@/lib/auth';
 import { queryOne } from '@/lib/database';
+import { sanitizeCustomerCopy } from '@/lib/customer-copy';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -51,8 +52,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     text: row.text_body,
     html: row.html_body,
     status: row.status,
-    error: row.error_message,
-    relay_response: row.provider_id,
+    error: row.error_message ? sanitizeCustomerCopy(row.error_message) : null,
+    relay_response: row.provider_id ? sanitizeCustomerCopy(row.provider_id) : null,
     message_id: row.message_id,
     scheduled_at: row.scheduled_at,
     created_at: row.created_at,

@@ -46,7 +46,7 @@ export async function GET() {
   return new NextResponse(csv, {
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': `attachment; filename="emailgo-contacts-${new Date().toISOString().slice(0, 10)}.csv"`,
+      'Content-Disposition': `attachment; filename="send-thanks-contacts-${new Date().toISOString().slice(0, 10)}.csv"`,
       'Cache-Control': 'no-store',
     },
   });

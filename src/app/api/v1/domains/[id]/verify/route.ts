@@ -3,6 +3,7 @@ import { resolveTxt } from 'node:dns/promises';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { execute, nowIso, queryOne } from '@/lib/database';
+import { publicVerificationToken, verificationRecordHosts } from '@/lib/domain-verification';
 
 export const runtime = 'nodejs';
 const privateHeaders = { 'Cache-Control': 'private, no-store' };
@@ -15,14 +16,16 @@ async function __emailgo_POST_handler(request: Request, context: { params: Promi
   const domain = await queryOne<{ id: string; domain: string; verification_token: string }>('SELECT id,domain,verification_token FROM domains WHERE id=?', [id]);
   if (!domain) return NextResponse.json({ error: { message: 'Sender domain not found.' } }, { status: 404, headers: privateHeaders });
   try {
-    const records = await resolveTxt(`_emailgo.${domain.domain}`);
-    const verified = records.some((parts) => parts.join('') === domain.verification_token);
-    if (!verified) return NextResponse.json({ verified: false, error: { message: `TXT record not found at _emailgo.${domain.domain}.` } }, { status: 422, headers: privateHeaders });
+    const brandedToken = publicVerificationToken(domain.verification_token);
+    const hosts = verificationRecordHosts(domain.domain, domain.verification_token);
+    const results = await Promise.allSettled(hosts.map((host) => resolveTxt(host)));
+    const verified = results.some((result) => result.status === 'fulfilled' && result.value.some((parts) => [domain.verification_token, brandedToken].includes(parts.join(''))));
+    if (!verified) return NextResponse.json({ verified: false, error: { message: `TXT record not found at _send-thanks.${domain.domain}.` } }, { status: 422, headers: privateHeaders });
     const verifiedAt = nowIso();
     await execute('UPDATE domains SET verified_at=? WHERE id=?', [verifiedAt, id]);
     return NextResponse.json({ id, verified: true, verified_at: verifiedAt }, { headers: privateHeaders });
   } catch {
-    return NextResponse.json({ verified: false, error: { message: `Could not find a TXT record at _emailgo.${domain.domain}.` } }, { status: 422, headers: privateHeaders });
+    return NextResponse.json({ verified: false, error: { message: `Could not find a TXT record at _send-thanks.${domain.domain}.` } }, { status: 422, headers: privateHeaders });
   }
 }
 
