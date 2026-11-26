@@ -65,8 +65,8 @@ export function segmentWhere(filters: SegmentFilters, segmentId?: string) {
   if (!segmentId) return { where: filterWhere, params };
   const membership = 'EXISTS (SELECT 1 FROM segment_contacts sc WHERE sc.segment_id=? AND sc.contact_id=c.id)';
   return {
-    where: `(${filterWhere ? `(${filterWhere}) OR ` : ''}${membership})`,
-    params: [...params, segmentId],
+    where: `((${filterWhere ? `(${filterWhere}) OR ` : ''}${membership}) AND NOT EXISTS (SELECT 1 FROM segment_contact_exclusions sx WHERE sx.segment_id=? AND sx.contact_id=c.id))`,
+    params: [...params, segmentId, segmentId],
   };
 }
 

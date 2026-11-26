@@ -2,7 +2,10 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
-type Template = { id: string; name: string; subject: string; html: string | null; text: string | null; created_at: string; updated_at: string };
+type TemplateVariable = { id?: string; key: string; type: 'string' | 'number'; fallback_value?: string | number | null; fallbackValue?: string | number | null };
+type Template = { id: string; name: string; alias: string | null; from: string | null; reply_to: string | null; subject: string; variables: TemplateVariable[]; status: 'draft' | 'published'; has_unpublished_versions: boolean; published_at: string | null; created_at: string; updated_at: string };
+type TemplateDetail = Template & { html: string | null; text: string | null };
+type TemplateVersion = { id: string; created_at: string; published_at: string | null; is_current: boolean; is_published: boolean; name: string; subject: string; html: string; text: string | null; alias: string | null; from: string | null; reply_to: string | null; variables: TemplateVariable[] };
 type Contact = { id: string; email: string; name: string | null; properties: Record<string, unknown>; tags: string[]; unsubscribed_at: string | null; consent_status: 'unknown' | 'opted_in'; consent_source: string | null; consented_at: string | null; created_at: string; updated_at: string };
 type ContactProperty = { id: string; key: string; type: 'string' | 'number'; fallback_value: string | number | null; created_at: string; updated_at: string };
 type Segment = { id: string; name: string; filters: { tags_all?: string[]; tags_any?: string[]; consent_status?: 'unknown' | 'opted_in'; unsubscribed?: boolean }; contacts_count: number; created_at: string; updated_at: string };
@@ -23,13 +26,37 @@ function localTime(value: string) {
   return new Intl.DateTimeFormat('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(value));
 }
 
+function safeEmailPreview(html: string) {
+  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'"></head><body>${html}</body></html>`;
+}
+
+function escapePreviewHtml(value: string) {
+  return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character] ?? character);
+}
+
+function renderTemplatePreview(source: string, variables: Record<string, string>, escapeDoubleBraceValues: boolean) {
+  return source.replace(/\{\{\{\s*([A-Za-z_][A-Za-z0-9_.-]{0,99})\s*\}\}\}|\{\{\s*([A-Za-z_][A-Za-z0-9_.-]{0,99})\s*\}\}/g, (_match, tripleName: string | undefined, doubleName: string | undefined) => {
+    const name = tripleName ?? doubleName;
+    if (!name) return '';
+    const value = variables[name] ?? '';
+    return escapeDoubleBraceValues && !tripleName ? escapePreviewHtml(value) : value;
+  });
+}
+
 export function TemplatesWorkspace() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [editingId, setEditingId] = useState('');
   const [name, setName] = useState('');
+  const [alias, setAlias] = useState('');
+  const [from, setFrom] = useState('');
+  const [replyTo, setReplyTo] = useState('');
   const [subject, setSubject] = useState('');
   const [text, setText] = useState('');
   const [html, setHtml] = useState('');
+  const [variablesJson, setVariablesJson] = useState('[]');
+  const [historyId, setHistoryId] = useState('');
+  const [history, setHistory] = useState<TemplateVersion[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -41,17 +68,25 @@ export function TemplatesWorkspace() {
   useEffect(() => { void load(); }, [load]);
 
   function clearForm() {
-    setEditingId(''); setName(''); setSubject(''); setText(''); setHtml('');
+    setEditingId(''); setName(''); setAlias(''); setFrom(''); setReplyTo(''); setSubject(''); setText(''); setHtml(''); setVariablesJson('[]');
   }
 
-  function editTemplate(template: Template) {
-    setEditingId(template.id); setName(template.name); setSubject(template.subject); setText(template.text ?? ''); setHtml(template.html ?? ''); setNotice(''); setError('');
+  async function editTemplate(template: Template) {
+    setBusy(true); setError(''); setNotice('');
+    try {
+      const detail = await api<TemplateDetail>(`/api/templates/${encodeURIComponent(template.id)}`);
+      setEditingId(detail.id); setName(detail.name); setAlias(detail.alias ?? ''); setFrom(detail.from ?? ''); setReplyTo(detail.reply_to ?? ''); setSubject(detail.subject); setText(detail.text ?? ''); setHtml(detail.html ?? '');
+      setVariablesJson(JSON.stringify(detail.variables.map(({ key, type, fallback_value, fallbackValue }) => ({ key, type, fallback_value: fallback_value ?? fallbackValue ?? null })), null, 2));
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not load this template.'); }
+    finally { setBusy(false); }
   }
 
   async function saveTemplate(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError(''); setNotice('');
     try {
-      const payload = { name, subject, text: text || null, html: html || null };
+      const variables = JSON.parse(variablesJson) as unknown;
+      if (!Array.isArray(variables)) throw new Error('Variables must be a JSON array.');
+      const payload = { name, alias: alias || null, from: from || null, reply_to: replyTo || null, subject, text: text || null, html: html || null, variables };
       await api(editingId ? `/api/templates/${encodeURIComponent(editingId)}` : '/api/templates', { method: editingId ? 'PATCH' : 'POST', body: JSON.stringify(payload) });
       clearForm(); await load(); setNotice(editingId ? 'Template updated.' : 'Template created.');
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save template.'); }
@@ -65,26 +100,67 @@ export function TemplatesWorkspace() {
     finally { setBusy(false); }
   }
 
+  async function duplicateTemplate(id: string, templateName: string) {
+    setBusy(true); setError(''); setNotice('');
+    try {
+      await api(`/api/templates/${encodeURIComponent(id)}/duplicate`, { method: 'POST', body: JSON.stringify({ name: `Copy of ${templateName}` }) });
+      await load(); setNotice('Template duplicated as a new draft.');
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not duplicate template.'); }
+    finally { setBusy(false); }
+  }
+
+  async function publishTemplate(id: string) {
+    setBusy(true); setError(''); setNotice('');
+    try { await api(`/api/templates/${encodeURIComponent(id)}/publish`, { method: 'POST', body: '{}' }); await load(); setNotice('Published version is now live for new sends.'); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not publish template.'); }
+    finally { setBusy(false); }
+  }
+
+  async function showHistory(template: Template) {
+    if (historyId === template.id) { setHistoryId(''); setHistory([]); return; }
+    setHistoryId(template.id); setHistoryLoading(true); setHistory([]); setError('');
+    try { const result = await api<{ data: TemplateVersion[] }>(`/api/templates/${encodeURIComponent(template.id)}/versions`); setHistory(result.data); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not load version history.'); }
+    finally { setHistoryLoading(false); }
+  }
+
+  const previewVariables = useMemo(() => {
+    try {
+      const parsed = JSON.parse(variablesJson) as Array<{ key?: unknown; fallback_value?: unknown; fallbackValue?: unknown }>;
+      if (!Array.isArray(parsed)) return {};
+      return Object.fromEntries(parsed.filter((item) => typeof item?.key === 'string').map((item) => [item.key as string, String(item.fallback_value ?? item.fallbackValue ?? `Sample ${item.key}`)]));
+    } catch { return {}; }
+  }, [variablesJson]);
+  const previewHtml = useMemo(() => renderTemplatePreview(html, previewVariables, true), [html, previewVariables]);
+  const previewSubject = useMemo(() => renderTemplatePreview(subject, previewVariables, false), [subject, previewVariables]);
+  const previewText = useMemo(() => renderTemplatePreview(text, previewVariables, false), [text, previewVariables]);
+
   return <>
-    <div className="pageHeading"><div><div className="eyebrow">REUSABLE CONTENT</div><h1>Templates</h1><p>Create reusable HTML or text messages with escaped variables.</p></div><button className="outlineButton" onClick={() => void load()}>Refresh</button></div>
+    <div className="pageHeading"><div><div className="eyebrow">REUSABLE CONTENT</div><h1>Templates</h1><p>Save drafts, preview variables, and publish a stable version for new sends.</p></div><button className="outlineButton" onClick={() => void load()}>Refresh</button></div>
     {error && <div className="notice errorNotice" role="alert">{error}</div>}
     {notice && <div className="notice successNotice" role="status">{notice}</div>}
     <form className="resourceForm panel" onSubmit={saveTemplate}>
-      <div className="panelHeader"><div><h2>{editingId ? 'Edit template' : 'New template'}</h2><p>Use placeholders like <code>{'{{ first_name }}'}</code>. Values are HTML-escaped in HTML content.</p></div></div>
+      <div className="panelHeader"><div><h2>{editingId ? 'Edit template' : 'New template'}</h2><p>Use placeholders like <code>{'{{{RECIPIENT_NAME}}}'}</code>. Draft edits stay separate until you publish.</p></div></div>
       <div className="resourceFields">
         <label>Template name<input value={name} onChange={(event) => setName(event.target.value)} maxLength={120} required /></label>
-        <label>Subject<input value={subject} onChange={(event) => setSubject(event.target.value)} maxLength={998} required /></label>
-        <label>Plain text<textarea value={text} onChange={(event) => setText(event.target.value)} rows={5} maxLength={100_000} placeholder="Hello {{ first_name }}," /></label>
-        <label>HTML<textarea value={html} onChange={(event) => setHtml(event.target.value)} rows={7} maxLength={100_000} placeholder="<p>Hello {{ first_name }},</p>" /></label>
+        <label>Alias<input value={alias} onChange={(event) => setAlias(event.target.value)} maxLength={120} placeholder="welcome-email" /></label>
+        <label>Default from<input value={from} onChange={(event) => setFrom(event.target.value)} maxLength={320} placeholder="Team <hello@example.com>" /></label>
+        <label>Default reply-to<input value={replyTo} onChange={(event) => setReplyTo(event.target.value)} maxLength={320} placeholder="support@example.com" /></label>
+        <label>Default subject<input value={subject} onChange={(event) => setSubject(event.target.value)} maxLength={998} placeholder="Welcome, {{{RECIPIENT_NAME}}}" /></label>
+        <label>Plain text<textarea value={text} onChange={(event) => setText(event.target.value)} rows={5} maxLength={100_000} placeholder="Hello {{{RECIPIENT_NAME}}}," /></label>
+        <label>HTML<textarea value={html} onChange={(event) => setHtml(event.target.value)} rows={7} maxLength={100_000} placeholder="<p>Hello {{{RECIPIENT_NAME}}},</p>" /></label>
+        <label className="templateVariablesField">Variables (JSON)<textarea value={variablesJson} onChange={(event) => setVariablesJson(event.target.value)} rows={6} spellCheck={false} placeholder={'[{"key":"RECIPIENT_NAME","type":"string","fallback_value":"friend"}]'} /></label>
       </div>
-      <div className="resourceFormActions"><button className="primaryButton" disabled={busy}>{busy ? 'Saving…' : editingId ? 'Save changes' : 'Create template'}</button>{editingId && <button type="button" className="outlineButton" onClick={clearForm} disabled={busy}>Cancel edit</button>}</div>
+      <div className="resourceFormActions"><button className="primaryButton" disabled={busy}>{busy ? 'Saving…' : editingId ? 'Save draft' : 'Create draft'}</button>{editingId && <button type="button" className="outlineButton" onClick={() => void publishTemplate(editingId)} disabled={busy}>Publish draft</button>}{editingId && <button type="button" className="outlineButton" onClick={clearForm} disabled={busy}>Cancel edit</button>}</div>
+      <section className="templatePreview" aria-label="Template preview"><div className="templatePreviewHeader"><div><strong>Preview</strong><span>{previewSubject || 'Subject preview'}</span></div><small>Sample values use fallbacks</small></div><div className="templatePreviewBody"><iframe title="Sandboxed template HTML preview" sandbox="" srcDoc={safeEmailPreview(previewHtml)} />{previewText && <pre>{previewText}</pre>}</div></section>
     </form>
     <section className="panel resourceList">
       <div className="panelHeader"><div><h2>Saved templates</h2><p>{templates.length} templates in this workspace</p></div></div>
       {templates.length ? templates.map((template) => <article className="resourceRow" key={template.id}>
-        <div className="resourceMain"><strong>{template.name}</strong><span>{template.subject}</span><code>{template.id}</code></div>
-        <div className="resourceMeta">Updated {localTime(template.updated_at)}</div>
-        <div className="resourceActions"><button className="outlineButton" onClick={() => editTemplate(template)}>Edit</button><button className="dangerButton" onClick={() => void removeTemplate(template.id)} disabled={busy}>Delete</button></div>
+        <div className="resourceMain"><strong>{template.name} <span className={`plainStatus ${template.status === 'published' ? 'verified' : ''}`}>{template.status === 'published' ? template.has_unpublished_versions ? 'Published · draft changes' : 'Published' : 'Draft'}</span></strong><span>{template.subject || 'No default subject'}{template.alias ? ` · ${template.alias}` : ''}</span><code>{template.id}</code></div>
+        <div className="resourceMeta">Updated {localTime(template.updated_at)}{template.published_at && <small>Live since {localTime(template.published_at)}</small>}</div>
+        <div className="resourceActions"><button className="outlineButton" onClick={() => void editTemplate(template)} disabled={busy}>Edit</button><button className="outlineButton" onClick={() => void duplicateTemplate(template.id, template.name)} disabled={busy}>Duplicate</button><button className="outlineButton" onClick={() => void showHistory(template)} aria-expanded={historyId === template.id} disabled={busy}>History</button>{(template.status === 'draft' || template.has_unpublished_versions) && <button className="primaryButton" onClick={() => void publishTemplate(template.id)} disabled={busy}>Publish</button>}<button className="dangerButton" onClick={() => void removeTemplate(template.id)} disabled={busy}>Delete</button></div>
+        {historyId === template.id && <div className="templateHistory" aria-live="polite"><h3>Version history</h3>{historyLoading ? <p>Loading versions…</p> : history.length ? history.map((version) => <article key={version.id} className="templateVersion"><div><strong>{version.is_published ? 'Live version' : version.is_current ? 'Current draft' : 'Draft version'}</strong><small>{localTime(version.created_at)}{version.published_at ? ` · published ${localTime(version.published_at)}` : ''}</small></div><code>{version.id}</code><span>{version.subject || 'No default subject'}</span></article>) : <p>No saved versions yet.</p>}</div>}
       </article>) : <div className="emptyPanel">No templates yet. Create one to use it with the API.</div>}
     </section>
   </>;

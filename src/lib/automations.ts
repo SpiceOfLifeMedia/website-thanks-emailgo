@@ -2,6 +2,7 @@ import { sendThroughSmtp } from '@/lib/smtp';
 import { execute, hashSecret, nowIso, query, queryOne, randomId, transaction } from '@/lib/database';
 import { emitWebhookEvent } from '@/lib/webhooks';
 import { emitEmailSuppressed, findSuppressedAddresses } from '@/lib/suppressions';
+import { findEmailTemplate, getPublishedTemplateContent } from '@/lib/email-templates';
 
 export type AutomationStep = { key: string; type: string; config: Record<string, unknown> };
 export type AutomationConnection = { from: string; to: string; condition?: 'true' | 'false' };
@@ -120,7 +121,9 @@ export async function saveAutomation(apiKeyId: string, id: string | null, value:
   for (const step of parsed.definition.steps) {
     if (step.type === 'send_email') {
       const template = (step.config.template as Record<string, unknown>).id;
-      if (!await queryOne<{ id: string }>('SELECT id FROM email_templates WHERE id=?', [String(template)])) return { ok: false, status: 400, error: `Template "${String(template)}" does not exist.` };
+      const emailTemplate = await findEmailTemplate(String(template));
+      if (!emailTemplate) return { ok: false, status: 400, error: `Template "${String(template)}" does not exist.` };
+      if (parsed.definition.status === 'active' && !emailTemplate.published_version_id) return { ok: false, status: 400, error: `Template "${String(template)}" must be published before an active automation can send it.` };
       if (parsed.definition.status === 'active') {
         const domain = extractAddress(String(step.config.from)).split('@').at(-1)?.toLowerCase() ?? '';
         if (!await queryOne<{ id: string }>('SELECT id FROM domains WHERE lower(domain)=? AND verified_at IS NOT NULL', [domain])) return { ok: false, status: 400, error: `Sender domain "${domain}" is not verified in Emailgo.` };
@@ -129,13 +132,46 @@ export async function saveAutomation(apiKeyId: string, id: string | null, value:
     if (step.type === 'add_to_segment' && !await queryOne<{ id: string }>('SELECT id FROM segments WHERE id=?', [String(step.config.segment_id)])) return { ok: false, status: 400, error: `Segment "${String(step.config.segment_id)}" does not exist.` };
   }
   const updatedAt = nowIso();
+  const templateIds = [...new Set(parsed.definition.steps.flatMap((step) => {
+    if (step.type !== 'send_email') return [];
+    const template = step.config.template as Record<string, unknown>;
+    return [String(template.id)];
+  }))];
+  const templateReferenceStatements = (automationId: string) => [
+    { sql: 'DELETE FROM automation_template_refs WHERE automation_id=?', params: [automationId] },
+    ...templateIds.map((templateId) => ({
+      sql: 'INSERT INTO automation_template_refs(automation_id,template_id) VALUES(?,?)',
+      params: [automationId, templateId],
+    })),
+  ];
+  const isReferenceConflict = (cause: unknown) => {
+    if (!cause || typeof cause !== 'object') return false;
+    const error = cause as { code?: unknown; errcode?: unknown };
+    return error.code === '23503' || error.code === 'SQLITE_CONSTRAINT_FOREIGNKEY' || error.errcode === 787;
+  };
   if (existing) {
-    await execute('UPDATE automations SET name=?,status=?,trigger_event=?,steps_json=?,connections_json=?,updated_at=? WHERE id=? AND api_key_id=?', [parsed.definition.name, parsed.definition.status, parsed.definition.triggerEvent, JSON.stringify(parsed.definition.steps), JSON.stringify(parsed.definition.connections), updatedAt, existing.id, apiKeyId]);
+    try {
+      await transaction([
+        { sql: 'UPDATE automations SET name=?,status=?,trigger_event=?,steps_json=?,connections_json=?,updated_at=? WHERE id=? AND api_key_id=?', params: [parsed.definition.name, parsed.definition.status, parsed.definition.triggerEvent, JSON.stringify(parsed.definition.steps), JSON.stringify(parsed.definition.connections), updatedAt, existing.id, apiKeyId] },
+        ...templateReferenceStatements(existing.id),
+      ]);
+    } catch (cause) {
+      if (isReferenceConflict(cause)) return { ok: false, status: 409, error: 'A referenced template changed while this automation was being saved. Fetch the latest template and retry.' };
+      throw cause;
+    }
     const updated = await getAutomationByKey(apiKeyId, existing.id);
     return updated ? { ok: true, automation: updated } : { ok: false, status: 404, error: 'Automation not found.' };
   }
   const automationId = randomId('aut');
-  await execute('INSERT INTO automations(id,api_key_id,name,status,trigger_event,steps_json,connections_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)', [automationId, apiKeyId, parsed.definition.name, parsed.definition.status, parsed.definition.triggerEvent, JSON.stringify(parsed.definition.steps), JSON.stringify(parsed.definition.connections), updatedAt, updatedAt]);
+  try {
+    await transaction([
+      { sql: 'INSERT INTO automations(id,api_key_id,name,status,trigger_event,steps_json,connections_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)', params: [automationId, apiKeyId, parsed.definition.name, parsed.definition.status, parsed.definition.triggerEvent, JSON.stringify(parsed.definition.steps), JSON.stringify(parsed.definition.connections), updatedAt, updatedAt] },
+      ...templateReferenceStatements(automationId).slice(1),
+    ]);
+  } catch (cause) {
+    if (isReferenceConflict(cause)) return { ok: false, status: 409, error: 'A referenced template changed while this automation was being saved. Fetch the latest template and retry.' };
+    throw cause;
+  }
   const created = await getAutomationByKey(apiKeyId, automationId);
   return created ? { ok: true, automation: created } : { ok: false, status: 404, error: 'Automation was not created.' };
 }
@@ -422,8 +458,30 @@ async function advanceAutomationRun(runId: string): Promise<'completed' | 'waiti
 async function sendAutomationEmail(run: RunRow, step: AutomationStep, context: Record<string, unknown>, contact?: ContactContext) {
   const templateRef = step.config.template as Record<string, unknown>;
   const templateId = typeof templateRef.id === 'string' ? templateRef.id : '';
-  const template = await queryOne<{ id: string; name: string; subject: string; html: string | null; text: string | null }>('SELECT id,name,subject,html,text FROM email_templates WHERE id=?', [templateId]);
+  const template = await findEmailTemplate(templateId);
   if (!template) throw new Error(`Email template "${templateId}" was not found.`);
+  const published = await getPublishedTemplateContent(template);
+  if (!published) throw new Error(`Email template "${templateId}" is not published.`);
+  const values = { ...context };
+  const declaredVariables = new Map((published.variables ?? []).map((variable) => [variable.key, variable]));
+  const requiredVariables = new Set<string>();
+  for (const source of [published.subject, published.html, published.text ?? '']) {
+    for (const match of source.matchAll(/\{\{\{?\s*([A-Za-z_][A-Za-z0-9_.-]{0,99})\s*\}\}\}?/g)) requiredVariables.add(match[1]);
+  }
+  for (const name of requiredVariables) {
+    const existing = resolvePath(values, name);
+    if (existing !== undefined && existing !== null) continue;
+    const eventValue = values.event && typeof values.event === 'object' && !Array.isArray(values.event)
+      ? (values.event as Record<string, unknown>)[name]
+      : undefined;
+    if (eventValue !== undefined && eventValue !== null) {
+      values[name] = eventValue;
+      continue;
+    }
+    const fallback = declaredVariables.get(name)?.fallback_value;
+    if (fallback === undefined || fallback === null) throw new Error(`Email template variable "${name}" has no value or fallback.`);
+    values[name] = fallback;
+  }
   const recipient = contact?.email ?? run.email;
   if (!recipient || !emailPattern.test(recipient)) throw new Error('Send email needs a contact or valid event email address.');
   if (contact?.unsubscribed_at) throw new Error('The contact is globally unsubscribed; automation email was suppressed.');
@@ -433,9 +491,9 @@ async function sendAutomationEmail(run: RunRow, step: AutomationStep, context: R
   const domain = fromAddress.split('@').at(-1)?.toLowerCase() ?? '';
   const verified = await queryOne<{ id: string }>('SELECT id FROM domains WHERE lower(domain)=? AND verified_at IS NOT NULL', [domain]);
   if (!verified) throw new Error('Send email requires a verified Emailgo sender domain.');
-  const subject = renderVariables(template.subject, context, false);
-  const text = template.text === null ? null : renderVariables(template.text, context, false);
-  const html = template.html === null ? null : renderVariables(template.html, context, true);
+  const subject = renderVariables(published.subject, values, false);
+  const text = published.text === null ? null : renderVariables(published.text, values, false);
+  const html = published.html === null ? null : renderVariables(published.html, values, true);
   if (!text && !html) throw new Error('The email template has no text or HTML body.');
   const id = randomId('eml');
   const createdAt = nowIso();
@@ -463,10 +521,12 @@ async function sendAutomationEmail(run: RunRow, step: AutomationStep, context: R
 }
 
 function renderVariables(value: string, context: Record<string, unknown>, html: boolean) {
-  return value.replace(/{{\s*([A-Za-z0-9_.-]{1,200})\s*}}/g, (_match, path: string) => {
+  return value.replace(/\{\{\{\s*([A-Za-z0-9_.-]{1,200})\s*\}\}\}|\{\{\s*([A-Za-z0-9_.-]{1,200})\s*\}\}/g, (_match, triplePath: string | undefined, doublePath: string | undefined) => {
+    const path = triplePath ?? doublePath;
+    if (!path) return '';
     const found = resolvePath(context, path);
     const text = found === undefined || found === null ? '' : typeof found === 'string' ? found : JSON.stringify(found);
-    return html ? escapeHtml(text) : text;
+    return html && !triplePath ? escapeHtml(text) : text;
   });
 }
 
@@ -479,6 +539,7 @@ function materializeValue(value: unknown, context: Record<string, unknown>): unk
 function escapeHtml(value: string) { return value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] ?? char); }
 
 function resolvePath(context: Record<string, unknown>, path: string): unknown {
+  if (!path.includes('.') && Object.hasOwn(context, path)) return context[path];
   let segments = path.split('.');
   if (!path.includes('.')) segments = ['contact', path];
   let current: unknown = context;

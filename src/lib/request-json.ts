@@ -1,5 +1,37 @@
 export type JsonReadResult = { ok: true; value: unknown } | { ok: false; status: number; error: string };
 export type TextReadResult = { ok: true; text: string } | { ok: false; status: number; error: string };
+export type BytesReadResult = { ok: true; bytes: Uint8Array } | { ok: false; status: number; error: string };
+
+export async function readBytesLimited(request: Request, limitBytes: number): Promise<BytesReadResult> {
+  const contentLength = request.headers.get('content-length');
+  if (contentLength && /^\d+$/.test(contentLength) && Number(contentLength) > limitBytes) {
+    return { ok: false, status: 413, error: `Request body must be smaller than ${limitBytes} bytes.` };
+  }
+  if (!request.body) return { ok: false, status: 400, error: 'Request body is required.' };
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > limitBytes) {
+        await reader.cancel();
+        return { ok: false, status: 413, error: `Request body must be smaller than ${limitBytes} bytes.` };
+      }
+      chunks.push(value);
+    }
+  } catch {
+    return { ok: false, status: 400, error: 'Could not read request body.' };
+  }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  return { ok: true, bytes };
+}
 
 export async function readTextLimited(request: Request, limitBytes: number): Promise<TextReadResult> {
   const maximumDrainBytes = limitBytes * 2;

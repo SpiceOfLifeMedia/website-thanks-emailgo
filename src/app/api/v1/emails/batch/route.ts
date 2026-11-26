@@ -25,8 +25,12 @@ async function __emailgo_POST_handler(request: Request) {
 
   const parsed = await readJsonLimited(request, 1_000_000);
   if (!parsed.ok) return errorResponse(parsed.error, parsed.status);
-  if (!parsed.value || typeof parsed.value !== 'object' || Array.isArray(parsed.value)) return errorResponse('Request body must be a JSON object.', 400);
-  const emails = (parsed.value as { emails?: unknown }).emails;
+  const body = parsed.value;
+  const emails = Array.isArray(body)
+    ? body
+    : body && typeof body === 'object' && !Array.isArray(body)
+      ? (body as { emails?: unknown }).emails
+      : undefined;
   if (!Array.isArray(emails) || emails.length === 0 || emails.length > 100) return errorResponse('emails must contain between 1 and 100 messages per batch.', 400);
   if (!emails.every((email) => email && typeof email === 'object' && !Array.isArray(email))) return errorResponse('Each batch item must be an email object.', 400);
 
@@ -65,7 +69,7 @@ async function __emailgo_POST_handler(request: Request) {
   await Promise.all(workers);
 
   const hasFailures = results.some((result) => typeof result.http_status === 'number' && (result.http_status < 200 || result.http_status >= 300));
-  return NextResponse.json({ object: 'list', data: results, has_failures: hasFailures }, { status: hasFailures ? 207 : 200 });
+  return NextResponse.json({ data: results, has_failures: hasFailures }, { status: hasFailures ? 207 : 200 });
 }
 
 export const POST = withApiRequestLog(__emailgo_POST_handler);

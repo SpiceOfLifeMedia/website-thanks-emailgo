@@ -20,6 +20,7 @@ export class Emailgo {
       send: (body, options) => request('POST', '/api/v1/emails', { body, idempotencyKey: options?.idempotencyKey }),
       sendBatch: (body, options) => request('POST', '/api/v1/emails/batch', { body, idempotencyKey: options?.idempotencyKey }),
       list: (query) => request('GET', '/api/v1/emails', { query }),
+      metrics: (query = {}) => request('GET', '/api/v1/emails/metrics', { query: Object.fromEntries(Object.entries(query).map(([key, value]) => [key, Array.isArray(value) ? value.join(',') : value])) }),
       get: (id) => request('GET', `/api/v1/emails/${encodeURIComponent(id)}`),
       update: (id, body) => request('PATCH', `/api/v1/emails/${encodeURIComponent(id)}`, { body }),
       cancel: (id) => request('POST', `/api/v1/emails/${encodeURIComponent(id)}/cancel`, { body: {} }),
@@ -57,6 +58,24 @@ export class Emailgo {
         list: (id) => request('GET', `/api/v1/contacts/${encodeURIComponent(id)}/topics`),
         update: (id, body) => request('PUT', `/api/v1/contacts/${encodeURIComponent(id)}/topics`, { body }),
       },
+      segments: {
+        list: ({ contactId, email }) => request('GET', `/api/v1/contacts/${encodeURIComponent(contactId ?? email ?? '')}/segments`),
+        add: ({ contactId, email, segmentId }) => request('POST', `/api/v1/contacts/${encodeURIComponent(contactId ?? email ?? '')}/segments/${encodeURIComponent(segmentId)}`, { body: {} }),
+        remove: ({ contactId, email, segmentId }) => request('DELETE', `/api/v1/contacts/${encodeURIComponent(contactId ?? email ?? '')}/segments/${encodeURIComponent(segmentId)}`, { body: {} }),
+      },
+      imports: {
+        create: (file, options) => {
+          const form = new FormData();
+          form.append('file', file, 'contacts.csv');
+          form.append('column_map', JSON.stringify(options.column_map));
+          if (options.on_conflict) form.append('on_conflict', options.on_conflict);
+          if (options.segments) form.append('segments', JSON.stringify(options.segments));
+          if (options.topics) form.append('topics', JSON.stringify(options.topics));
+          return request('POST', '/api/v1/contacts/imports', { body: form });
+        },
+        list: (query) => request('GET', '/api/v1/contacts/imports', { query }),
+        get: (id) => request('GET', `/api/v1/contacts/imports/${encodeURIComponent(id)}`),
+      },
     };
     this.contactProperties = {
       list: () => request('GET', '/api/v1/contact-properties'),
@@ -72,6 +91,7 @@ export class Emailgo {
       update: (id, body) => request('PATCH', `/api/v1/segments/${encodeURIComponent(id)}`, { body }),
       delete: (id) => request('DELETE', `/api/v1/segments/${encodeURIComponent(id)}`),
       contacts: (id, query) => request('GET', `/api/v1/segments/${encodeURIComponent(id)}/contacts`, { query }),
+      metrics: (query = {}) => request('GET', '/api/v1/segments/metrics', { query: Object.fromEntries(Object.entries(query).map(([key, value]) => [key, Array.isArray(value) ? value.join(',') : value])) }),
     };
     this.topics = {
       list: () => request('GET', '/api/v1/topics'),
@@ -88,6 +108,9 @@ export class Emailgo {
       delete: (id) => request('DELETE', `/api/v1/broadcasts/${encodeURIComponent(id)}`),
       send: (id, body = {}) => request('POST', `/api/v1/broadcasts/${encodeURIComponent(id)}/send`, { body }),
       cancel: (id) => request('POST', `/api/v1/broadcasts/${encodeURIComponent(id)}/cancel`, { body: {} }),
+      duplicate: (id) => request('POST', `/api/v1/broadcasts/${encodeURIComponent(id)}/duplicate`, { body: {} }),
+      recipients: (id, query) => request('GET', `/api/v1/broadcasts/${encodeURIComponent(id)}/recipients`, { query }),
+      clickedLinks: (id, query) => request('GET', `/api/v1/broadcasts/${encodeURIComponent(id)}/clicked-links`, { query }),
     };
     this.automations = {
       list: () => request('GET', '/api/v1/automations'),
@@ -95,15 +118,22 @@ export class Emailgo {
       get: (id) => request('GET', `/api/v1/automations/${encodeURIComponent(id)}`),
       update: (id, body) => request('PATCH', `/api/v1/automations/${encodeURIComponent(id)}`, { body }),
       archive: (id) => request('DELETE', `/api/v1/automations/${encodeURIComponent(id)}`),
+      duplicate: (id) => request('POST', `/api/v1/automations/${encodeURIComponent(id)}/duplicate`, { body: {} }),
       start: (id) => request('POST', `/api/v1/automations/${encodeURIComponent(id)}/start`, { body: {} }),
       stop: (id) => request('POST', `/api/v1/automations/${encodeURIComponent(id)}/stop`, { body: {} }),
       runs: (id, query) => request('GET', `/api/v1/automations/${encodeURIComponent(id)}/runs`, { query }),
       getRun: (id, runId) => request('GET', `/api/v1/automations/${encodeURIComponent(id)}/runs/${encodeURIComponent(runId)}`),
-      stopRun: (id, runId) => request('POST', `/api/v1/automations/${encodeURIComponent(id)}/runs/${encodeURIComponent(runId)}/stop`, { body: {} }),
+      stopRun: (id, runId) => request('POST', `/api/v1/automations/${encodeURIComponent(id)}/runs/${encodeURIComponent(runId)}/cancel`, { body: {} }),
+      cancelRun: (id, runId) => request('POST', `/api/v1/automations/${encodeURIComponent(id)}/runs/${encodeURIComponent(runId)}/cancel`, { body: {} }),
     };
     this.events = {
       list: () => request('GET', '/api/v1/events'),
-      send: (body, options) => request('POST', '/api/v1/events', { body, idempotencyKey: options?.idempotencyKey }),
+      create: (body) => request('POST', '/api/v1/events', { body }),
+      get: (idOrName) => request('GET', `/api/v1/events/${encodeURIComponent(idOrName)}`),
+      update: (idOrName, body) => request('PATCH', `/api/v1/events/${encodeURIComponent(idOrName)}`, { body }),
+      remove: (idOrName) => request('DELETE', `/api/v1/events/${encodeURIComponent(idOrName)}`),
+      send: (body, options) => request('POST', '/api/v1/events/send', { body, idempotencyKey: options?.idempotencyKey }),
+      observed: () => request('GET', '/api/v1/events/observed'),
     };
     this.webhooks = {
       list: () => request('GET', '/api/v1/webhooks'),
@@ -114,6 +144,14 @@ export class Emailgo {
       deliveries: (id, query) => request('GET', `/api/v1/webhooks/${encodeURIComponent(id)}/deliveries`, { query }),
       replay: (id, body) => request('POST', `/api/v1/webhooks/${encodeURIComponent(id)}/replay`, { body }),
       rotateSecret: (id) => request('POST', `/api/v1/webhooks/${encodeURIComponent(id)}/rotate-secret`, { body: {} }),
+      events: {
+        list: ({ webhookId, ...query }) => request('GET', `/api/v1/webhooks/${encodeURIComponent(webhookId)}/events`, { query }),
+        get: ({ webhookId, eventId }) => request('GET', `/api/v1/webhooks/${encodeURIComponent(webhookId)}/events/${encodeURIComponent(eventId)}`),
+        attempts: {
+          list: ({ webhookId, eventId, ...query }) => request('GET', `/api/v1/webhooks/${encodeURIComponent(webhookId)}/events/${encodeURIComponent(eventId)}/attempts`, { query }),
+        },
+        replay: ({ webhookId, eventId }) => request('POST', `/api/v1/webhooks/${encodeURIComponent(webhookId)}/events/${encodeURIComponent(eventId)}/replay`, { body: {} }),
+      },
     };
     this.suppressions = {
       list: (query) => request('GET', '/api/v1/suppressions', { query }),
@@ -127,6 +165,16 @@ export class Emailgo {
     this.logs = {
       list: (query) => request('GET', '/api/v1/logs', { query }),
       get: (id) => request('GET', `/api/v1/logs/${encodeURIComponent(id)}`),
+    };
+    this.templates = {
+      list: (query) => request('GET', '/api/v1/templates', { query }),
+      create: (body) => request('POST', '/api/v1/templates', { body }),
+      get: (id) => request('GET', `/api/v1/templates/${encodeURIComponent(id)}`),
+      update: (id, body) => request('PATCH', `/api/v1/templates/${encodeURIComponent(id)}`, { body }),
+      delete: (id) => request('DELETE', `/api/v1/templates/${encodeURIComponent(id)}`),
+      publish: (id) => request('POST', `/api/v1/templates/${encodeURIComponent(id)}/publish`, { body: {} }),
+      duplicate: (id, body = {}) => request('POST', `/api/v1/templates/${encodeURIComponent(id)}/duplicate`, { body }),
+      versions: (id) => request('GET', `/api/v1/templates/${encodeURIComponent(id)}/versions`),
     };
   }
 
@@ -154,10 +202,12 @@ export class Emailgo {
       if (value !== undefined && value !== null) url.searchParams.set(key, String(value));
     }
     const headers = new Headers({ Authorization: `Bearer ${this.apiKey}`, Accept: 'application/json' });
-    if (body !== undefined) headers.set('Content-Type', 'application/json');
+    const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+    if (body !== undefined && !isFormData) headers.set('Content-Type', 'application/json');
     if (idempotencyKey) headers.set('Idempotency-Key', idempotencyKey);
     try {
-      const response = await this.fetch(url, { method, headers, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+      const serializedBody = body === undefined ? undefined : isFormData ? body : JSON.stringify(body);
+      const response = await this.fetch(url, { method, headers, ...(serializedBody === undefined ? {} : { body: serializedBody }) });
       const text = await response.text();
       let data;
       try { data = text ? JSON.parse(text) : null; }

@@ -1,6 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "regions": ["syd1"],
+  "git": {
+    "deploymentEnabled": {
+      "feat/emailgo-resend-parity": false
+    }
+  },
   "crons": [
     {
       "path": "/api/internal/worker",

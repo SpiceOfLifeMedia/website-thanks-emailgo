@@ -7,6 +7,7 @@ import { sendThroughSmtp, type OutboundAttachment } from '@/lib/smtp';
 import { emitEmailSuppressed, findSuppressedAddresses } from '@/lib/suppressions';
 import { trackedHtml } from '@/lib/tracking';
 import { emitWebhookEvent } from '@/lib/webhooks';
+import { findEmailTemplate, getPublishedTemplateContent, storedTemplateToContent } from '@/lib/email-templates';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -25,6 +26,7 @@ type SendBody = {
   attachments?: unknown;
   scheduled_at?: unknown;
   template_id?: unknown;
+  template?: unknown;
   variables?: unknown;
 };
 
@@ -49,7 +51,7 @@ type StoredEmail = {
   created_at: string;
 };
 
-type EmailTemplate = { id: string; subject: string; html: string | null; text: string | null };
+type EmailTemplate = { id?: string; subject: string; html: string | null; text: string | null; from?: string | null; reply_to?: string | null; variables?: Array<{ key: string; type: 'string' | 'number'; fallback_value: string | number | null }> };
 type EmailTag = { name: string; value: string };
 type AttachmentMetadata = { filename: string; contentType?: string; contentId?: string };
 
@@ -199,11 +201,13 @@ function escapeHtml(value: string) {
 
 function renderTemplate(source: string | null, variables: Record<string, string | number | boolean>, escapeValues: boolean) {
   if (!source) return undefined;
-  return source.replace(/{{\s*([A-Za-z_][A-Za-z0-9_.-]{0,99})\s*}}/g, (_match, name: string) => {
+  return source.replace(/\{\{\{\s*([A-Za-z_][A-Za-z0-9_.-]{0,99})\s*\}\}\}|\{\{\s*([A-Za-z_][A-Za-z0-9_.-]{0,99})\s*\}\}/g, (_match, tripleName: string | undefined, doubleName: string | undefined) => {
+    const name = tripleName ?? doubleName;
+    if (!name) return '';
     const value = variables[name];
     if (value === undefined) return '';
     const stringValue = String(value);
-    return escapeValues ? escapeHtml(stringValue) : stringValue;
+    return escapeValues && !tripleName ? escapeHtml(stringValue) : stringValue;
   });
 }
 
@@ -251,15 +255,20 @@ export async function sendEmailRequest(request: Request, options: { countRateLim
   if (!parsed.value || typeof parsed.value !== 'object' || Array.isArray(parsed.value)) return responseError('Request body must be a JSON object.', 400);
   const body = parsed.value as SendBody;
 
-  const from = typeof body.from === 'string' ? body.from.trim() : '';
-  const sender = mailbox(from);
+  if (body.from !== undefined && typeof body.from !== 'string') return responseError('from must be a string.', 400);
+  const suppliedFrom = typeof body.from === 'string' ? body.from.trim() : null;
   const parsedTo = parseAddresses(body.to, 'to', true);
   const parsedCc = parseAddresses(body.cc, 'cc', false);
   const parsedBcc = parseAddresses(body.bcc, 'bcc', false);
   const parsedHeaders = parseHeaders(body.headers);
   const parsedTags = parseTags(body.tags);
   const parsedAttachments = parseAttachments(body.attachments);
-  const parsedVariables = parseVariables(body.variables);
+  if (body.template !== undefined && body.template_id !== undefined) return responseError('Use either template or template_id, not both.', 400);
+  const templateRequest = body.template;
+  if (templateRequest !== undefined && (!templateRequest || typeof templateRequest !== 'object' || Array.isArray(templateRequest))) return responseError('template must be an object containing an id and optional variables.', 400);
+  const templateObject = templateRequest as { id?: unknown; variables?: unknown } | undefined;
+  if (templateObject?.variables !== undefined && body.variables !== undefined) return responseError('Provide template variables inside template.variables only.', 400);
+  const parsedVariables = parseVariables(templateObject?.variables !== undefined ? templateObject.variables : body.variables);
   if (!parsedTo.ok) return responseError(parsedTo.error, 400);
   if (!parsedCc.ok) return responseError(parsedCc.error, 400);
   if (!parsedBcc.ok) return responseError(parsedBcc.error, 400);
@@ -274,7 +283,27 @@ export async function sendEmailRequest(request: Request, options: { countRateLim
   if (recipients.length > 50) return responseError('to, cc and bcc may contain no more than 50 unique recipients combined.', 400);
 
   let template: EmailTemplate | undefined;
-  if (body.template_id !== undefined) {
+  if (templateObject) {
+    if (typeof templateObject.id !== 'string' || !templateObject.id.trim() || templateObject.id.length > 120) return responseError('template.id must be a valid template ID or alias.', 400);
+    if (body.text !== undefined || body.html !== undefined) return responseError('Use either template or text/html content, not both.', 400);
+    if (Object.keys(parsedVariables.variables).length > 50 || Object.values(parsedVariables.variables).some((value) => typeof value === 'boolean')) return responseError('Template variables must contain no more than 50 string or number values.', 400);
+    const stored = await findEmailTemplate(templateObject.id.trim());
+    if (!stored) return responseError('The requested email template was not found.', 404);
+    const published = await getPublishedTemplateContent(stored);
+    if (!published) return responseError('The requested email template is not published.', 422);
+    const templateVariables = new Map((published.variables ?? []).map((variable) => [variable.key, variable]));
+    const variableNames = new Set<string>();
+    for (const source of [published.subject, published.html, published.text ?? '']) {
+      for (const match of source.matchAll(/\{\{\{?\s*([A-Za-z_][A-Za-z0-9_.-]{0,99})\s*\}\}\}?/g)) variableNames.add(match[1]);
+    }
+    for (const name of variableNames) {
+      if (parsedVariables.variables[name] !== undefined) continue;
+      const fallback = templateVariables.get(name)?.fallback_value;
+      if (fallback === null || fallback === undefined) return responseError(`Template variable "${name}" must be provided.`, 422);
+      parsedVariables.variables[name] = fallback;
+    }
+    template = { subject: published.subject, html: published.html, text: published.text, from: published.from, reply_to: published.reply_to, variables: published.variables };
+  } else if (body.template_id !== undefined) {
     if (typeof body.template_id !== 'string' || !body.template_id.trim() || body.template_id.length > 100) return responseError('template_id must be a valid template ID.', 400);
     if (body.text !== undefined || body.html !== undefined) return responseError('Use either template_id or text/html content, not both.', 400);
     template = await queryOne<EmailTemplate>('SELECT id,subject,html,text FROM email_templates WHERE id=?', [body.template_id.trim()]);
@@ -282,6 +311,9 @@ export async function sendEmailRequest(request: Request, options: { countRateLim
   } else if (body.variables !== undefined) {
     return responseError('variables can only be used with template_id.', 400);
   }
+
+  const from = suppliedFrom ?? template?.from ?? '';
+  const sender = mailbox(from);
 
   let scheduledAt: string | null = null;
   if (body.scheduled_at !== undefined) {
@@ -297,7 +329,7 @@ export async function sendEmailRequest(request: Request, options: { countRateLim
   if (suppliedSubject === null) return responseError('subject must be a string.', 400);
   const subjectSource = body.subject === undefined ? template?.subject ?? '' : suppliedSubject;
   const subject = (template ? renderTemplate(subjectSource, parsedVariables.variables, false) ?? '' : subjectSource).trim();
-  const replyTo = body.reply_to === undefined ? '' : typeof body.reply_to === 'string' ? body.reply_to.trim() : null;
+  const replyTo = body.reply_to === undefined ? template?.reply_to ?? '' : typeof body.reply_to === 'string' ? body.reply_to.trim() : null;
   if (replyTo === null || (replyTo && (replyTo.length > 320 || /[\r\n]/.test(replyTo) || !emailPattern.test(mailbox(replyTo))))) return responseError('reply_to must be a valid email address.', 400);
   if (!from || from.length > 320 || /[\r\n]/.test(from) || !emailPattern.test(sender)) return responseError('A valid from email address is required.', 400);
   if (!subject || subject.length > 998 || /[\r\n]/.test(subject)) return responseError('subject must be 1 to 998 characters and cannot contain line breaks.', 400);
