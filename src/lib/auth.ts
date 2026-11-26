@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { cookies } from 'next/headers';
-import { getDatabase, hashSecret, nowIso } from '@/lib/database';
+import { execute, hashSecret, nowIso, queryOne } from '@/lib/database';
 
 const SESSION_COOKIE = 'emailgo_session';
 const SESSION_HOURS = 8;
@@ -57,17 +57,17 @@ export function hasTrustedBrowserOrigin(request: Request) {
   } catch { return false; }
 }
 
-export function authorizeApiKey(request: Request) {
+export async function authorizeApiKey(request: Request) {
   const authorization = request.headers.get('authorization') ?? '';
   const match = /^Bearer (eg_live_[A-Za-z0-9_-]{40,})$/.exec(authorization);
   if (!match) return null;
   const secret = match[1];
   const prefix = secret.slice(0, 20);
-  const row = getDatabase().prepare('SELECT id, secret_hash FROM api_keys WHERE prefix = ? AND revoked_at IS NULL').get(prefix) as { id: string; secret_hash: string } | undefined;
+  const row = await queryOne<{ id: string; secret_hash: string }>('SELECT id, secret_hash FROM api_keys WHERE prefix = ? AND revoked_at IS NULL', [prefix]);
   if (!row) return null;
   const supplied = Buffer.from(hashSecret(secret));
   const stored = Buffer.from(row.secret_hash);
   if (supplied.length !== stored.length || !timingSafeEqual(supplied, stored)) return null;
-  getDatabase().prepare('UPDATE api_keys SET last_used_at = ? WHERE id = ?').run(nowIso(), row.id);
+  await execute('UPDATE api_keys SET last_used_at = ? WHERE id = ?', [nowIso(), row.id]);
   return { id: row.id };
 }

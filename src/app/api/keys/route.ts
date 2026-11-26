@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { hasTrustedBrowserOrigin, isAdminSession } from '@/lib/auth';
-import { getDatabase, hashSecret, nowIso, randomId } from '@/lib/database';
+import { execute, hashSecret, nowIso, randomId } from '@/lib/database';
 export const runtime = 'nodejs';
 export async function POST(request: Request) {
   if (!hasTrustedBrowserOrigin(request)) return NextResponse.json({ error: 'Request origin is not allowed.' }, { status: 403 });
@@ -14,6 +14,6 @@ export async function POST(request: Request) {
   const id = randomId('key');
   const createdAt = nowIso();
   const prefix = secret.slice(0, 20);
-  getDatabase().prepare('INSERT INTO api_keys(id,name,prefix,secret_hash,created_at) VALUES(?,?,?,?,?)').run(id, name.trim(), prefix, hashSecret(secret), createdAt);
+  await execute('INSERT INTO api_keys(id,name,prefix,secret_hash,created_at) VALUES(?,?,?,?,?)', [id, name.trim(), prefix, hashSecret(secret), createdAt]);
   return NextResponse.json({ id, name: name.trim(), prefix, secret, created_at: createdAt }, { status: 201 });
 }

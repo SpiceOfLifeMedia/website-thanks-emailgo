@@ -8,7 +8,7 @@ Emailgo is an independent email delivery API and workspace for Website Thanks. I
 - Create and revoke Emailgo API keys. Only key hashes are stored, and a new secret is shown once.
 - Add sender domains and verify ownership through a DNS TXT record.
 - Send transactional emails through the Emailgo API using a configured SMTP relay.
-- Persist recipients, subject lines, relay response IDs, failures and key last-use times in SQLite. Email bodies are used for SMTP handoff and are not saved to the message log.
+- Persist recipients, subject lines, relay response IDs, failures and key last-use times in PostgreSQL in production and SQLite during local development. Email bodies are used for SMTP handoff and are not saved to the message log.
 - Filter recent message activity and inspect relay failures.
 - Per-key send limit of 60 requests per minute, a 1 MB request body limit, and 24-hour idempotency keys to prevent accidental duplicate sends.
 - Authenticated `GET /api/v1/emails` and `GET /api/v1/emails/:id` endpoints for message history.
@@ -58,4 +58,6 @@ Emailgo provides a TXT ownership record at `_emailgo.<domain>`. Configure SPF an
 
 ## Production deployment
 
-Use the Dockerfile and mount a persistent volume at `/app/data`. Set all admin and SMTP values as server secrets. The message log contains recipient addresses and subject lines, so restrict and back up the data volume appropriately. The SQLite file requires a single app instance with persistent local storage; use a PostgreSQL adapter before scaling horizontally or deploying to ephemeral serverless functions. Put TLS and request-size protection at the trusted reverse proxy. Public production deployment has not been configured by this repository change.
+For Vercel, set a dedicated PostgreSQL connection string as `DATABASE_URL`; the health endpoint checks that the database is reachable, and Vercel deployments fail closed instead of falling back to ephemeral SQLite. The repository config places functions in Sydney to match the Neon project region. Set `EMAILGO_ADMIN_PASSWORD`, `EMAILGO_SESSION_SECRET`, and the SMTP settings as production secrets. The included example uses Spacemail's `mail.spacemail.com` SMTP host on port 465; use credentials for the intended sender mailbox.
+
+For a Docker host, mount a persistent volume at `/app/data` and set all admin and SMTP values as server secrets. SQLite requires a single app instance with persistent local storage. You can also set `DATABASE_URL` to use PostgreSQL. The message log contains recipient addresses and subject lines, so restrict access and configure backups. Put TLS and request-size protection at the trusted reverse proxy.
