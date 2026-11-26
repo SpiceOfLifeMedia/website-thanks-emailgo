@@ -17,6 +17,7 @@ type SqliteStatementResult<T> = T[];
 type SqliteValue = null | number | bigint | string | NodeJS.ArrayBufferView;
 
 const postgresSchema = [
+  'ALTER TABLE IF EXISTS emails ADD COLUMN IF NOT EXISTS relay_message_id TEXT',
   `CREATE TABLE IF NOT EXISTS api_keys (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, prefix TEXT NOT NULL UNIQUE,
     secret_hash TEXT NOT NULL, created_at TEXT NOT NULL, last_used_at TEXT,
@@ -29,7 +30,7 @@ const postgresSchema = [
   `CREATE TABLE IF NOT EXISTS emails (
     id TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, from_address TEXT NOT NULL,
     to_json TEXT NOT NULL, subject TEXT NOT NULL,
-    status TEXT NOT NULL, error_message TEXT, provider_id TEXT, message_id TEXT, created_at TEXT NOT NULL,
+    status TEXT NOT NULL, error_message TEXT, provider_id TEXT, message_id TEXT, relay_message_id TEXT, created_at TEXT NOT NULL,
     FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
   )`,
   'CREATE INDEX IF NOT EXISTS emails_created_at ON emails(created_at DESC)',
@@ -44,7 +45,6 @@ const postgresSchema = [
     api_key_id TEXT PRIMARY KEY, window_started INTEGER NOT NULL, request_count INTEGER NOT NULL,
     FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
   )`,
-  'ALTER TABLE emails ADD COLUMN IF NOT EXISTS relay_message_id TEXT',
   'CREATE INDEX IF NOT EXISTS emails_relay_message_id ON emails(relay_message_id)',
   `CREATE TABLE IF NOT EXISTS delivery_events (
     id TEXT PRIMARY KEY, sns_message_id TEXT NOT NULL, email_id TEXT, relay_message_id TEXT NOT NULL,
@@ -137,7 +137,10 @@ async function ensurePostgresSchema() {
   if (!process.env.DATABASE_URL) return;
   if (!globalForDatabases.emailgoPostgresInit) {
     const sql = getPostgres();
-    globalForDatabases.emailgoPostgresInit = sql.transaction(postgresSchema.map((statement) => sql.query(statement))).then(() => undefined);
+    globalForDatabases.emailgoPostgresInit = sql.transaction(postgresSchema.map((statement) => sql.query(statement))).then(() => undefined, (error: unknown) => {
+      globalForDatabases.emailgoPostgresInit = undefined;
+      throw error;
+    });
   }
   await globalForDatabases.emailgoPostgresInit;
 }
