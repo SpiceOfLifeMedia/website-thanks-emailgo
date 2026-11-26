@@ -2,10 +2,11 @@ import type { Metadata, Viewport } from 'next';
 import './styles.css';
 
 export const metadata: Metadata = {
-  title: 'Emailgo · Email delivery API',
-  description: 'Send transactional email through the Emailgo API and see every message in one place.',
+  title: 'Send, thanks · Email delivery',
+  description: 'A thoughtful email sending workspace for the Website Thanks team.',
+  icons: { icon: '/favicon.svg', apple: '/apple-touch-icon.svg' },
 };
-export const viewport: Viewport = { width: 'device-width', initialScale: 1, themeColor: '#f7f7f3' };
+export const viewport: Viewport = { width: 'device-width', initialScale: 1, themeColor: '#F4EEE3' };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return <html lang="en-AU"><body>{children}</body></html>;

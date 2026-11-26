@@ -1,0 +1,65 @@
+.auth {
+  --paper: #F4EEE3;
+  --chalk: #FBF9F5;
+  --ink: #1C1916;
+  --graphite: #3D3832;
+  --tomato: #FF5A36;
+  --honey: #F7D56E;
+  --line: #E3DCD0;
+  min-height: 100vh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 22px;
+  padding: 24px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Schibsted Grotesk', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.authBrand { margin-bottom: 2px; }
+.authCard {
+  width: min(460px, calc(100vw - 32px));
+  padding: 30px;
+  border: 2px solid var(--ink);
+  border-radius: 18px;
+  background: var(--chalk);
+  box-shadow: 0 4px 0 var(--ink);
+}
+.authCard h1 { margin: 5px 0 9px; font-size: 31px; line-height: 1.08; letter-spacing: -.04em; }
+.authCard > p { margin: 0 0 20px; color: var(--graphite); font-size: 15px; line-height: 1.5; }
+.eyebrow { color: #6B6359; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; letter-spacing: .08em; }
+.authLabel { display: grid; gap: 7px; margin-top: 22px; font-size: 14px; font-weight: 700; }
+.authLabel input { width: 100%; height: 48px; padding: 0 14px; border: 2px solid var(--ink); border-radius: 11px; background: white; font-size: 16px; }
+.authSubmit { min-height: 50px; padding: 0 18px; border: 2px solid var(--ink); border-radius: 12px; background: var(--tomato); box-shadow: 0 3px 0 var(--ink); font-size: 16px; font-weight: 800; cursor: pointer; }
+.authCard .authSubmit { width: 100%; margin-top: 18px; }
+.authSubmit:disabled { opacity: .65; cursor: wait; }
+.authError { margin: 11px 0 0 !important; color: #8C2F1A !important; font-weight: 700; }
+.authMuted { margin: 15px 0 0 !important; font-size: 13px !important; }
+.authCard pre { overflow: auto; margin: 14px 0 0; padding: 14px; border: 2px solid var(--ink); border-radius: 11px; background: #1C1916; color: #FBF9F5; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.authCard pre code { font: 12px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.authLoading { margin: 0; color: var(--graphite); }
+.authFoot { margin: 0; color: #6B6359; font-size: 13px; }
+.auxStack { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.auxCard { display: flex; align-items: flex-start; gap: 16px; padding: 20px; border: 2px solid #1C1916; border-radius: 18px; background: #FBF9F5; box-shadow: 0 3px 0 #1C1916; }
+.auxCard > span { width: 38px; height: 38px; flex: 0 0 38px; display: grid; place-items: center; border: 2px solid #1C1916; border-radius: 10px; background: #F7D56E; font: 700 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.auxCard h2 { margin: 1px 0 6px; font-size: 19px; line-height: 1.25; font-weight: 800; }
+.auxCard p, .auxCard li { color: #3D3832; font-size: 15px; line-height: 1.5; }
+.auxCard a { text-decoration-color: #FF5A36; text-decoration-thickness: 2px; text-underline-offset: 3px; font-weight: 700; }
+.auxCard pre { max-width: 100%; overflow: auto; margin: 14px 0 0; padding: 14px; border: 2px solid #1C1916; border-radius: 12px; background: #1C1916; color: #FBF9F5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.auxCard pre code, .auxCard li code { font: 12px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.auxCard ul { display: grid; gap: 8px; padding-left: 20px; }
+.connectionState { display: inline-flex; margin-top: 14px; padding: 6px 10px; border: 2px solid #1C1916; border-radius: 99px; background: #FFD6C9; font-size: 13px; font-weight: 700; }
+.connectionState.connected { background: #2E6B4B; color: #FBF9F5; }
+.notice { position: fixed; z-index: 10; top: 14px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 20px; width: min(720px, calc(100vw - 28px)); padding: 12px 16px; border: 2px solid #1C1916; border-radius: 12px; background: #FFD6C9; box-shadow: 0 3px 0 #1C1916; font-size: 14px; font-weight: 700; }
+.notice button { margin-left: auto; border: 0; background: none; font-size: 22px; cursor: pointer; }
+
+@media (max-width: 520px) {
+  .auth { padding: 18px; gap: 18px; }
+  .authCard { padding: 24px 20px; }
+  .auxCard { padding: 16px; gap: 12px; }
+  .auxCard > span { width: 32px; height: 32px; flex-basis: 32px; }
+  .auxCard h2 { font-size: 17px; }
+  .auxCard p, .auxCard li { font-size: 14px; }
+}

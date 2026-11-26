@@ -11,5 +11,5 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const row = await queryOne<StoredEmail>(`SELECT id,from_address,to_json,subject,status,error_message,provider_id,message_id,created_at
     FROM emails WHERE id = ?`, [id]);
   if (!row) return NextResponse.json({ error: { message: 'Email not found.' } }, { status: 404 });
-  return NextResponse.json({ id: row.id, object: 'email', from: row.from_address, to: JSON.parse(row.to_json) as string[], subject: row.subject, status: row.status, created_at: row.created_at, ...(row.message_id ? { messageId: row.message_id } : {}), ...(row.provider_id ? { relayResponse: row.provider_id } : {}), ...(row.status === 'failed' ? { error: 'Email delivery failed. Check the message details in your Emailgo dashboard.' } : {}) });
+  return NextResponse.json({ id: row.id, object: 'email', from: row.from_address, to: JSON.parse(row.to_json) as string[], subject: row.subject, status: row.status, created_at: row.created_at, ...(row.status === 'failed' ? { error: 'Email could not be handed off. Check the message in your Send, thanks workspace.' } : {}) });
 }

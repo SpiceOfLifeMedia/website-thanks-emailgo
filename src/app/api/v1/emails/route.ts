@@ -15,7 +15,7 @@ function mailbox(value: string) {
 }
 function responseError(error: string, status: number) { return NextResponse.json({ error: { message: error } }, { status }); }
 function emailResponse(row: StoredEmail) {
-  return { id: row.id, object: 'email', from: row.from_address, to: JSON.parse(row.to_json) as string[], subject: row.subject, status: row.status, created_at: row.created_at, ...(row.message_id ? { messageId: row.message_id } : {}), ...(row.provider_id ? { relayResponse: row.provider_id } : {}) };
+  return { id: row.id, object: 'email', from: row.from_address, to: JSON.parse(row.to_json) as string[], subject: row.subject, status: row.status, created_at: row.created_at };
 }
 async function getStoredEmail(id: string) {
   return await queryOne<StoredEmail>('SELECT id,from_address,to_json,subject,status,error_message,provider_id,message_id,created_at FROM emails WHERE id=?', [id]);
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
   const senderDomain = sender.slice(sender.lastIndexOf('@') + 1);
   const verifiedDomains = (await query<{ domain: string }>('SELECT domain FROM domains WHERE verified_at IS NOT NULL')).rows;
   const domainAllowed = verifiedDomains.some(({ domain }) => senderDomain === domain || senderDomain.endsWith(`.${domain}`));
-  if (!domainAllowed) return responseError('The sender domain must be verified in your Emailgo dashboard.', 403);
+  if (!domainAllowed) return responseError('Verify the sender domain in your Send, thanks workspace before sending.', 403);
 
   const idempotencyKey = request.headers.get('idempotency-key');
   if (idempotencyKey !== null && !/^[\x21-\x7E]{1,256}$/.test(idempotencyKey)) return responseError('Idempotency-Key must be 1 to 256 visible ASCII characters.', 400);
@@ -78,10 +78,17 @@ export async function POST(request: Request) {
     if (replay) {
       if (replay.request_hash !== requestHash) return responseError('This Idempotency-Key was already used with a different request.', 409);
       const headers = { 'Idempotency-Replayed': 'true' };
-      if (replay.status === 'failed') return NextResponse.json({ error: { message: 'Email delivery failed. Check the message details in your Emailgo dashboard.' }, id: replay.id }, { status: 502, headers });
+      if (replay.status === 'failed') return NextResponse.json({ error: { message: 'Email could not be handed off. Check the message in your Send, thanks workspace.' }, id: replay.id }, { status: 502, headers });
       return NextResponse.json(emailResponse(replay), { status: replay.status === 'queued' ? 202 : 200, headers });
     }
   }
+
+  const normalizedRecipients = (to as string[]).map((address) => address.trim().toLowerCase());
+  const blockedRecipients = (await query<{ address: string }>(
+    `SELECT address FROM blocked_addresses WHERE address IN (${normalizedRecipients.map(() => '?').join(',')})`,
+    normalizedRecipients,
+  )).rows;
+  if (blockedRecipients.length) return responseError('One or more recipients are on this workspace’s block list.', 409);
 
   const id = randomId('em');
   const createdAt = nowIso();
@@ -115,6 +122,6 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 500) : 'SMTP delivery failed.';
     await execute('UPDATE emails SET status = ?, error_message = ? WHERE id = ?', ['failed', message, id]);
-    return NextResponse.json({ error: { message: 'Email delivery failed. Check the message details in your Emailgo dashboard.' }, id }, { status: 502 });
+    return NextResponse.json({ error: { message: 'Email could not be handed off. Check the message in your Send, thanks workspace.' }, id }, { status: 502 });
   }
 }

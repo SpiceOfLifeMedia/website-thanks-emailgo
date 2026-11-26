@@ -8,7 +8,7 @@ const standaloneNextDir = resolve(standaloneDir, '.next');
 const staticDir = resolve(projectDir, '.next/static');
 
 if (!existsSync(resolve(standaloneDir, 'server.js'))) {
-  throw new Error('Build Emailgo first with `npm run build`.');
+  throw new Error('Build Send, thanks first with `npm run build`.');
 }
 if (existsSync(staticDir)) {
   mkdirSync(standaloneNextDir, { recursive: true });

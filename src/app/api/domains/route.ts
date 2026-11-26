@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   if (typeof domainValue !== 'string') return NextResponse.json({ error: 'Enter a sender domain.' }, { status: 400 });
   const domain = domainValue.trim().toLowerCase().replace(/\.$/, '');
   if (domain.length > 253 || !/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))+$/.test(domain)) return NextResponse.json({ error: 'Enter a valid domain name.' }, { status: 400 });
-  const token = `emailgo-verify=${randomBytes(24).toString('hex')}`;
+  const token = `send-thanks-verify=${randomBytes(24).toString('hex')}`;
   const id = randomId('dom');
   try { await execute('INSERT INTO domains(id,domain,verification_token,created_at) VALUES(?,?,?,?)', [id, domain, token, nowIso()]); }
   catch { return NextResponse.json({ error: 'That sender domain is already added.' }, { status: 409 }); }

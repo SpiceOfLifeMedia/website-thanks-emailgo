@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Invalid JSON.' }, { status: 400 }); }
   const name = body && typeof body === 'object' && 'name' in body ? (body as { name?: unknown }).name : undefined;
   if (typeof name !== 'string' || !name.trim() || name.trim().length > 80) return NextResponse.json({ error: 'Name must be 1 to 80 characters.' }, { status: 400 });
-  const secret = `eg_live_${randomBytes(32).toString('base64url')}`;
+  const secret = `st_live_${randomBytes(32).toString('base64url')}`;
   const id = randomId('key');
   const createdAt = nowIso();
   const prefix = secret.slice(0, 20);

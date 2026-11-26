@@ -59,7 +59,7 @@ export function hasTrustedBrowserOrigin(request: Request) {
 
 export async function authorizeApiKey(request: Request) {
   const authorization = request.headers.get('authorization') ?? '';
-  const match = /^Bearer (eg_live_[A-Za-z0-9_-]{40,})$/.exec(authorization);
+  const match = /^Bearer ((?:eg|st)_live_[A-Za-z0-9_-]{40,})$/.exec(authorization);
   if (!match) return null;
   const secret = match[1];
   const prefix = secret.slice(0, 20);

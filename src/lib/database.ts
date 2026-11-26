@@ -26,6 +26,9 @@ const postgresSchema = [
     id TEXT PRIMARY KEY, domain TEXT NOT NULL UNIQUE, verification_token TEXT NOT NULL,
     created_at TEXT NOT NULL, verified_at TEXT
   )`,
+  `CREATE TABLE IF NOT EXISTS blocked_addresses (
+    address TEXT PRIMARY KEY, reason TEXT NOT NULL DEFAULT 'manual', added_at TEXT NOT NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS emails (
     id TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, from_address TEXT NOT NULL,
     to_json TEXT NOT NULL, subject TEXT NOT NULL,
@@ -79,6 +82,9 @@ function getSqlite() {
     CREATE TABLE IF NOT EXISTS domains (
       id TEXT PRIMARY KEY, domain TEXT NOT NULL UNIQUE, verification_token TEXT NOT NULL,
       created_at TEXT NOT NULL, verified_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS blocked_addresses (
+      address TEXT PRIMARY KEY, reason TEXT NOT NULL DEFAULT 'manual', added_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS emails (
       id TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, from_address TEXT NOT NULL,

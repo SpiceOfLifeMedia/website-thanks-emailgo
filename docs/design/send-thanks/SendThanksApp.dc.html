@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>html,body{margin:0;background:#F4EEE3}button,input{font:inherit;color:inherit}:focus{outline:none}:focus-visible{outline:3px solid #1C1916;outline-offset:2px;box-shadow:0 0 0 6px #F7D56E}[data-scroll]::-webkit-scrollbar{display:none}a{color:#1C1916}a:hover{color:#3D3832}@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}</style>
+<template id="__bundler_thumbnail"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#FF5A36"></rect><circle cx="32" cy="26" r="9" fill="#FBF9F5"></circle><path d="M41 26C41 36 36 43.5 27 48L25 44.6C30 42 32.6 38.5 33.3 34.9Z" fill="#FBF9F5"></path></svg></template>
+</helmet>
+<div ref="{{ rootRef }}" style="font-family:'Schibsted Grotesk',sans-serif;color:#1C1916;background:#F4EEE3;display:flex;flex-direction:{{ rootDir }};height:{{ rootH }};width:100%;box-sizing:border-box;overflow:hidden;-webkit-font-smoothing:antialiased">
+
+<sc-if value="{{ desktop }}" hint-placeholder-val="{{ true }}">
+<aside style="width:248px;flex-shrink:0;border-right:2px solid #1C1916;background:#FBF9F5;padding:24px 16px;display:flex;flex-direction:column;gap:28px;box-sizing:border-box">
+  <div style="display:flex;align-items:center;gap:10px;padding:0 8px">
+    <svg width="36" height="36" viewBox="0 0 64 64" aria-hidden="true"><rect x="1.5" y="1.5" width="61" height="61" rx="16" style="fill:#FF5A36;stroke:#1C1916;stroke-width:3"></rect><circle cx="32" cy="26" r="9" style="fill:#FBF9F5"></circle><path d="M41 26C41 36 36 43.5 27 48L25 44.6C30 42 32.6 38.5 33.3 34.9Z" style="fill:#FBF9F5"></path></svg>
+    <div style="font-size:21px;font-weight:800;letter-spacing:-.035em;line-height:1;white-space:nowrap">Send<span style="color:#FF5A36">,</span> thanks</div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:4px;padding:12px;border:2px solid #E3DCD0;border-radius:12px">
+    <div style="font-size:15px;font-weight:700">Good Yarn Co.</div>
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6B6359">FICTIONAL DEMO ACCOUNT</div>
+  </div>
+  <nav aria-label="Dashboard" style="display:flex;flex-direction:column;gap:4px">
+    <sc-for list="{{ nav }}" as="n" hint-placeholder-count="5">
+      <button type="button" onClick="{{ n.go }}" aria-current="{{ n.current }}" style="display:flex;align-items:center;gap:12px;width:100%;height:44px;padding:0 12px;border-radius:12px;border:2px solid {{ n.border }};background:{{ n.bg }};font-size:15px;font-weight:{{ n.weight }};cursor:pointer;text-align:left;transition:background .15s">
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="{{ n.icon }}"></path></svg>
+        <span style="flex:1">{{ n.label }}</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#3D3832">{{ n.count }}</span>
+      </button>
+    </sc-for>
+  </nav>
+  <div style="margin-top:auto;display:flex;flex-direction:column;gap:8px;padding:14px 12px;border:2px solid #1C1916;border-radius:14px;background:#F4EEE3">
+    <div style="font-size:13px;font-weight:700">This month</div>
+    <div role="meter" aria-label="Emails sent this month" aria-valuemin="0" aria-valuemax="{{ limit }}" aria-valuenow="{{ used }}" style="height:10px;border:2px solid #1C1916;border-radius:6px;background:#FBF9F5;overflow:hidden"><div style="height:100%;width:{{ usagePct }};background:#FF5A36;transition:width .4s"></div></div>
+    <div style="font-size:13px;color:#3D3832"><span style="font-weight:700;color:#1C1916">{{ usedText }}</span> of {{ limitText }} sent</div>
+  </div>
+</aside>
+</sc-if>
+
+<div style="flex:1;min-width:0;min-height:0;display:flex;flex-direction:column">
+  <sc-if value="{{ mobile }}" hint-placeholder-val="{{ false }}">
+    <header style="flex-shrink:0;height:56px;padding:0 16px;background:#FBF9F5;display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true"><rect x="1.5" y="1.5" width="61" height="61" rx="16" style="fill:#FF5A36;stroke:#1C1916;stroke-width:3"></rect><circle cx="32" cy="26" r="9" style="fill:#FBF9F5"></circle><path d="M41 26C41 36 36 43.5 27 48L25 44.6C30 42 32.6 38.5 33.3 34.9Z" style="fill:#FBF9F5"></path></svg>
+        <div style="font-size:19px;font-weight:800;letter-spacing:-.035em;white-space:nowrap">Send<span style="color:#FF5A36">,</span> thanks</div>
+      </div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6B6359;text-align:right">Good Yarn Co.<br>FICTIONAL DEMO</div>
+    </header>
+    <div role="group" aria-label="Usage this month" style="flex-shrink:0;padding:10px 16px 12px;background:#FBF9F5;border-top:1px solid #E3DCD0;border-bottom:2px solid #1C1916;display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;justify-content:space-between;gap:12px;font-size:14px"><div><span style="font-weight:800">{{ usedText }}</span> of {{ limitText }} sent this month</div><div style="font-weight:800">{{ pctText }}</div></div>
+      <div role="meter" aria-label="Emails sent this month" aria-valuemin="0" aria-valuemax="{{ limit }}" aria-valuenow="{{ used }}" style="height:10px;border:2px solid #1C1916;border-radius:6px;background:#F4EEE3;overflow:hidden"><div style="height:100%;width:{{ usagePct }};background:#FF5A36;transition:width .4s"></div></div>
+    </div>
+  </sc-if>
+
+  <div ref="{{ scrollRef }}" data-scroll="1" style="flex:1;min-height:0;overflow:{{ scrollOverflow }};scrollbar-width:none;padding:{{ pad }};display:flex;flex-direction:column;gap:{{ gap }};box-sizing:border-box">
+    <div style="display:flex;flex-direction:{{ hdrDir }};align-items:{{ hdrAlign }};justify-content:space-between;gap:16px">
+      <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+        <h1 style="margin:0;font-size:{{ h1Size }};font-weight:800;letter-spacing:-.035em;line-height:1.05">{{ title }}</h1>
+        <p style="margin:0;font-size:16px;line-height:1.45;color:#3D3832;max-width:620px;text-wrap:pretty">{{ subtitle }}</p>
+      </div>
+      <sc-if value="{{ hasAction }}" hint-placeholder-val="{{ false }}">
+        <button type="button" onClick="{{ onAction }}" style="flex-shrink:0;height:52px;padding:0 22px;border-radius:14px;border:2px solid #1C1916;background:#FF5A36;color:#1C1916;font-size:17px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;box-shadow:0 3px 0 #1C1916" style-active="transform:translateY(2px);box-shadow:0 1px 0 #1C1916">
+          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round"><path d="M12 5v14M5 12h14"></path></svg>{{ actionLabel }}
+        </button>
+      </sc-if>
+    </div>
+    <sc-if value="{{ hasNote }}" hint-placeholder-val="{{ false }}">
+      <div role="status" style="padding:12px 16px;border:2px dashed #1C1916;border-radius:12px;background:#FBF9F5;font-size:15px;color:#3D3832">{{ note }}</div>
+    </sc-if>
+
+    <div style="display:grid;grid-template-columns:{{ cols }};gap:{{ gap }};align-items:start">
+      <div style="display:{{ leftDisplay }};flex-direction:column;gap:{{ gap }};min-width:0">
+
+        <sc-if value="{{ showEmails }}" hint-placeholder-val="{{ true }}">
+        <section aria-label="Recent emails" style="order:1;background:#FBF9F5;border:2px solid #1C1916;border-radius:18px;box-shadow:0 3px 0 #1C1916;overflow:hidden;min-width:0">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-bottom:2px solid #1C1916;min-height:60px;box-sizing:border-box">
+            <div style="display:flex;align-items:baseline;flex-wrap:wrap;column-gap:10px;row-gap:2px;min-width:0"><h2 style="margin:0;white-space:nowrap;font-size:19px;font-weight:800;letter-spacing:-.01em">{{ emailsTitle }}</h2><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6B6359;white-space:nowrap">{{ emailsMeta }}</span></div>
+            <sc-if value="{{ overview }}" hint-placeholder-val="{{ true }}"><button type="button" onClick="{{ seeEmails }}" style="height:{{ tapH }};padding:0 12px;border-radius:10px;border:2px solid #1C1916;background:#FBF9F5;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0" style-hover="background:#F4EEE3">{{ seeEmailsLabel }}</button></sc-if>
+          </div>
+          <sc-if value="{{ fullEmails }}" hint-placeholder-val="{{ false }}">
+            <div role="group" aria-label="Filter by status" style="display:flex;flex-wrap:wrap;gap:8px;padding:14px 20px;border-bottom:1px solid #E3DCD0">
+              <sc-for list="{{ chips }}" as="c" hint-placeholder-count="4">
+                <button type="button" onClick="{{ c.set }}" aria-pressed="{{ c.pressed }}" style="height:{{ tapH }};padding:0 14px;border-radius:999px;border:2px solid #1C1916;background:{{ c.bg }};color:{{ c.fg }};font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:8px">{{ c.label }}<span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:500">{{ c.count }}</span></button>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ desktop }}" hint-placeholder-val="{{ true }}">
+            <div style="display:grid;grid-template-columns:136px minmax(0,1fr) minmax(0,1.4fr) 116px;gap:16px;padding:10px 20px;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;color:#6B6359"><div>STATUS</div><div>TO</div><div>SUBJECT</div><div style="text-align:right">SENT</div></div>
+          </sc-if>
+          <sc-for list="{{ emails }}" as="e" hint-placeholder-count="6">
+            <sc-if value="{{ desktop }}" hint-placeholder-val="{{ true }}">
+              <div style="display:grid;grid-template-columns:136px minmax(0,1fr) minmax(0,1.4fr) 116px;gap:16px;align-items:center;padding:12px 20px;border-top:1px solid #E3DCD0">
+                <div><span style="display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:999px;border:2px solid #1C1916;background:{{ e.st.bg }};color:{{ e.st.fg }};font-size:13px;font-weight:700;white-space:nowrap"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round"><path d="{{ e.st.icon }}"></path></svg>{{ e.status }}</span></div>
+                <div style="font-size:14px;color:#3D3832;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ e.to }}</div>
+                <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><div style="font-size:15px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ e.subject }}</div><div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6B6359">{{ e.id }}</div></div>
+                <div style="font-size:13px;color:#3D3832;text-align:right">{{ e.sent }}</div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ mobile }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:14px 16px;border-top:1px solid #E3DCD0;display:flex;flex-direction:column;gap:8px">
+                <div style="display:flex;justify-content:space-between;gap:12px"><div style="font-size:15px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">{{ e.to }}</div><div style="font-size:13px;color:#3D3832;flex-shrink:0">{{ e.sent }}</div></div>
+                <div style="font-size:15px;line-height:1.35;color:#3D3832">{{ e.subject }}</div>
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><span style="display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:999px;border:2px solid #1C1916;background:{{ e.st.bg }};color:{{ e.st.fg }};font-size:13px;font-weight:700;white-space:nowrap"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round"><path d="{{ e.st.icon }}"></path></svg>{{ e.status }}</span><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6B6359;white-space:nowrap">{{ e.id }}</span></div>
+              </div>
+            </sc-if>
+          </sc-for>
+        </section>
+        </sc-if>
+
+        <sc-if value="{{ showKeys }}" hint-placeholder-val="{{ true }}">
+        <section aria-label="API keys" style="order:3;background:#FBF9F5;border:2px solid #1C1916;border-radius:18px;box-shadow:0 3px 0 #1C1916;overflow:hidden;min-width:0">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-bottom:2px solid #1C1916;min-height:60px;box-sizing:border-box">
+            <div style="display:flex;align-items:baseline;flex-wrap:wrap;column-gap:10px;row-gap:2px;min-width:0"><h2 style="margin:0;white-space:nowrap;font-size:19px;font-weight:800">API keys</h2><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6B6359;white-space:nowrap">{{ keysMeta }}</span></div>
+            <sc-if value="{{ overview }}" hint-placeholder-val="{{ true }}"><button type="button" onClick="{{ seeKeys }}" style="height:{{ tapH }};padding:0 12px;border-radius:10px;border:2px solid #1C1916;background:#FBF9F5;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0" style-hover="background:#F4EEE3">{{ seeKeysLabel }}</button></sc-if>
+          </div>
+          <sc-for list="{{ keys }}" as="k" hint-placeholder-count="3">
+            <div style="padding:14px 20px;border-top:1px solid #E3DCD0;display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                <div style="flex:1;min-width:180px;display:flex;flex-direction:column;gap:4px">
+                  <div style="font-size:16px;font-weight:700">{{ k.name }}</div>
+                  <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#3D3832">{{ k.prefix }}</div>
+                  <div style="font-size:13px;color:#3D3832">{{ k.permission }} · Last used {{ k.lastUsed }}</div>
+                </div>
+                <sc-if value="{{ k.revoked }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:999px;border:2px solid #1C1916;background:#E3DCD0;font-size:13px;font-weight:700"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round"><path d="M7 7l10 10M17 7L7 17"></path></svg>Revoked</span></sc-if>
+                <sc-if value="{{ k.canRevoke }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ k.ask }}" style="height:{{ tapH }};padding:0 14px;border-radius:10px;border:2px solid #1C1916;background:#FBF9F5;font-size:14px;font-weight:700;cursor:pointer" style-hover="background:#FFD6C9">Revoke</button></sc-if>
+              </div>
+              <sc-if value="{{ k.confirming }}" hint-placeholder-val="{{ false }}">
+                <div role="alertdialog" aria-label="Confirm revoke" style="padding:14px;border:2px solid #1C1916;border-radius:12px;background:#FFD6C9;display:flex;flex-direction:column;gap:12px">
+                  <div style="font-size:15px;line-height:1.4"><span style="font-weight:800">Revoke “{{ k.name }}”?</span> Anything using this key will stop sending straight away. This can't be undone.</div>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" onClick="{{ k.doIt }}" style="height:44px;padding:0 16px;border-radius:10px;border:2px solid #1C1916;background:#1C1916;color:#FBF9F5;font-size:15px;font-weight:800;cursor:pointer">Yes, revoke it</button><button type="button" onClick="{{ cancel }}" style="height:44px;padding:0 16px;border-radius:10px;border:2px solid #1C1916;background:#FBF9F5;font-size:15px;font-weight:700;cursor:pointer">Keep it</button></div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </section>
+        </sc-if>
+      </div>
+
+      <div style="display:{{ rightDisplay }};flex-direction:column;gap:{{ gap }};min-width:0">
+        <sc-if value="{{ showUsage }}" hint-placeholder-val="{{ true }}">
+        <section aria-label="Usage" style="order:0;background:#FBF9F5;border:2px solid #1C1916;border-radius:18px;box-shadow:0 3px 0 #1C1916;padding:20px;display:flex;flex-direction:column;gap:14px">
+          <h2 style="margin:0;white-space:nowrap;font-size:19px;font-weight:800">Emails sent this month</h2>
+          <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><div style="font-size:44px;font-weight:800;letter-spacing:-.035em;line-height:1">{{ usedText }}</div><div style="font-size:17px;color:#3D3832">of {{ limitText }} in your plan</div></div>
+          <div role="meter" aria-label="Emails sent this month" aria-valuemin="0" aria-valuemax="{{ limit }}" aria-valuenow="{{ used }}" style="height:22px;border:2px solid #1C1916;border-radius:12px;background:#F4EEE3;overflow:hidden"><div style="height:100%;width:{{ usagePct }};background:#FF5A36;border-right:2px solid #1C1916;box-sizing:border-box;transition:width .4s"></div></div>
+          <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:14px;color:#3D3832"><div><span style="font-weight:800;color:#1C1916">{{ pctText }} used</span> · {{ leftText }} left</div><div>Resets {{ resets }}</div></div>
+        </section>
+        </sc-if>
+
+        <sc-if value="{{ showDomains }}" hint-placeholder-val="{{ true }}">
+        <section aria-label="Sending domains" style="order:2;background:#FBF9F5;border:2px solid #1C1916;border-radius:18px;box-shadow:0 3px 0 #1C1916;overflow:hidden;min-width:0">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-bottom:2px solid #1C1916;min-height:60px;box-sizing:border-box">
+            <div style="display:flex;align-items:baseline;flex-wrap:wrap;column-gap:10px;row-gap:2px;min-width:0"><h2 style="margin:0;white-space:nowrap;font-size:19px;font-weight:800">Sending domains</h2><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6B6359;white-space:nowrap">{{ domainsMeta }}</span></div>
+            <sc-if value="{{ overview }}" hint-placeholder-val="{{ true }}"><button type="button" onClick="{{ seeDomains }}" style="height:{{ tapH }};padding:0 12px;border-radius:10px;border:2px solid #1C1916;background:#FBF9F5;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0" style-hover="background:#F4EEE3">Domains</button></sc-if>
+          </div>
+          <sc-for list="{{ domains }}" as="d" hint-placeholder-count="3">
+            <div style="padding:14px 20px;border-top:1px solid #E3DCD0;display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                <div style="flex:1;min-width:150px;display:flex;flex-direction:column;gap:2px"><div style="font-size:16px;font-weight:700;overflow-wrap:anywhere">{{ d.name }}</div><div style="font-size:13px;color:#3D3832">Added {{ d.added }}</div></div>
+                <span style="display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:999px;border:2px solid #1C1916;background:{{ d.st.bg }};color:{{ d.st.fg }};font-size:13px;font-weight:700;white-space:nowrap"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round"><path d="{{ d.st.icon }}"></path></svg>{{ d.status }}</span>
+                <sc-if value="{{ fullDomains }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ d.toggle }}" aria-expanded="{{ d.expanded }}" style="height:{{ tapH }};padding:0 14px;border-radius:10px;border:2px solid #1C1916;background:#FBF9F5;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0" style-hover="background:#F4EEE3">{{ d.toggleLabel }}</button></sc-if>
+              </div>
+              <sc-if value="{{ d.open }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:12px;background:#F4EEE3;border:1px solid #E3DCD0">
+                  <sc-if value="{{ d.pending }}" hint-placeholder-val="{{ false }}"><div style="font-size:15px;line-height:1.45;text-wrap:pretty">Add these records where your domain is managed. Sending starts once we can see them all, which can take up to 48 hours.</div></sc-if>
+                  <sc-for list="{{ d.records }}" as="r" hint-placeholder-count="3">
+                    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:10px 12px;background:#FBF9F5;border-radius:10px;border:1px solid #E3DCD0">
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:500;padding:2px 8px;border:2px solid #1C1916;border-radius:6px">{{ r.type }}</span>
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:13px">{{ r.name }}</span>
+                      <span style="font-size:13px;font-weight:700;color:{{ r.color }};margin-left:auto">{{ r.foundLabel }}</span>
+                      <span style="flex-basis:100%;font-family:'IBM Plex Mono',monospace;font-size:13px;color:#3D3832;overflow-wrap:anywhere">{{ r.value }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </section>
+        </sc-if>
+
+        <sc-if value="{{ showBlock }}" hint-placeholder-val="{{ true }}">
+        <section aria-label="Block list" style="order:4;background:#FBF9F5;border:2px solid #1C1916;border-radius:18px;box-shadow:0 3px 0 #1C1916;overflow:hidden;min-width:0">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-bottom:2px solid #1C1916;min-height:60px;box-sizing:border-box">
+            <div style="display:flex;align-items:baseline;flex-wrap:wrap;column-gap:10px;row-gap:2px;min-width:0"><h2 style="margin:0;white-space:nowrap;font-size:19px;font-weight:800">Block list</h2><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6B6359;white-space:nowrap">{{ blockMeta }}</span></div>
+            <sc-if value="{{ overview }}" hint-placeholder-val="{{ true }}"><button type="button" onClick="{{ seeBlock }}" style="height:{{ tapH }};padding:0 12px;border-radius:10px;border:2px solid #1C1916;background:#FBF9F5;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0" style-hover="background:#F4EEE3">See all</button></sc-if>
+          </div>
+          <sc-if value="{{ fullBlock }}" hint-placeholder-val="{{ false }}">
+            <label style="display:flex;flex-direction:column;gap:6px;padding:14px 20px;border-bottom:1px solid #E3DCD0"><span style="font-size:14px;font-weight:700">Search the block list</span><input type="search" value="{{ q }}" onChange="{{ onQ }}" placeholder="Type an email address" style="height:44px;padding:0 14px;border:2px solid #1C1916;border-radius:12px;background:#FFFFFF;font-size:16px;box-sizing:border-box;width:100%"></label>
+          </sc-if>
+          <sc-for list="{{ block }}" as="b" hint-placeholder-count="3">
+            <div style="padding:14px 20px;border-top:1px solid #E3DCD0;display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                <div style="flex:1;min-width:150px;display:flex;flex-direction:column;gap:2px"><div style="font-size:15px;font-weight:700;overflow-wrap:anywhere">{{ b.address }}</div><div style="font-size:13px;color:#3D3832">Added {{ b.added }}</div></div>
+                <span style="display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:999px;border:2px solid #1C1916;background:{{ b.st.bg }};color:{{ b.st.fg }};font-size:13px;font-weight:700;white-space:nowrap"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round"><path d="{{ b.st.icon }}"></path></svg>{{ b.reason }}</span>
+                <sc-if value="{{ b.canRemove }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ b.ask }}" style="height:{{ tapH }};padding:0 14px;border-radius:10px;border:2px solid #1C1916;background:#FBF9F5;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0" style-hover="background:#F4EEE3">Remove</button></sc-if>
+              </div>
+              <sc-if value="{{ b.confirming }}" hint-placeholder-val="{{ false }}">
+                <div role="alertdialog" aria-label="Confirm remove" style="padding:14px;border:2px solid #1C1916;border-radius:12px;background:#FCEFC0;display:flex;flex-direction:column;gap:12px">
+                  <div style="font-size:15px;line-height:1.4"><span style="font-weight:800">Take {{ b.address }} off the block list?</span> We'll start sending to them again.</div>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" onClick="{{ b.doIt }}" style="height:44px;padding:0 16px;border-radius:10px;border:2px solid #1C1916;background:#1C1916;color:#FBF9F5;font-size:15px;font-weight:800;cursor:pointer">Yes, remove</button><button type="button" onClick="{{ cancel }}" style="height:44px;padding:0 16px;border-radius:10px;border:2px solid #1C1916;background:#FBF9F5;font-size:15px;font-weight:700;cursor:pointer">Keep blocked</button></div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+          <sc-if value="{{ blockEmpty }}" hint-placeholder-val="{{ false }}"><div style="padding:20px;font-size:15px;color:#3D3832">{{ blockEmptyText }}</div></sc-if>
+        </section>
+        </sc-if>
+      </div>
+    </div>
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6B6359">All names, addresses, domains and keys shown are fictional demo data.</div>
+  </div>
+
+  <sc-if value="{{ mobile }}" hint-placeholder-val="{{ false }}">
+    <nav aria-label="Dashboard" style="flex-shrink:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px;padding:6px 4px 10px;background:#FBF9F5;border-top:2px solid #1C1916">
+      <sc-for list="{{ nav }}" as="n" hint-placeholder-count="5">
+        <button type="button" onClick="{{ n.go }}" aria-current="{{ n.current }}" style="height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-radius:12px;border:2px solid {{ n.border }};background:{{ n.bg }};font-size:12px;font-weight:{{ n.weight }};cursor:pointer;padding:0;white-space:nowrap">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="{{ n.icon }}"></path></svg>{{ n.label }}
+        </button>
+      </sc-for>
+    </nav>
+  </sc-if>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;mode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;auto&quot;,&quot;desktop&quot;,&quot;mobile&quot;],&quot;default&quot;:&quot;auto&quot;,&quot;tsType&quot;:&quot;'auto'|'desktop'|'mobile'&quot;},&quot;view&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;overview&quot;,&quot;emails&quot;,&quot;domains&quot;,&quot;block&quot;,&quot;keys&quot;],&quot;default&quot;:&quot;overview&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;height&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:null,&quot;tsType&quot;:&quot;number&quot;,&quot;unit&quot;:&quot;px&quot;}}">
+const IC = {
+  check: 'M5 12.5l4.5 4.5L19 7.5',
+  bounce: 'M10 6l-5 5 5 5M5 11h9a5 5 0 0 1 0 10h-3',
+  flag: 'M6 21V4h11l-2.5 4.5L17 13H6',
+  clock: 'M12 7v5l3.5 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',
+  block: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM5.6 5.6l12.8 12.8'
+};
+const ST = {
+  Delivered: { bg: '#2E6B4B', fg: '#FBF9F5', icon: IC.check },
+  Bounced: { bg: '#FFD6C9', fg: '#1C1916', icon: IC.bounce },
+  Complained: { bg: '#F7D56E', fg: '#1C1916', icon: IC.flag },
+  Verified: { bg: '#2E6B4B', fg: '#FBF9F5', icon: IC.check },
+  'Pending DNS': { bg: '#FBF9F5', fg: '#1C1916', icon: IC.clock },
+  'Added manually': { bg: '#FBF9F5', fg: '#1C1916', icon: IC.block }
+};
+const NAV = [
+  { id: 'overview', label: 'Overview', icon: 'M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z' },
+  { id: 'emails', label: 'Emails', icon: 'M3 6h18v12H3zM3 7l9 6 9-6' },
+  { id: 'domains', label: 'Domains', icon: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18' },
+  { id: 'block', label: 'Block list', icon: IC.block },
+  { id: 'keys', label: 'API keys', icon: 'M15 3a6 6 0 1 1-5.2 9L3 18.8V21h3v-2h2v-2h2l1.8-1.8A6 6 0 0 1 15 3zM16.5 7.5h.01' }
+];
+const TITLES = {
+  overview: ['Overview', 'How your sending is going, at a glance.'],
+  emails: ['Emails', 'Every email sent from your account, newest first.'],
+  domains: ['Domains', 'The domains you send from. Each one needs a few DNS records before it can send.'],
+  block: ['Block list', "We won't send to these addresses. Anyone who bounces or complains is added for you."],
+  keys: ['API keys', 'Keys let your website and apps send email. Treat them like a password.']
+};
+const ACTION = { domains: 'Add a domain', block: 'Add an address', keys: 'Create an API key' };
+const EMAILS = [
+  { id: 'em_9K2X7Q', to: 'mia.chen@example.com.au', subject: 'Your order #1042 is on its way', status: 'Delivered', sent: '27 Nov, 9:41 am' },
+  { id: 'em_9K2X7P', to: 'tom.walsh@example.net.au', subject: 'Booking confirmed: Sat 30 Nov, 10:00 am', status: 'Delivered', sent: '27 Nov, 9:12 am' },
+  { id: 'em_9K2X6Z', to: 'accounts@example.org.au', subject: 'Invoice INV-2207 from Good Yarn Co.', status: 'Bounced', sent: '27 Nov, 8:55 am' },
+  { id: 'em_9K2X6M', to: 'priya.k@example.com.au', subject: 'November newsletter: new wool just in', status: 'Complained', sent: '26 Nov, 6:00 pm' },
+  { id: 'em_9K2X5D', to: 'sam.oconnor@example.com.au', subject: 'Reset your password', status: 'Delivered', sent: '26 Nov, 3:18 pm' },
+  { id: 'em_9K2X4R', to: 'jess.bui@example.net.au', subject: 'Your order #1041 is on its way', status: 'Delivered', sent: '26 Nov, 11:02 am' },
+  { id: 'em_9K2X3C', to: 'info@example.com', subject: 'Quote request received', status: 'Bounced', sent: '25 Nov, 4:47 pm' },
+  { id: 'em_9K2X2A', to: 'lena.m@example.com.au', subject: 'Thanks for your review', status: 'Delivered', sent: '25 Nov, 1:30 pm' }
+];
+const rec = (sub, found) => [
+  { type: 'TXT', name: sub || '@', value: 'v=spf1 include:spf.send.example ~all', found: found },
+  { type: 'TXT', name: 'st1._domainkey' + (sub ? '.' + sub : ''), value: 'p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC7x', found: found },
+  { type: 'MX', name: 'bounce' + (sub ? '.' + sub : ''), value: '10 feedback.send.example', found: false }
+];
+const DOMAINS = [
+  { name: 'goodyarn.com.au', status: 'Verified', added: '2 Mar 2026', records: rec('', true).map(r => ({ ...r, found: true })) },
+  { name: 'news.goodyarn.com.au', status: 'Verified', added: '18 Jun 2026', records: rec('news', true).map(r => ({ ...r, found: true })) },
+  { name: 'shop.goodyarn.com.au', status: 'Pending DNS', added: '25 Nov 2026', records: rec('shop', false).map((r, i) => ({ ...r, found: i === 0 })) }
+];
+const KEYS = [
+  { id: 'k1', name: 'Website contact form', prefix: 'st_live_8c2e••••••••', permission: 'Sending only', lastUsed: '2 min ago' },
+  { id: 'k2', name: 'Order receipts', prefix: 'st_live_41ab••••••••', permission: 'Sending only', lastUsed: 'today, 9:02 am' },
+  { id: 'k3', name: 'Admin scripts', prefix: 'st_live_f09d••••••••', permission: 'Full access', lastUsed: '12 Nov 2026' }
+];
+const BLOCK = [
+  { address: 'accounts@example.org.au', reason: 'Bounced', added: '27 Nov 2026' },
+  { address: 'priya.k@example.com.au', reason: 'Complained', added: '26 Nov 2026' },
+  { address: 'info@example.com', reason: 'Bounced', added: '25 Nov 2026' },
+  { address: 'old.orders@example.net.au', reason: 'Added manually', added: '3 Nov 2026' }
+];
+const USED = 18420, LIMIT = 50000;
+
+class Component extends DCLogic {
+  state = { view: this.props.view || 'overview', filter: 'All', q: '', open: { 'shop.goodyarn.com.au': true }, revoked: {}, removed: {}, confirm: null, note: '', w: 0 };
+  rootRef = React.createRef();
+  scrollRef = React.createRef();
+  componentDidMount() {
+    const el = this.rootRef.current;
+    if (el && typeof ResizeObserver !== 'undefined') {
+      this.ro = new ResizeObserver(([e]) => this.setState({ w: e.contentRect.width }));
+      this.ro.observe(el);
+    }
+  }
+  componentWillUnmount() { this.ro && this.ro.disconnect(); }
+  componentDidUpdate(pp) { if (pp.view !== this.props.view && this.props.view) this.setState({ view: this.props.view }); }
+  renderVals() {
+    const s = this.state, p = this.props;
+    const forced = p.mode && p.mode !== 'auto' ? p.mode : null;
+    const mobile = forced ? forced === 'mobile' : (s.w > 0 && s.w < 760);
+    const v = s.view, ov = v === 'overview';
+    const go = id => () => this.setState({ view: id, confirm: null, note: '' }, () => { const sc = this.scrollRef.current; if (sc) sc.scrollTop = 0; });
+    const cancel = () => this.setState({ confirm: null });
+
+    const blockAll = BLOCK.filter(b => !s.removed[b.address]);
+    const nav = NAV.map(n => {
+      const on = n.id === v;
+      return { ...n, go: go(n.id), current: on ? 'page' : undefined, bg: on ? '#F7D56E' : 'transparent', border: on ? '#1C1916' : 'transparent', weight: on ? 800 : 600, count: n.id === 'block' ? String(blockAll.length) : '' };
+    });
+
+    const allEmails = EMAILS.map(e => ({ ...e, st: ST[e.status] }));
+    const filtered = ov || s.filter === 'All' ? allEmails : allEmails.filter(e => e.status === s.filter);
+    const emails = ov ? filtered.slice(0, mobile ? 3 : 6) : filtered;
+    const chips = ['All', 'Delivered', 'Bounced', 'Complained'].map(f => {
+      const on = s.filter === f;
+      return { label: f, count: String(f === 'All' ? allEmails.length : allEmails.filter(e => e.status === f).length), pressed: String(on), bg: on ? '#1C1916' : '#FBF9F5', fg: on ? '#FBF9F5' : '#1C1916', set: () => this.setState({ filter: f }) };
+    });
+
+    const domains = DOMAINS.map(d => {
+      const open = !ov && !!s.open[d.name];
+      return { ...d, st: ST[d.status], open, expanded: String(open), pending: d.status === 'Pending DNS', toggleLabel: open ? 'Hide DNS records' : 'Show DNS records',
+        toggle: () => this.setState(x => ({ open: { ...x.open, [d.name]: !x.open[d.name] } })),
+        records: d.records.map(r => ({ ...r, foundLabel: r.found ? 'Found' : 'Not found yet', color: r.found ? '#2E6B4B' : '#1C1916' })) };
+    });
+
+    const keys = KEYS.map(k => {
+      const revoked = !!s.revoked[k.id], confirming = s.confirm === 'k' + k.id;
+      return { ...k, revoked, confirming, canRevoke: !ov && !revoked && !confirming,
+        ask: () => this.setState({ confirm: 'k' + k.id }),
+        doIt: () => this.setState(x => ({ revoked: { ...x.revoked, [k.id]: true }, confirm: null })) };
+    });
+    const activeKeys = keys.filter(k => !k.revoked).length;
+
+    const q = s.q.trim().toLowerCase();
+    const blockFiltered = !ov && q ? blockAll.filter(b => b.address.includes(q)) : blockAll;
+    const block = (ov ? blockFiltered.slice(0, 3) : blockFiltered).map(b => {
+      const confirming = s.confirm === 'b' + b.address;
+      return { ...b, st: ST[b.reason], confirming, canRemove: !ov && !confirming,
+        ask: () => this.setState({ confirm: 'b' + b.address }),
+        doIt: () => this.setState(x => ({ removed: { ...x.removed, [b.address]: true }, confirm: null })) };
+    });
+
+    const showUsage = !mobile && ov;
+    const showEmails = ov || v === 'emails', showDomains = ov || v === 'domains', showKeys = ov || v === 'keys', showBlock = ov || v === 'block';
+    const rootH = p.height ? p.height + 'px' : (forced === 'desktop' ? 'auto' : '100vh');
+    const fmt = n => n.toLocaleString('en-AU');
+    const verified = DOMAINS.filter(d => d.status === 'Verified').length;
+
+    return {
+      rootRef: this.rootRef, scrollRef: this.scrollRef,
+      mobile, desktop: !mobile, overview: ov, nav, cancel,
+      rootDir: mobile ? 'column' : 'row', rootH, scrollOverflow: rootH === 'auto' ? 'visible' : 'auto',
+      pad: mobile ? '20px 16px 24px' : '36px 40px 48px', gap: mobile ? '16px' : '24px',
+      hdrDir: mobile ? 'column' : 'row', hdrAlign: mobile ? 'stretch' : 'flex-end', h1Size: mobile ? '30px' : '40px', tapH: mobile ? '44px' : '36px',
+      title: TITLES[v][0], subtitle: TITLES[v][1],
+      hasAction: !!ACTION[v], actionLabel: ACTION[v] || '',
+      onAction: () => this.setState({ note: `Prototype: this opens your existing “${ACTION[v]}” form.` }),
+      hasNote: !!s.note, note: s.note,
+      cols: !mobile && ov ? 'minmax(0,1.65fr) minmax(0,1fr)' : 'minmax(0,1fr)',
+      leftDisplay: mobile ? 'contents' : (showEmails || showKeys ? 'flex' : 'none'),
+      rightDisplay: mobile ? 'contents' : (showUsage || showDomains || showBlock ? 'flex' : 'none'),
+      showUsage, showEmails, showDomains, showKeys, showBlock,
+      fullEmails: v === 'emails', fullDomains: v === 'domains', fullBlock: v === 'block',
+      emails, chips, emailsTitle: ov ? 'Recent emails' : 'All emails', emailsMeta: ov ? `LATEST ${emails.length}` : `${filtered.length} SHOWN`,
+      domains, domainsMeta: `${verified} OF ${DOMAINS.length} VERIFIED`,
+      keys, keysMeta: `${activeKeys} ACTIVE`,
+      block, blockMeta: `${blockAll.length} ADDRESSES`, q: s.q, onQ: e => this.setState({ q: e.target.value }),
+      blockEmpty: !ov && blockFiltered.length === 0, blockEmptyText: q ? `No blocked addresses match “${s.q}”.` : "Nobody's on your block list. Nice.",
+      seeEmails: go('emails'), seeEmailsLabel: mobile ? 'See all' : 'See all emails', seeKeysLabel: mobile ? 'Manage' : 'Manage keys', seeDomains: go('domains'), seeKeys: go('keys'), seeBlock: go('block'),
+      used: USED, limit: LIMIT, usedText: fmt(USED), limitText: fmt(LIMIT), leftText: fmt(LIMIT - USED),
+      usagePct: (USED / LIMIT * 100).toFixed(1) + '%', pctText: Math.round(USED / LIMIT * 100) + '%', resets: '1 Dec 2026'
+    };
+  }
+}
+</script>
+</body>
+</html>
