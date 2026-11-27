@@ -91,6 +91,7 @@
 .usage { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
 .usageBig { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 17px; color: var(--graphite); }
 .usageBig strong { font-size: 44px; font-weight: 800; letter-spacing: -.035em; line-height: 1; color: var(--ink); }
+.usageLimit { white-space: nowrap; line-height: 1.3; }
 .usageNote { font-size: 13px; color: var(--graphite); }
 .usageFoot { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 14px; color: var(--graphite); }
 .usageFoot strong { color: var(--ink); }

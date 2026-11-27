@@ -1,6 +1,6 @@
 # Send, thanks: brand + dashboard handoff
 
-The Claude Design source and export files are preserved under `docs/design/send-thanks/rebrand/`. The app integration copies the logo, dashboard component and styles into `src/components`, then connects them to live dashboard data in `src/app/page.tsx`.
+The Claude Design source and export files are preserved under `docs/design/send-thanks/rebrand/`. The app integration adapts the logo, dashboard layout and styles in `src/components` to keep its existing navigation, feature routes and live data handlers.
 
 ## Exports
 - **`docs/design/send-thanks/rebrand/SendThanksBrandDashboard.dc.html`:** the review board.
@@ -113,3 +113,17 @@ There are no status dots and no gradients.
 - **Unblock:** each button is labelled "Unblock {address}".
 - **Errors:** use `role=alert`; the notice uses `role=status`.
 - **Reduced motion:** turns off all transitions.
+
+## Review screenshots
+The design board screenshots are saved in `docs/design/send-thanks/rebrand/screenshots/`:
+
+1. `brand-wordmark-icon.png` shows the wordmark and comma icon options.
+2. `dashboard-desktop-1440x1000.png` shows the 1440 by 1000 desktop overview.
+3. `dashboard-phone-390x844.png` shows the 390 by 844 phone overview.
+4. `dashboard-phone-390x844-bounced.png` shows the phone overview filtered to Bounced.
+
+The original 12 file Claude Design archive is preserved unchanged at `docs/design/send-thanks/rebrand/claude-export-20261128.zip`.
+
+The 1,240 of 3,000 monthly usage value is illustrative design data. The app shows a meter only when its existing usage data has a configured limit.
+
+Claude Design checked the exported component syntax, CSS class coverage, prohibited-font and provider wording, the screenshot frame sizes, horizontal overflow, minimum control sizes, the written delivery states and the 41 percent meter. The project type-check and build are verified separately by the repository check script.

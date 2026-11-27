@@ -363,7 +363,7 @@ export default function SendThanksDashboard(props: DashboardProps) {
                     <h2 className={s.h2}>Send requests this month</h2>
                     <div className={s.usageBig}>
                       <strong>{fmt(usage.sent)}</strong>
-                      {usage.limit === null ? <><span>so far</span><span className={s.usageNote}>No monthly cap is configured.</span></> : `of ${fmt(usage.limit)} in your plan`}
+                      {usage.limit === null ? <><span>so far</span><span className={s.usageNote}>No monthly cap is configured.</span></> : <span className={s.usageLimit}>of {fmt(usage.limit)} in your plan</span>}
                     </div>
                     <Meter usage={usage} large />
                     {usage.limit !== null && <div className={s.usageFoot}><span><strong>{pct}% used</strong> · {fmt(Math.max(0, usage.limit - usage.sent))} left</span><span>Resets {usage.resetsOn}</span></div>}

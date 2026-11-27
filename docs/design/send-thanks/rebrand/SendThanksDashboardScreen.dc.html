@@ -101,7 +101,7 @@
       <div style="order:{{ sideOrder }};display:flex;flex-direction:column;gap:20px;min-width:0">
         <section aria-labelledby="st-usage" style="background:#FBF9F5;border:2px solid #1C1916;border-radius:18px;box-shadow:0 3px 0 #1C1916;padding:16px 20px 18px;display:flex;flex-direction:column;gap:10px">
           <h2 id="st-usage" style="margin:0;font-size:17px;font-weight:800">Usage this month</h2>
-          <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap"><span style="font-size:36px;font-weight:800;letter-spacing:-.03em;line-height:1">{{ usedText }}</span><span style="font-size:15px;color:#3D3832">of {{ limitText }} emails</span></div>
+          <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap"><span style="font-size:36px;font-weight:800;letter-spacing:-.03em;line-height:1">{{ usedText }}</span><span style="font-size:15px;color:#3D3832;white-space:nowrap">of {{ limitText }} emails</span></div>
           <div role="meter" aria-label="Emails sent this month" aria-valuemin="0" aria-valuemax="{{ limit }}" aria-valuenow="{{ used }}" aria-valuetext="{{ usageAria }}" style="height:18px;border:2px solid #1C1916;border-radius:999px;background:#FFFFFF;overflow:hidden;box-sizing:border-box">
             <div style="height:100%;width:{{ usagePct }};background:#F7D56E;border-right:2px solid #1C1916;box-sizing:border-box"></div>
           </div>
