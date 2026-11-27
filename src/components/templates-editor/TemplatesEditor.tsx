@@ -7,7 +7,9 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type ClipboardEvent,
   type CSSProperties,
+  type KeyboardEvent,
   type ReactNode,
 } from 'react';
 import s from './TemplatesEditor.module.css';
@@ -24,12 +26,14 @@ import {
   TRAY,
   VARIABLES,
   makeBlock,
+  parseMarkdownTable,
   toEmailHtml,
   welcomeEmail,
   type Block,
   type BlockKind,
   type EmailFont,
   type EmailTheme,
+  type TableCell,
   type TextStyle,
 } from './blocks';
 
@@ -82,12 +86,17 @@ export function TemplatesEditor({
   const [selectedId, setSelectedId] = useState<string | null>(
     initialBlocks.find((b) => b.kind === 'text')?.id ?? initialBlocks[0]?.id ?? null,
   );
+  const [selectedTableCell, setSelectedTableCell] = useState({ row: 0, column: 0 });
+  const [tableMarkdown, setTableMarkdown] = useState('');
+  const [tableMarkdownError, setTableMarkdownError] = useState('');
+  const [pendingTableMarkdown, setPendingTableMarkdown] = useState('');
   const [device, setDevice] = useState<Device>('desktop');
   const [mode, setMode] = useState<Mode>('visual');
   const [drawer, setDrawer] = useState<Drawer>(null);
   const [preview, setPreview] = useState(false);
   const [save, setSave] = useState<SaveState>(onSave ? 'unsaved' : 'saved');
   const timer = useRef<number | undefined>(undefined);
+  const tableCellInputs = useRef<Record<string, HTMLInputElement | null>>({});
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
   const saveWords: Record<SaveState, string> = {
@@ -131,13 +140,142 @@ export function TemplatesEditor({
     touch(next);
     if (selectedId === id) setSelectedId(next[Math.min(i, next.length - 1)]?.id ?? null);
   };
-  const add = (kind: BlockKind) => {
-    const block = makeBlock(kind);
+  const insertBlock = (block: Block) => {
     const next = blocks.slice();
     next.splice(index < 0 ? blocks.length : index + 1, 0, block);
     touch(next);
     setSelectedId(block.id);
     setDrawer(null);
+  };
+  const selectedTable = selected?.kind === 'table' ? selected : null;
+  const tableRows = selectedTable?.rows ?? [];
+  const tableColumnCount = tableRows[0]?.length ?? 0;
+  const tableRow = Math.min(selectedTableCell.row, Math.max(tableRows.length - 1, 0));
+  const tableColumn = Math.min(selectedTableCell.column, Math.max(tableColumnCount - 1, 0));
+  const selectedTableCellValue = tableRows[tableRow]?.[tableColumn];
+  const tableInputId = (row: number, column: number) => `${selectedTable?.id ?? 'table'}-${row}-${column}`;
+  const focusTableCell = (row: number, column: number) => {
+    const id = tableInputId(row, column);
+    window.requestAnimationFrame(() => tableCellInputs.current[id]?.focus());
+  };
+  const patchTable = (patch: Partial<Block>) => {
+    if (!selectedTable) return;
+    update(selectedTable.id, patch);
+  };
+  const patchTableCell = (rowIndex: number, columnIndex: number, cell: NonNullable<Block['rows']>[number][number]) => {
+    if (!selectedTable?.rows) return;
+    const rows = selectedTable.rows.map((row, currentRow) => row.map((current, currentColumn) =>
+      currentRow === rowIndex && currentColumn === columnIndex ? cell : current,
+    ));
+    patchTable({ rows });
+  };
+  const addTableRow = (focus = true) => {
+    if (!selectedTable || tableRows.length >= 8) return;
+    const columnCount = Math.max(tableColumnCount, 1);
+    const insertAt = Math.min(tableRow + 1, tableRows.length);
+    const rows = tableRows.map((row) => row.map((cell) => ({ ...cell })));
+    rows.splice(insertAt, 0, Array.from({ length: columnCount }, () => ({ type: 'text' as const, text: '' })));
+    patchTable({ rows });
+    setSelectedTableCell({ row: insertAt, column: tableColumn });
+    if (focus) focusTableCell(insertAt, tableColumn);
+  };
+  const removeTableRow = () => {
+    if (!selectedTable || tableRows.length <= 1) return;
+    const rows = tableRows.filter((_, rowIndex) => rowIndex !== tableRow);
+    patchTable({ rows });
+    setSelectedTableCell({ row: Math.min(tableRow, rows.length - 1), column: tableColumn });
+  };
+  const addTableColumn = () => {
+    if (!selectedTable || tableColumnCount >= 4) return;
+    const insertAt = Math.min(tableColumn + 1, tableColumnCount);
+    const rows = tableRows.map((row) => {
+      const next = row.map((cell) => ({ ...cell }));
+      next.splice(insertAt, 0, { type: 'text' as const, text: '' });
+      return next;
+    });
+    const alignments = [...(selectedTable.alignments ?? Array.from({ length: tableColumnCount }, () => 'left' as const))];
+    alignments.splice(insertAt, 0, 'left');
+    patchTable({ rows, alignments });
+    setSelectedTableCell({ row: tableRow, column: insertAt });
+    focusTableCell(tableRow, insertAt);
+  };
+  const removeTableColumn = () => {
+    if (!selectedTable || tableColumnCount <= 1) return;
+    const rows = tableRows.map((row) => row.filter((_, columnIndex) => columnIndex !== tableColumn));
+    const alignments = (selectedTable.alignments ?? []).filter((_, columnIndex) => columnIndex !== tableColumn);
+    patchTable({ rows, alignments });
+    setSelectedTableCell({ row: tableRow, column: Math.min(tableColumn, tableColumnCount - 2) });
+  };
+  const replaceTableFromMarkdown = () => {
+    if (!selectedTable) return;
+    const parsed = parseMarkdownTable(tableMarkdown);
+    if (!parsed) {
+      setTableMarkdownError('Check the Markdown table. It needs a separator row, up to 8 rows and up to 4 columns.');
+      return;
+    }
+    patchTable({
+      content: parsed.content,
+      rows: parsed.rows,
+      headerRow: parsed.headerRow,
+      headerColumn: parsed.headerColumn,
+      alignments: parsed.alignments,
+      borderMode: parsed.borderMode,
+      stripedRows: parsed.stripedRows,
+      borderColor: parsed.borderColor,
+      cellBackground: parsed.cellBackground,
+      cellPadding: parsed.cellPadding,
+    });
+    setSelectedTableCell({ row: 0, column: 0 });
+    setTableMarkdown('');
+    setTableMarkdownError('');
+    setPendingTableMarkdown('');
+  };
+  const replacePastedTable = (markdown: string) => {
+    if (!selectedTable) return;
+    const parsed = parseMarkdownTable(markdown);
+    if (!parsed) return;
+    patchTable({
+      content: parsed.content,
+      rows: parsed.rows,
+      headerRow: parsed.headerRow,
+      headerColumn: parsed.headerColumn,
+      alignments: parsed.alignments,
+      borderMode: parsed.borderMode,
+      stripedRows: parsed.stripedRows,
+      borderColor: parsed.borderColor,
+      cellBackground: parsed.cellBackground,
+      cellPadding: parsed.cellPadding,
+    });
+    setSelectedTableCell({ row: 0, column: 0 });
+    setPendingTableMarkdown('');
+  };
+  const handleTableCellKeyDown = (event: KeyboardEvent<HTMLInputElement>, row: number, column: number) => {
+    if (!selectedTable) return;
+    let nextRow = row;
+    let nextColumn = column;
+    if (event.key === 'Tab' && !event.shiftKey && row === tableRows.length - 1 && column === tableColumnCount - 1 && tableRows.length < 8) {
+      event.preventDefault();
+      addTableRow();
+      return;
+    }
+    if (event.key === 'ArrowDown' && row < tableRows.length - 1) nextRow += 1;
+    else if (event.key === 'ArrowUp' && row > 0) nextRow -= 1;
+    else if (event.altKey && event.key === 'ArrowRight' && column < tableColumnCount - 1) nextColumn += 1;
+    else if (event.altKey && event.key === 'ArrowLeft' && column > 0) nextColumn -= 1;
+    else if (event.key === 'Enter' && row < tableRows.length - 1) nextRow += 1;
+    else return;
+    event.preventDefault();
+    setSelectedTableCell({ row: nextRow, column: nextColumn });
+    focusTableCell(nextRow, nextColumn);
+  };
+  const add = (kind: BlockKind) => insertBlock(makeBlock(kind));
+  const handleCanvasPaste = (event: ClipboardEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    if (target.closest('input, textarea, select, [contenteditable="true"]')) return;
+    const table = parseMarkdownTable(event.clipboardData.getData('text/plain'));
+    if (!table) return;
+    event.preventDefault();
+    insertBlock(table);
   };
   const insertVariable = (e: ChangeEvent<HTMLSelectElement>) => {
     const name = e.target.value;
@@ -199,6 +337,50 @@ export function TemplatesEditor({
         return <div className={s.emSpacer} style={{ height: block.height ?? 24 }}>SPACER · {block.height ?? 24} PX</div>;
       case 'divider':
         return <hr className={s.emRule} />;
+      case 'table': {
+        const rows = block.rows ?? [];
+        const borderColor = block.borderColor ?? TOKENS.line;
+        const borderStyle: CSSProperties = block.borderMode === 'none'
+          ? { border: 0 }
+          : block.borderMode === 'horizontal'
+            ? { borderTop: `1px solid ${borderColor}`, borderBottom: `1px solid ${borderColor}` }
+            : { border: `1px solid ${borderColor}` };
+        const renderRow = (row: TableCell[], rowIndex: number) => {
+          const isHeaderRow = Boolean(block.headerRow && rowIndex === 0);
+          const striped = Boolean(block.stripedRows && !isHeaderRow && (rowIndex - Number(Boolean(block.headerRow))) % 2 === 1);
+          return (
+            <tr key={`${block.id}-row-${rowIndex}`}>
+              {row.map((cell, columnIndex) => {
+                const isHeaderColumn = Boolean(block.headerColumn && columnIndex === 0 && !isHeaderRow);
+                const isHeader = isHeaderRow || isHeaderColumn;
+                const style: CSSProperties = {
+                  ...borderStyle,
+                  padding: block.cellPadding ?? 8,
+                  textAlign: block.alignments?.[columnIndex] ?? 'left',
+                  background: isHeader ? TOKENS.honey : striped ? TOKENS.paper : (block.cellBackground ?? '#FFFFFF'),
+                  fontWeight: isHeader ? 700 : 400,
+                };
+                const content = cell.type === 'image'
+                  ? <img src={cell.src} alt={cell.alt} className={s.tableImage} />
+                  : withVars(cell.text);
+                return isHeader
+                  ? <th key={`${block.id}-${rowIndex}-${columnIndex}`} scope={isHeaderRow ? 'col' : 'row'} style={style}>{content}</th>
+                  : <td key={`${block.id}-${rowIndex}-${columnIndex}`} style={style}>{content}</td>;
+              })}
+            </tr>
+          );
+        };
+        return (
+          <div className={s.tablePreviewWrap}>
+            <table className={s.tablePreview}>
+              {block.headerRow && rows.length > 0 && <thead>{renderRow(rows[0], 0)}</thead>}
+              <tbody>
+                {rows.slice(block.headerRow ? 1 : 0).map((row, index) => renderRow(row, index + Number(Boolean(block.headerRow))))}
+              </tbody>
+            </table>
+          </div>
+        );
+      }
       case 'columns2':
       case 'columns3': {
         const n = block.kind === 'columns2' ? 2 : 3;
@@ -304,7 +486,7 @@ export function TemplatesEditor({
                 </div>
               </div>
 
-              <div className={s.canvasScroll}>
+              <div className={s.canvasScroll} onPaste={handleCanvasPaste}>
                 {mode === 'visual' ? (
                   <div className={s.email} style={{ width: widthPx, background: theme.background, fontFamily: FONT_STACKS[theme.font] }}>
                     {blocks.map((block, i) => {
@@ -349,6 +531,184 @@ export function TemplatesEditor({
                     <textarea id="blockContent" className={s.textarea} rows={4} value={selected.content}
                       onChange={(e) => update(selected.id, { content: e.target.value })} />
                   </div>
+                )}
+
+                {selectedTable && (
+                  <section className={s.tableEditor} aria-labelledby="tableEditorTitle">
+                    <div className={s.tableEditorHead}>
+                      <div>
+                        <h3 className={s.h3} id="tableEditorTitle">Table</h3>
+                        <span className={s.mono}>{tableRows.length} ROWS · {tableColumnCount} COLUMNS</span>
+                      </div>
+                      <button type="button" className={s.tool} onClick={() => remove(selectedTable.id)}>
+                        <Icon name="trash" className={s.icon} />Remove table
+                      </button>
+                    </div>
+
+                    {pendingTableMarkdown && (
+                      <div className={s.tableConfirm} role="group" aria-label="Replace table confirmation">
+                        <p className={s.emptyNote}>Replace this table with the pasted Markdown table?</p>
+                        <div className={s.tableActions}>
+                          <button type="button" className={s.primary} onClick={() => replacePastedTable(pendingTableMarkdown)}>Replace table</button>
+                          <button type="button" className={s.tool} onClick={() => setPendingTableMarkdown('')}>Keep current table</button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className={s.tableGrid} role="group" aria-label="Table cells">
+                      {tableRows.map((row, rowIndex) => (
+                        <div className={s.tableGridRow} style={{ gridTemplateColumns: `56px repeat(${row.length}, minmax(54px, 1fr))` }} key={`${selectedTable.id}-edit-row-${rowIndex}`}>
+                          <span className={cx(s.mono, s.tableRowLabel)}>{selectedTable.headerRow && rowIndex === 0 ? 'HEADER' : `ROW ${rowIndex + 1}`}</span>
+                          {row.map((cell, columnIndex) => {
+                            const id = tableInputId(rowIndex, columnIndex);
+                            const isSelectedCell = rowIndex === tableRow && columnIndex === tableColumn;
+                            const isHeader = Boolean((selectedTable.headerRow && rowIndex === 0) || (selectedTable.headerColumn && columnIndex === 0));
+                            return cell.type === 'image' ? (
+                              <button
+                                key={id}
+                                type="button"
+                                className={s.tableImageCell}
+                                data-selected={isSelectedCell}
+                                aria-label={`Row ${rowIndex + 1}, column ${columnIndex + 1}, image${cell.alt ? `: ${cell.alt}` : ''}`}
+                                aria-pressed={isSelectedCell}
+                                onFocus={() => setSelectedTableCell({ row: rowIndex, column: columnIndex })}
+                                onClick={() => setSelectedTableCell({ row: rowIndex, column: columnIndex })}
+                              >
+                                <span className={s.imageBadge}>IMAGE</span>
+                                <span>{cell.alt || 'Add image alt text'}</span>
+                              </button>
+                            ) : (
+                              <input
+                                key={id}
+                                ref={(element) => { tableCellInputs.current[id] = element; }}
+                                className={s.tableCellInput}
+                                data-selected={isSelectedCell}
+                                data-header={isHeader}
+                                aria-label={`Row ${rowIndex + 1}, column ${columnIndex + 1}${isHeader ? ', header' : ''}`}
+                                maxLength={200}
+                                value={cell.text}
+                                onFocus={() => setSelectedTableCell({ row: rowIndex, column: columnIndex })}
+                                onChange={(event) => patchTableCell(rowIndex, columnIndex, { type: 'text', text: event.target.value })}
+                                onKeyDown={(event) => handleTableCellKeyDown(event, rowIndex, columnIndex)}
+                                onPaste={(event) => {
+                                  const pasted = event.clipboardData.getData('text/plain');
+                                  if (pasted.includes('|') && parseMarkdownTable(pasted)) {
+                                    event.preventDefault();
+                                    setPendingTableMarkdown(pasted);
+                                  }
+                                }}
+                              />
+                            );
+                          })}
+                        </div>
+                      ))}
+                    </div>
+
+                    <p className={s.tableHint}>Select a cell to edit it. Tab in the final cell adds a row. Text cells allow up to 200 characters.</p>
+
+                    {selectedTableCellValue?.type === 'text' && (
+                      <div className={s.tableCellTools}>
+                        <div className={s.field}>
+                          <label className={s.label} htmlFor="cellType">Cell content</label>
+                          <select id="cellType" className={s.selectPlain} value="text" onChange={(event) => {
+                            if (event.target.value === 'image') patchTableCell(tableRow, tableColumn, { type: 'image', src: '', alt: '' });
+                          }}>
+                            <option value="text">Text</option>
+                            <option value="image">Image</option>
+                          </select>
+                        </div>
+                        <div className={s.field}>
+                          <span className={s.label} id="tableColumnAlignLabel">Alignment for column {tableColumn + 1}</span>
+                          <div className={cx(s.seg, s.segFull)} role="group" aria-labelledby="tableColumnAlignLabel">
+                            <SegButton icon="alignLeft" label="Align left" iconOnly pressed={selectedTable.alignments?.[tableColumn] === 'left'} onClick={() => {
+                              const alignments = [...(selectedTable.alignments ?? [])]; alignments[tableColumn] = 'left'; patchTable({ alignments });
+                            }} />
+                            <SegButton icon="alignCenter" label="Align centre" iconOnly pressed={selectedTable.alignments?.[tableColumn] === 'center'} onClick={() => {
+                              const alignments = [...(selectedTable.alignments ?? [])]; alignments[tableColumn] = 'center'; patchTable({ alignments });
+                            }} />
+                            <SegButton icon="alignRight" label="Align right" iconOnly pressed={selectedTable.alignments?.[tableColumn] === 'right'} onClick={() => {
+                              const alignments = [...(selectedTable.alignments ?? [])]; alignments[tableColumn] = 'right'; patchTable({ alignments });
+                            }} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedTableCellValue?.type === 'text' && /\{\{[^}]*$/.test(selectedTableCellValue.text) && (
+                      <p className={s.tableValidation} role="status">Finish the variable with {'}}'} (for example, {'{{first_name}}'}).</p>
+                    )}
+
+                    {selectedTableCellValue?.type === 'image' && (
+                      <div className={s.tableCellTools}>
+                        <div className={s.field}>
+                          <label className={s.label} htmlFor="cellType">Cell content</label>
+                          <select id="cellType" className={s.selectPlain} value="image" onChange={(event) => {
+                            if (event.target.value === 'text') patchTableCell(tableRow, tableColumn, { type: 'text', text: '' });
+                          }}>
+                            <option value="text">Text</option>
+                            <option value="image">Image</option>
+                          </select>
+                        </div>
+                        <div className={s.field}>
+                          <label className={s.label} htmlFor="tableImageAddress">Image address</label>
+                          <input id="tableImageAddress" className={s.input} type="url" inputMode="url" placeholder="https://example.com/image.jpg"
+                            value={selectedTableCellValue.src} onChange={(event) => patchTableCell(tableRow, tableColumn, { ...selectedTableCellValue, src: event.target.value })} />
+                          {!selectedTableCellValue.src.startsWith('https://') && <span className={s.tableValidation}>Use a full HTTPS image link.</span>}
+                        </div>
+                        <div className={s.field}>
+                          <label className={s.label} htmlFor="tableImageAlt">Alt text</label>
+                          <input id="tableImageAlt" className={s.input} maxLength={125} value={selectedTableCellValue.alt}
+                            onChange={(event) => patchTableCell(tableRow, tableColumn, { ...selectedTableCellValue, alt: event.target.value })} />
+                          {(!selectedTableCellValue.alt.trim() || selectedTableCellValue.alt.length > 125) && <span className={s.tableValidation}>Describe the image in 1 to 125 characters.</span>}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className={s.tableActions} role="group" aria-label="Rows and columns">
+                      <button type="button" className={s.tool} onClick={() => addTableRow(false)} disabled={tableRows.length >= 8}>Add row below</button>
+                      <button type="button" className={s.tool} onClick={removeTableRow} disabled={tableRows.length <= 1}>Remove row</button>
+                      <button type="button" className={s.tool} onClick={addTableColumn} disabled={tableColumnCount >= 4}>Add column right</button>
+                      <button type="button" className={s.tool} onClick={removeTableColumn} disabled={tableColumnCount <= 1}>Remove column</button>
+                    </div>
+
+                    <div className={s.tableOptions}>
+                      <label className={s.checkField}>
+                        <input type="checkbox" checked={Boolean(selectedTable.headerRow)} onChange={(event) => patchTable({ headerRow: event.target.checked })} />
+                        First row is a header
+                      </label>
+                      <label className={s.checkField}>
+                        <input type="checkbox" checked={Boolean(selectedTable.headerColumn)} onChange={(event) => patchTable({ headerColumn: event.target.checked })} />
+                        First column is a header
+                      </label>
+                      <label className={s.checkField}>
+                        <input type="checkbox" checked={Boolean(selectedTable.stripedRows)} onChange={(event) => patchTable({ stripedRows: event.target.checked })} />
+                        Striped rows
+                      </label>
+                      <div className={s.field}>
+                        <label className={s.label} htmlFor="tableBorderMode">Borders</label>
+                        <select id="tableBorderMode" className={s.selectPlain} value={selectedTable.borderMode ?? 'all'} onChange={(event) => patchTable({ borderMode: event.target.value as Block['borderMode'] })}>
+                          <option value="all">All</option><option value="horizontal">Horizontal</option><option value="none">None</option>
+                        </select>
+                      </div>
+                      <div className={s.field}>
+                        <label className={s.label} htmlFor="tableCellPadding">Cell padding</label>
+                        <select id="tableCellPadding" className={s.selectPlain} value={selectedTable.cellPadding ?? 8} onChange={(event) => patchTable({ cellPadding: Number(event.target.value) })}>
+                          <option value={4}>Tight, 4px</option><option value={8}>Comfortable, 8px</option><option value={12}>Roomy, 12px</option><option value={16}>Spacious, 16px</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <details className={s.markdownPanel}>
+                      <summary>Replace from Markdown</summary>
+                      <div className={s.field}>
+                        <label className={s.label} htmlFor="tableMarkdown">Paste a Markdown table</label>
+                        <textarea id="tableMarkdown" className={s.textarea} rows={5} value={tableMarkdown} onChange={(event) => { setTableMarkdown(event.target.value); setTableMarkdownError(''); }} />
+                        <span className={s.tableHint}>The separator row sets each column’s alignment. HTTPS image cells need alt text.</span>
+                        {tableMarkdownError && <span role="alert" className={s.tableValidation}>{tableMarkdownError}</span>}
+                        <button type="button" className={s.primary} onClick={replaceTableFromMarkdown}>Replace table</button>
+                      </div>
+                    </details>
+                  </section>
                 )}
 
                 {selected?.style && (

@@ -144,6 +144,40 @@
 .emRule { width: 100%; height: 2px; margin: 6px 0; border: 0; background: var(--line); }
 .emCols { display: grid; gap: 12px; }
 .emCol { min-height: 56px; border: 2px dashed var(--line); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 11px; letter-spacing: .06em; color: var(--pencil); }
+.tablePreviewWrap { width: 100%; min-width: 0; overflow-x: auto; }
+.tablePreview { width: 100%; border-collapse: collapse; table-layout: fixed; color: var(--ink); font-size: 14px; line-height: 1.45; }
+.tablePreview th, .tablePreview td { overflow-wrap: anywhere; vertical-align: top; }
+.tableImage { display: block; width: 100%; max-width: 100%; height: auto; border: 0; }
+.tableEditor { display: flex; flex-direction: column; gap: 12px; padding: 12px; border: 2px solid var(--ink); border-radius: 14px; background: var(--chalk); box-shadow: 0 2px 0 var(--ink); min-width: 0; }
+.tableEditorHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.tableEditorHead > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.tableEditorHead .mono { font-size: 10px; letter-spacing: .035em; white-space: nowrap; }
+.tableGrid { display: flex; flex-direction: column; gap: 6px; min-width: 0; overflow-x: auto; padding: 2px; }
+.tableGridRow { display: grid; gap: 5px; min-width: max-content; align-items: stretch; }
+.tableRowLabel { display: flex; align-items: center; font-size: 9px; letter-spacing: .015em; white-space: nowrap; }
+.tableCellInput, .tableImageCell { min-width: 54px; min-height: 42px; box-sizing: border-box; border: 2px solid var(--ink); border-radius: 9px; background: #fff; padding: 7px 8px; color: var(--ink); font-size: 12px; line-height: 1.25; }
+.tableCellInput { width: 100%; font-weight: 600; }
+.tableCellInput[data-header='true'] { background: var(--honey-tint); font-weight: 800; }
+.tableCellInput[data-selected='true'], .tableImageCell[data-selected='true'] { background: var(--honey); box-shadow: 0 0 0 2px var(--chalk), 0 0 0 4px var(--ink); }
+.tableImageCell { display: flex; align-items: center; gap: 6px; text-align: left; cursor: pointer; overflow: hidden; }
+.tableImageCell > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.imageBadge { flex-shrink: 0; padding: 3px 5px; border: 1px solid var(--ink); border-radius: 999px; background: var(--paper); font-family: var(--mono); font-size: 8px; font-weight: 700; }
+.tableHint { margin: 0; color: var(--graphite); font-size: 11px; line-height: 1.45; }
+.tableCellTools { display: flex; flex-direction: column; gap: 10px; padding: 12px 0; border-top: 2px solid var(--line); border-bottom: 2px solid var(--line); }
+.tableActions { display: flex; flex-wrap: wrap; gap: 7px; }
+.tableActions .tool { min-height: 42px; height: auto; white-space: normal; line-height: 1.2; }
+.tableOptions { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; border-top: 2px solid var(--line); }
+.checkField { display: flex; align-items: center; gap: 9px; min-height: 32px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.checkField input { width: 18px; height: 18px; accent-color: var(--tomato); }
+.tableEditor .input, .tableEditor .selectPlain { width: 100%; min-height: 44px; box-sizing: border-box; padding: 0 12px; border: 2px solid var(--ink); border-radius: 10px; background: #fff; font-size: 13px; }
+.tableValidation { color: #8f2e18; font-size: 12px; font-weight: 700; line-height: 1.4; }
+.tableConfirm { display: flex; flex-direction: column; gap: 9px; padding: 10px; border: 2px solid var(--ink); border-radius: 10px; background: var(--honey-tint); }
+.tableConfirm .tableActions { align-items: center; }
+.tableConfirm .primary, .markdownPanel .primary { min-height: 44px; height: auto; padding: 8px 12px; font-size: 13px; }
+.markdownPanel { border-top: 2px solid var(--line); padding-top: 10px; }
+.markdownPanel summary { min-height: 44px; display: flex; align-items: center; font-size: 13px; font-weight: 800; cursor: pointer; }
+.markdownPanel[open] summary { margin-bottom: 10px; }
+.markdownPanel .field { gap: 8px; }
 .code { width: 600px; max-width: 100%; box-sizing: border-box; margin: 0; padding: 18px 20px; border: 2px solid var(--ink); border-radius: 14px; background: var(--chalk); box-shadow: 0 3px 0 var(--ink); font-family: var(--mono); font-size: 12.5px; line-height: 1.6; color: var(--graphite); white-space: pre-wrap; overflow-wrap: anywhere; }
 
 /* Inspector */

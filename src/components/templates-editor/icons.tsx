@@ -14,6 +14,7 @@ const PATHS = {
   image: 'M4 5h16v14H4zM4 15l5-5 4 4 3-3 4 4M16 9h.01',
   button: 'M3 8h18v8H3zM8 12h8',
   divider: 'M4 12h16M12 5v3M12 16v3',
+  table: 'M3 4h18v16H3zM3 10h18M9 4v16M15 4v16',
   spacer: 'M4 4h16M4 20h16M12 8v8M9 11l3-3 3 3M9 13l3 3 3-3',
   columns2: 'M4 4h7v16H4zM13 4h7v16h-7z',
   columns3: 'M3 4h5v16H3zM9.5 4h5v16h-5zM16 4h5v16h-5z',

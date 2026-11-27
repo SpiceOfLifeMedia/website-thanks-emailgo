@@ -41,8 +41,24 @@ export type EmailDesignButtonBlock = {
 export type EmailDesignDividerBlock = { id: string; type: 'divider' };
 export type EmailDesignSpacerBlock = { id: string; type: 'spacer'; height: number };
 export type EmailDesignColumnsBlock = { id: string; type: 'columns'; columns: EmailDesignBlock[][] };
+export type EmailDesignTableCell =
+  | { type: 'text'; text: string }
+  | { type: 'image'; src: string; alt: string };
+export type EmailDesignTableBlock = {
+  id: string;
+  type: 'table';
+  rows: EmailDesignTableCell[][];
+  headerRow: boolean;
+  headerColumn: boolean;
+  alignments: EmailDesignAlignment[];
+  borderMode: 'all' | 'horizontal' | 'none';
+  stripedRows: boolean;
+  borderColor: string;
+  cellBackground: string;
+  cellPadding: number;
+};
 
-export type EmailDesignBlock = EmailDesignTextBlock | EmailDesignHeadingBlock | EmailDesignImageBlock | EmailDesignButtonBlock | EmailDesignDividerBlock | EmailDesignSpacerBlock | EmailDesignColumnsBlock;
+export type EmailDesignBlock = EmailDesignTextBlock | EmailDesignHeadingBlock | EmailDesignImageBlock | EmailDesignButtonBlock | EmailDesignDividerBlock | EmailDesignSpacerBlock | EmailDesignColumnsBlock | EmailDesignTableBlock;
 
 export type EmailDesign = {
   version: 1;
@@ -156,6 +172,58 @@ function validateBlock(value: unknown, path: string, seenIds: Set<string>, neste
     return { ok: true, block: { id, type, height } };
   }
 
+  if (type === 'table') {
+    if (!Array.isArray(value.rows) || value.rows.length < 1 || value.rows.length > 8) return { ok: false, error: `${path}.rows must contain one to eight rows.` };
+    const firstRow = value.rows[0];
+    if (!Array.isArray(firstRow) || firstRow.length < 1 || firstRow.length > 4) return { ok: false, error: `${path}.rows must contain one to four cells per row.` };
+    const columnCount = firstRow.length;
+    const rows: EmailDesignTableCell[][] = [];
+    for (const [rowIndex, row] of value.rows.entries()) {
+      if (!Array.isArray(row) || row.length !== columnCount) return { ok: false, error: `${path}.rows[${rowIndex}] must contain ${columnCount} cells.` };
+      const cells: EmailDesignTableCell[] = [];
+      for (const [columnIndex, cell] of row.entries()) {
+        const cellPath = `${path}.rows[${rowIndex}][${columnIndex}]`;
+        if (typeof cell === 'string') {
+          const content = safeText(cell, cellPath, 200);
+          if (!content.ok) return content;
+          cells.push({ type: 'text', text: content.value });
+          continue;
+        }
+        if (!isRecord(cell)) return { ok: false, error: `${cellPath} must be text or an image cell.` };
+        if (cell.type === 'text') {
+          const content = safeText(cell.text, `${cellPath}.text`, 200);
+          if (!content.ok) return content;
+          cells.push({ type: 'text', text: content.value });
+          continue;
+        }
+        if (cell.type !== 'image') return { ok: false, error: `${cellPath}.type must be text or image.` };
+        const src = safeText(cell.src, `${cellPath}.src`, 2_000);
+        const alt = safeText(cell.alt, `${cellPath}.alt`, 125);
+        if (!src.ok) return src;
+        if (!alt.ok) return alt;
+        if (!alt.value.trim()) return { ok: false, error: `${cellPath}.alt must describe the image.` };
+        if (/[\u0000-\u0020"'<>]/.test(src.value)) return { ok: false, error: `${cellPath}.src must be an HTTPS image URL.` };
+        let imageUrl: URL;
+        try { imageUrl = new URL(src.value); } catch { return { ok: false, error: `${cellPath}.src must be an HTTPS image URL.` }; }
+        if (imageUrl.protocol !== 'https:') return { ok: false, error: `${cellPath}.src must be an HTTPS image URL.` };
+        cells.push({ type: 'image', src: src.value, alt: alt.value });
+      }
+      rows.push(cells);
+    }
+    if (typeof value.headerRow !== 'boolean') return { ok: false, error: `${path}.headerRow must be a boolean.` };
+    if (typeof value.headerColumn !== 'boolean') return { ok: false, error: `${path}.headerColumn must be a boolean.` };
+    if (!Array.isArray(value.alignments) || value.alignments.length !== columnCount || !value.alignments.every(safeAlignment)) return { ok: false, error: `${path}.alignments must contain one left, center, or right value per column.` };
+    if (value.borderMode !== 'all' && value.borderMode !== 'horizontal' && value.borderMode !== 'none') return { ok: false, error: `${path}.borderMode must be all, horizontal, or none.` };
+    if (typeof value.stripedRows !== 'boolean') return { ok: false, error: `${path}.stripedRows must be a boolean.` };
+    const borderColor = safeColor(value.borderColor, `${path}.borderColor`);
+    const cellBackground = safeColor(value.cellBackground, `${path}.cellBackground`);
+    if (!borderColor.ok) return borderColor;
+    if (!cellBackground.ok) return cellBackground;
+    const cellPadding = value.cellPadding;
+    if (typeof cellPadding !== 'number' || !Number.isInteger(cellPadding) || cellPadding < 0 || cellPadding > 24) return { ok: false, error: `${path}.cellPadding must be between 0 and 24 pixels.` };
+    return { ok: true, block: { id, type, rows, headerRow: value.headerRow, headerColumn: value.headerColumn, alignments: value.alignments as EmailDesignAlignment[], borderMode: value.borderMode, stripedRows: value.stripedRows, borderColor: borderColor.value, cellBackground: cellBackground.value, cellPadding } };
+  }
+
   if (type === 'columns') {
     if (nested) return { ok: false, error: `${path} cannot contain nested columns.` };
     if (!Array.isArray(value.columns) || value.columns.length < 2 || value.columns.length > 3) return { ok: false, error: `${path}.columns must contain two or three columns.` };
@@ -238,6 +306,30 @@ function renderBlocks(blocks: EmailDesignBlock[], design: EmailDesign): string {
     }
     if (block.type === 'divider') return '<tr><td style="padding:10px 28px;"><table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td style="border-top:1px solid #E3DCD0;font-size:0;line-height:0;">&nbsp;</td></tr></table></td></tr>';
     if (block.type === 'spacer') return `<tr><td height="${block.height}" style="height:${block.height}px;font-size:0;line-height:0;">&nbsp;</td></tr>`;
+    if (block.type === 'table') {
+      const columnWidth = `${Math.floor(100 / block.rows[0].length)}%`;
+      const renderTableRow = (row: EmailDesignTableCell[], rowIndex: number) => {
+        const isRowHeader = block.headerRow && rowIndex === 0;
+        const cells = row.map((cell, columnIndex) => {
+          const isColumnHeader = block.headerColumn && columnIndex === 0;
+          const isHeader = isRowHeader || isColumnHeader;
+          const tag = isHeader ? 'th' : 'td';
+          const scope = isRowHeader ? 'col' : isColumnHeader ? 'row' : null;
+          const background = isHeader ? '#F7D56E' : block.stripedRows && (rowIndex - (block.headerRow ? 1 : 0)) % 2 === 1 ? '#F4EEE3' : block.cellBackground;
+          const border = block.borderMode === 'all' ? `border:1px solid ${block.borderColor};` : block.borderMode === 'horizontal' ? `border-bottom:1px solid ${block.borderColor};` : 'border:0;';
+          const alignment = block.alignments[columnIndex];
+          const imageWidth = Math.floor((design.theme.contentWidth - 56) / row.length);
+          const cellContent = cell.type === 'image'
+            ? `<img src="${escapeAttribute(cell.src)}" alt="${escapeAttribute(cell.alt)}" width="${imageWidth}" style="display:block;width:100%;max-width:${imageWidth}px;height:auto;border:0;">`
+            : escapeText(cell.text);
+          return `<${tag} align="${alignment}"${scope ? ` scope="${scope}"` : ''} width="${columnWidth}" bgcolor="${background}" style="width:${columnWidth};${border}padding:${block.cellPadding}px;text-align:${alignment};vertical-align:top;background-color:${background};color:${design.theme.textColor};font-family:${fontFamily};font-size:14px;line-height:1.45;word-break:break-word;">${cellContent}</${tag}>`;
+        }).join('');
+        return `<tr>${cells}</tr>`;
+      };
+      const header = block.headerRow ? `<thead>${renderTableRow(block.rows[0], 0)}</thead>` : '';
+      const body = block.rows.slice(block.headerRow ? 1 : 0).map((row, index) => renderTableRow(row, index + Number(block.headerRow))).join('');
+      return `<tr><td style="padding:12px 28px;"><table role="table" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;table-layout:fixed;font-family:${fontFamily};">${header}<tbody>${body}</tbody></table></td></tr>`;
+    }
     const columnWidth = Math.floor(100 / block.columns.length);
     const columns = block.columns.map((column) => `<td width="${columnWidth}%" valign="top" style="width:${columnWidth}%;">${column.length ? `<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">${renderBlocks(column, design)}</table>` : '&nbsp;'}</td>`).join('');
     return `<tr><td style="padding:8px 20px;"><table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr>${columns}</tr></table></td></tr>`;
