@@ -18,7 +18,7 @@ async function __emailgo_GET_handler(request: Request, context: { params: Promis
   const auth = await authorize(request);
   if ('response' in auth && auth.response) return auth.response;
   const { id } = await context.params;
-  const contact = await queryOne<{ id: string; unsubscribed_at: string | null; consent_status: string }>('SELECT id,unsubscribed_at,consent_status FROM contacts WHERE id=?', [id]);
+  const contact = await queryOne<{ id: string; unsubscribed_at: string | null; consent_status: string }>('SELECT id,unsubscribed_at,consent_status FROM contacts WHERE id=? AND workspace_id=?', [id, auth.apiKey.workspaceId]);
   if (!contact) return error('Contact not found.', 404);
   const rows = await query<{ id: string; name: string; slug: string; description: string | null; subscribed_at: string | null; unsubscribed_at: string | null; consent_source: string | null; consented_at: string | null }>(`SELECT t.id,t.name,t.slug,t.description,ct.subscribed_at,ct.unsubscribed_at,ct.consent_source,ct.consented_at
     FROM topics t LEFT JOIN contact_topics ct ON ct.topic_id=t.id AND ct.contact_id=?
@@ -30,7 +30,7 @@ async function __emailgo_PUT_handler(request: Request, context: { params: Promis
   const auth = await authorize(request);
   if ('response' in auth && auth.response) return auth.response;
   const { id } = await context.params;
-  const contact = await queryOne<{ id: string; email: string; unsubscribed_at: string | null; consent_status: string; consent_source: string | null; consented_at: string | null }>('SELECT id,email,unsubscribed_at,consent_status,consent_source,consented_at FROM contacts WHERE id=?', [id]);
+  const contact = await queryOne<{ id: string; email: string; unsubscribed_at: string | null; consent_status: string; consent_source: string | null; consented_at: string | null }>('SELECT id,email,unsubscribed_at,consent_status,consent_source,consented_at FROM contacts WHERE id=? AND workspace_id=?', [id, auth.apiKey.workspaceId]);
   if (!contact) return error('Contact not found.', 404);
   const parsed = await readJsonLimited(request, 20_000);
   if (!parsed.ok) return error(parsed.error, parsed.status);
@@ -67,8 +67,8 @@ async function __emailgo_PUT_handler(request: Request, context: { params: Promis
       params: [id, topicId, remainsActive ? previous?.subscribed_at : timestamp, topicSource, topicConsentedAt],
     });
   }
-  if (topicIds.length) statements.push({ sql: "UPDATE contacts SET unsubscribed_at=NULL,consent_status='opted_in',consent_source=CASE WHEN consent_status='opted_in' AND unsubscribed_at IS NULL THEN consent_source ELSE ? END,consented_at=CASE WHEN consent_status='opted_in' AND unsubscribed_at IS NULL THEN consented_at ELSE ? END,updated_at=? WHERE id=?", params: [consentSource, timestamp, timestamp, id] });
-  else statements.push({ sql: 'UPDATE contacts SET updated_at=? WHERE id=?', params: [timestamp, id] });
+  if (topicIds.length) statements.push({ sql: "UPDATE contacts SET unsubscribed_at=NULL,consent_status='opted_in',consent_source=CASE WHEN consent_status='opted_in' AND unsubscribed_at IS NULL THEN consent_source ELSE ? END,consented_at=CASE WHEN consent_status='opted_in' AND unsubscribed_at IS NULL THEN consented_at ELSE ? END,updated_at=? WHERE id=? AND workspace_id=?", params: [consentSource, timestamp, timestamp, id, auth.apiKey.workspaceId] });
+  else statements.push({ sql: 'UPDATE contacts SET updated_at=? WHERE id=? AND workspace_id=?', params: [timestamp, id, auth.apiKey.workspaceId] });
   await transaction(statements);
   const changedSubscriptions = topicIds.some((topicId) => {
     const previous = existing.rows.find((topic) => topic.topic_id === topicId);

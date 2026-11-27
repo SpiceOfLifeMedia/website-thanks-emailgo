@@ -12,7 +12,7 @@ async function __emailgo_POST_handler(request: Request, context: { params: Promi
   if (!key) return error('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(key)) return error('This API key has sending-only access.', 403);
   const { id, segmentId } = await context.params;
-  const contact = await queryOne<{ id: string }>('SELECT id FROM contacts WHERE id=? OR lower(email)=lower(?) LIMIT 1', [id, id]);
+  const contact = await queryOne<{ id: string }>('SELECT id FROM contacts WHERE workspace_id=? AND (id=? OR lower(email)=lower(?)) LIMIT 1', [key.workspaceId, id, id]);
   if (!contact) return error('Contact not found.', 404);
   if (!await queryOne<{ id: string }>('SELECT id FROM segments WHERE id=?', [segmentId])) return error('Segment not found.', 404);
   const timestamp = nowIso();
@@ -28,7 +28,7 @@ async function __emailgo_DELETE_handler(request: Request, context: { params: Pro
   if (!key) return error('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(key)) return error('This API key has sending-only access.', 403);
   const { id, segmentId } = await context.params;
-  const contact = await queryOne<{ id: string }>('SELECT id FROM contacts WHERE id=? OR lower(email)=lower(?) LIMIT 1', [id, id]);
+  const contact = await queryOne<{ id: string }>('SELECT id FROM contacts WHERE workspace_id=? AND (id=? OR lower(email)=lower(?)) LIMIT 1', [key.workspaceId, id, id]);
   if (!contact) return error('Contact not found.', 404);
   if (!await queryOne<{ id: string }>('SELECT id FROM segments WHERE id=?', [segmentId])) return error('Segment not found.', 404);
   const timestamp = nowIso();

@@ -199,9 +199,13 @@ test('API key and domain routes isolate two workspaces', async (context) => {
 test('API contact collection and item routes isolate two workspaces', async (context) => {
   setupTemporaryDatabase(context, 'send-thanks-workspace-contacts-');
   const database = await import('../src/lib/database.ts');
-  const [contactCollection, contactItem] = await Promise.all([
+  const [contactCollection, contactItem, contactTopics, contactSegments, contactSegment, eventSend] = await Promise.all([
     import('../src/app/api/v1/contacts/route.ts'),
     import('../src/app/api/v1/contacts/[id]/route.ts'),
+    import('../src/app/api/v1/contacts/[id]/topics/route.ts'),
+    import('../src/app/api/v1/contacts/[id]/segments/route.ts'),
+    import('../src/app/api/v1/contacts/[id]/segments/[segmentId]/route.ts'),
+    import('../src/app/api/v1/events/send/route.ts'),
   ]);
   const timestamp = '2026-01-01T00:00:00.000Z';
   await database.execute('INSERT INTO workspaces(id,name,created_at) VALUES(?,?,?)', ['workspace_a', 'Workspace A', timestamp]);
@@ -226,6 +230,8 @@ test('API contact collection and item routes isolate two workspaces', async (con
   await seedContact('contact_a_older', 'shared@example.test', 'workspace_a', '2026-01-02T00:00:00.000Z');
   await seedContact('contact_a_newer', 'a-newer@example.test', 'workspace_a', '2026-01-03T00:00:00.000Z');
   await seedContact('contact_b', 'b-only@example.test', 'workspace_b', '2026-01-04T00:00:00.000Z');
+  await database.execute('INSERT INTO segments(id,name,filters_json,created_at,updated_at) VALUES(?,?,?,?,?)', ['shared_segment', 'Shared segment', '{"tags_all":["active"]}', timestamp, timestamp]);
+  await database.execute('INSERT INTO topics(id,name,slug,description,created_at,updated_at) VALUES(?,?,?,?,?,?)', ['shared_topic', 'Shared topic', 'shared-topic', null, timestamp, timestamp]);
 
   async function request(handler, workspaceId, method = 'GET', path = 'http://send-thanks.test/api/v1/contacts', body, contextValue) {
     await database.execute('DELETE FROM api_request_limits');
@@ -240,6 +246,7 @@ test('API contact collection and item routes isolate two workspaces', async (con
     return contextValue === undefined ? handler(request) : handler(request, contextValue);
   }
   const params = (id) => ({ params: Promise.resolve({ id }) });
+  const contactSegmentParams = (id, segmentId) => ({ params: Promise.resolve({ id, segmentId }) });
 
   const firstPage = await request(contactCollection.GET, 'workspace_a', 'GET', 'http://send-thanks.test/api/v1/contacts?limit=1');
   assert.equal(firstPage.status, 200);
@@ -263,10 +270,25 @@ test('API contact collection and item routes isolate two workspaces', async (con
   assert.equal(patchForeignContact.status, 404);
   const deleteForeignContact = await request(contactItem.DELETE, 'workspace_a', 'DELETE', 'http://send-thanks.test/api/v1/contacts/contact_b', undefined, params('contact_b'));
   assert.equal(deleteForeignContact.status, 404);
+  const foreignTopicRead = await request(contactTopics.GET, 'workspace_a', 'GET', 'http://send-thanks.test/api/v1/contacts/contact_b/topics', undefined, params('contact_b'));
+  assert.equal(foreignTopicRead.status, 404);
+  const foreignTopicWrite = await request(contactTopics.PUT, 'workspace_a', 'PUT', 'http://send-thanks.test/api/v1/contacts/contact_b/topics', { topic_ids: ['shared_topic'], consent_source: 'api request' }, params('contact_b'));
+  assert.equal(foreignTopicWrite.status, 404);
+  const foreignSegmentRead = await request(contactSegments.GET, 'workspace_a', 'GET', 'http://send-thanks.test/api/v1/contacts/contact_b/segments', undefined, params('contact_b'));
+  assert.equal(foreignSegmentRead.status, 404);
+  const foreignSegmentAdd = await request(contactSegment.POST, 'workspace_a', 'POST', 'http://send-thanks.test/api/v1/contacts/contact_b/segments/shared_segment', undefined, contactSegmentParams('contact_b', 'shared_segment'));
+  assert.equal(foreignSegmentAdd.status, 404);
+  const foreignSegmentRemove = await request(contactSegment.DELETE, 'workspace_a', 'DELETE', 'http://send-thanks.test/api/v1/contacts/contact_b/segments/shared_segment', undefined, contactSegmentParams('contact_b', 'shared_segment'));
+  assert.equal(foreignSegmentRemove.status, 404);
+  const foreignContactEvent = await request(eventSend.POST, 'workspace_a', 'POST', 'http://send-thanks.test/api/v1/events/send', { event: 'account.updated', contact_id: 'contact_b' });
+  assert.equal(foreignContactEvent.status, 404);
 
   const protectedContact = await database.queryOne('SELECT name,workspace_id FROM contacts WHERE id=?', ['contact_b']);
   assert.equal(protectedContact?.name, 'contact_b');
   assert.equal(protectedContact?.workspace_id, 'workspace_b');
+  assert.equal((await database.queryOne('SELECT COUNT(*) AS count FROM contact_topics WHERE contact_id=?', ['contact_b']))?.count, 0);
+  assert.equal((await database.queryOne('SELECT COUNT(*) AS count FROM segment_contacts WHERE contact_id=?', ['contact_b']))?.count, 0);
+  assert.equal((await database.queryOne('SELECT COUNT(*) AS count FROM segment_contact_exclusions WHERE contact_id=?', ['contact_b']))?.count, 0);
 
   const createdByA = await request(contactCollection.POST, 'workspace_a', 'POST', 'http://send-thanks.test/api/v1/contacts', { email: 'created-a@example.test', name: 'Created A' });
   assert.equal(createdByA.status, 201);

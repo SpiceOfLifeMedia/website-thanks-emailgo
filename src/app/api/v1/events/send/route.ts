@@ -34,8 +34,8 @@ export async function sendAutomationEventValue(request: Request, requestBody: un
     payload = validation.payload;
   }
   const contact = contactId
-    ? await queryOne<{ id: string; email: string }>('SELECT id,email FROM contacts WHERE id=?', [contactId])
-    : await queryOne<{ id: string; email: string }>('SELECT id,email FROM contacts WHERE lower(email)=lower(?)', [email]);
+    ? await queryOne<{ id: string; email: string }>('SELECT id,email FROM contacts WHERE id=? AND workspace_id=?', [contactId, key.workspaceId])
+    : await queryOne<{ id: string; email: string }>('SELECT id,email FROM contacts WHERE lower(email)=lower(?) AND workspace_id=?', [email, key.workspaceId]);
   if (contactId && !contact) return error('Contact not found.', 404);
   const idempotencyKey = request.headers.get('idempotency-key');
   if (idempotencyKey !== null && (!idempotencyKey || idempotencyKey.length > 200 || /[\r\n]/.test(idempotencyKey))) return error('Idempotency-Key must contain 1 to 200 single-line characters.', 400);
