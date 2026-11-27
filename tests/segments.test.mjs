@@ -59,6 +59,8 @@ test('segment parser validates bounded property, activity, tag and consent condi
   assert.equal(parseSegmentFilters({ groups: [{ match: 'any', rules: [{ type: 'property', key: 'x); DROP TABLE contacts;--', value_type: 'string', operator: 'equals', value: 'y' }] }] }).ok, false);
   assert.equal(parseSegmentFilters({ groups: [{ match: 'all', rules: [{ type: 'activity', event: 'email.opened', occurrence: 'occurred', within_days: 3651 }] }] }).ok, false);
   assert.equal(parseSegmentFilters({ groups: [{ match: 'all', rules: [{ type: 'property', key: 'spend', value_type: 'number', operator: 'contains', value: '10' }] }] }).ok, false);
+  assert.equal(parseSegmentFilters({ groups: [{ match: 'all', rules: [{ type: 'property', key: 'spend', value_type: 'number', operator: 'greater_than_or_equal', value: 10 }] }] }).ok, true);
+  assert.equal(parseSegmentFilters({ groups: [{ match: 'all', rules: [{ type: 'property', key: 'spend', value_type: 'number', operator: 'less_than_or_equal', value: 10 }] }] }).ok, true);
   assert.equal(parseSegmentFilters({ groups: [{ match: 'all', rules: [{ type: 'consent', operator: 'is', value: 'opted_out' }] }] }).ok, false);
   assert.equal(parseSegmentFilters({}).ok, false);
 });
@@ -69,6 +71,8 @@ test('contact property rules support exact text, number comparisons and empty st
     assert.deepEqual(matches(db, { groups: [{ match: 'all', rules: [{ type: 'property', key: 'plan', value_type: 'string', operator: 'equals', value: 'pro' }] }] }), ['a@example.test', 'c@example.test', 'd@example.test']);
     assert.deepEqual(matches(db, { groups: [{ match: 'all', rules: [{ type: 'property', key: 'plan', value_type: 'string', operator: 'contains', value: 'ro' }] }] }), ['a@example.test', 'c@example.test', 'd@example.test']);
     assert.deepEqual(matches(db, { groups: [{ match: 'all', rules: [{ type: 'property', key: 'spend', value_type: 'number', operator: 'greater_than', value: 100 }] }] }), ['a@example.test', 'd@example.test']);
+    assert.deepEqual(matches(db, { groups: [{ match: 'all', rules: [{ type: 'property', key: 'spend', value_type: 'number', operator: 'greater_than_or_equal', value: 125 }] }] }), ['a@example.test', 'd@example.test']);
+    assert.deepEqual(matches(db, { groups: [{ match: 'all', rules: [{ type: 'property', key: 'spend', value_type: 'number', operator: 'less_than_or_equal', value: 80 }] }] }), ['b@example.test']);
     assert.deepEqual(matches(db, { groups: [{ match: 'all', rules: [{ type: 'property', key: 'spend', value_type: 'number', operator: 'is_set' }] }] }), ['a@example.test', 'b@example.test', 'd@example.test']);
     assert.deepEqual(matches(db, { groups: [{ match: 'all', rules: [{ type: 'property', key: 'plan', value_type: 'string', operator: 'is_empty' }] }] }), []);
     assert.deepEqual(matches(db, { groups: [{ match: 'all', rules: [{ type: 'property', key: 'empty', value_type: 'string', operator: 'is_empty' }] }] }), ['a@example.test', 'b@example.test', 'c@example.test', 'd@example.test']);

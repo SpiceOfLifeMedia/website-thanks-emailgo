@@ -1,7 +1,7 @@
 export type SegmentEvent = 'email.sent' | 'email.delivered' | 'email.opened' | 'email.clicked' | 'email.bounced' | 'email.complained';
 export type SegmentPropertyType = 'string' | 'number';
 type StringPropertyOperator = 'equals' | 'not_equals' | 'contains' | 'is_set' | 'is_empty';
-type NumberPropertyOperator = 'equals' | 'not_equals' | 'greater_than' | 'less_than' | 'is_set' | 'is_empty';
+type NumberPropertyOperator = 'equals' | 'not_equals' | 'greater_than' | 'greater_than_or_equal' | 'less_than' | 'less_than_or_equal' | 'is_set' | 'is_empty';
 export type SegmentCondition =
   | { type: 'property'; key: string; value_type: 'string'; operator: StringPropertyOperator; value?: string }
   | { type: 'property'; key: string; value_type: 'number'; operator: NumberPropertyOperator; value?: number }
@@ -31,7 +31,7 @@ const propertyKeyPattern = /^[A-Za-z_][A-Za-z0-9_.-]{0,99}$/;
 const tagPattern = /^[A-Za-z0-9_-]{1,50}$/;
 const segmentEvents = new Set<SegmentEvent>(['email.sent', 'email.delivered', 'email.opened', 'email.clicked', 'email.bounced', 'email.complained']);
 const stringOperators = new Set(['equals', 'not_equals', 'contains', 'is_set', 'is_empty']);
-const numberOperators = new Set(['equals', 'not_equals', 'greater_than', 'less_than', 'is_set', 'is_empty']);
+const numberOperators = new Set(['equals', 'not_equals', 'greater_than', 'greater_than_or_equal', 'less_than', 'less_than_or_equal', 'is_set', 'is_empty']);
 const deliveryEventTypes: Partial<Record<SegmentEvent, string>> = {
   'email.delivered': 'delivered',
   'email.bounced': 'bounced',
@@ -55,8 +55,8 @@ function parseCondition(value: unknown): SegmentCondition | null {
       return { type: 'property', key: rule.key, value_type: 'string', operator: rule.operator, value: rule.value };
     }
     if (rule.value_type === 'number' && typeof rule.value === 'number' && Number.isFinite(rule.value)) {
-      if (rule.operator !== 'equals' && rule.operator !== 'not_equals' && rule.operator !== 'greater_than' && rule.operator !== 'less_than') return null;
-      return { type: 'property', key: rule.key, value_type: 'number', operator: rule.operator, value: rule.value };
+      if (!['equals', 'not_equals', 'greater_than', 'greater_than_or_equal', 'less_than', 'less_than_or_equal'].includes(rule.operator)) return null;
+      return { type: 'property', key: rule.key, value_type: 'number', operator: rule.operator as NumberPropertyOperator, value: rule.value };
     }
     return null;
   }
@@ -181,7 +181,12 @@ function propertyCondition(rule: Extract<SegmentCondition, { type: 'property' }>
     return { sql: `(${missing} OR ${emptyString})`, params: isPostgres ? [rule.key, rule.key, rule.key] : [rule.key, rule.key, rule.key, rule.key] };
   }
 
-  const comparison = rule.operator === 'equals' ? '=' : rule.operator === 'not_equals' ? '<>' : rule.operator === 'contains' ? 'LIKE' : rule.operator === 'greater_than' ? '>' : '<';
+  const comparison = rule.operator === 'equals' ? '='
+    : rule.operator === 'not_equals' ? '<>'
+      : rule.operator === 'contains' ? 'LIKE'
+        : rule.operator === 'greater_than' ? '>'
+          : rule.operator === 'greater_than_or_equal' ? '>='
+            : rule.operator === 'less_than' ? '<' : '<=';
   let compareValue: string | number = rule.value as string | number;
   if (rule.operator === 'contains') compareValue = `%${escapeLike(compareValue as string)}%`;
   const operator = rule.operator === 'contains' ? "LIKE ? ESCAPE '!'" : `${comparison} ?`;

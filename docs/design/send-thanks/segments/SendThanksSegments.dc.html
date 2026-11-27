@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#E9E1D3;font-family:'Schibsted Grotesk',sans-serif;color:#1C1916;-webkit-font-smoothing:antialiased}button,input,select{font:inherit;color:inherit}:focus{outline:none}:focus-visible{outline:3px solid #1C1916;outline-offset:2px;box-shadow:0 0 0 6px #F7D56E}[data-scroll]::-webkit-scrollbar{display:none}a{color:#1C1916}a:hover{color:#3D3832}@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}</style>
+</helmet>
+<div style="padding:56px 64px 64px;display:flex;flex-direction:column;gap:28px">
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:.08em;color:#6B6359">SEGMENTS · BUILDER + SAVED AUDIENCES · LIVE · ILLUSTRATIVE COUNTS</div>
+    <div style="font-size:34px;font-weight:800;letter-spacing:-.03em">Segment builder</div>
+    <div style="font-size:15px;color:#3D3832;max-width:880px">Every frame is live: change rules, add groups, switch AND/OR, pick a saved segment, and press Save segment to see validation. Counts are illustrative.</div>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start">
+  <sc-for list="{{ boards }}" as="b" hint-placeholder-count="4">
+    <div id="{{ b.id }}" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;gap:10px"><span style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:500;background:#1C1916;color:#FBF9F5;padding:4px 10px;border-radius:6px">{{ b.id }}</span><span style="font-size:17px;font-weight:700">{{ b.caption }}</span></div>
+      <div data-screen-label="{{ b.caption }}" style="width:{{ b.w }};height:{{ b.h }};border:2px solid #1C1916;border-radius:{{ b.frameRad }};overflow:hidden;background:#F4EEE3;box-shadow:{{ b.frameShadow }};display:flex;flex-direction:{{ b.dir }}">
+        <sc-if value="{{ b.desktop }}" hint-placeholder-val="{{ true }}">
+          <aside style="width:248px;flex-shrink:0;border-right:2px solid #1C1916;background:#FBF9F5;padding:24px 16px;display:flex;flex-direction:column;gap:28px;box-sizing:border-box">
+            <div style="display:flex;align-items:center;gap:10px;padding:0 8px" role="img" aria-label="Send, thanks"><svg width="32" height="32" viewBox="0 0 64 64" aria-hidden="true"><rect x="1.5" y="1.5" width="61" height="61" rx="16" style="fill:#FF5A36;stroke:#1C1916;stroke-width:3"></rect><circle cx="32" cy="23" r="9" style="fill:#FBF9F5"></circle><path d="M41 35.5C41 43 34 49 21 52C27 48 31 43.5 32.5 38.5Z" style="fill:#FBF9F5"></path></svg><span aria-hidden="true" style="font-size:21px;font-weight:800;letter-spacing:-.035em;white-space:nowrap">Send<span style="color:#FF5A36">,</span> thanks</span></div>
+            <nav aria-label="Dashboard" style="display:flex;flex-direction:column;gap:4px">
+              <sc-for list="{{ nav }}" as="n" hint-placeholder-count="6"><div aria-current="{{ n.current }}" style="display:flex;align-items:center;height:44px;padding:0 12px;border-radius:12px;border:2px solid {{ n.border }};background:{{ n.bg }};font-size:15px;font-weight:{{ n.weight }}">{{ n.label }}</div></sc-for>
+            </nav>
+          </aside>
+        </sc-if>
+        <sc-if value="{{ b.mobile }}" hint-placeholder-val="{{ false }}">
+          <header style="flex-shrink:0;height:56px;padding:0 16px;background:#FBF9F5;border-bottom:2px solid #1C1916;display:flex;align-items:center;justify-content:space-between">
+            <div style="display:flex;align-items:center;gap:8px" role="img" aria-label="Send, thanks"><svg width="32" height="32" viewBox="0 0 64 64" aria-hidden="true"><rect x="1.5" y="1.5" width="61" height="61" rx="16" style="fill:#FF5A36;stroke:#1C1916;stroke-width:3"></rect><circle cx="32" cy="23" r="9" style="fill:#FBF9F5"></circle><path d="M41 35.5C41 43 34 49 21 52C27 48 31 43.5 32.5 38.5Z" style="fill:#FBF9F5"></path></svg><span aria-hidden="true" style="font-size:19px;font-weight:800;letter-spacing:-.035em;white-space:nowrap">Send<span style="color:#FF5A36">,</span> thanks</span></div>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#6B6359">SEGMENTS</span>
+          </header>
+        </sc-if>
+
+        <div data-scroll="1" style="flex:1;min-width:0;min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;padding:{{ b.pad }};box-sizing:border-box">
+          <div style="display:grid;grid-template-columns:{{ b.cols }};gap:20px;align-items:start;max-width:1120px">
+            <section aria-labelledby="{{ b.savedId }}" style="order:{{ b.savedOrder }};background:#FBF9F5;border:2px solid #1C1916;border-radius:18px;box-shadow:0 3px 0 #1C1916;overflow:hidden;min-width:0">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 12px 12px 18px;border-bottom:2px solid #1C1916">
+                <h2 id="{{ b.savedId }}" style="margin:0;font-size:17px;font-weight:800">Saved segments</h2>
+                <button type="button" onClick="{{ b.newSeg }}" style="height:{{ b.ctl }};padding:0 12px;border-radius:10px;border:2px solid #1C1916;background:#FBF9F5;font-size:14px;font-weight:700;cursor:pointer" style-hover="background:#F4EEE3">New segment</button>
+              </div>
+              <ul style="list-style:none;margin:0;padding:8px;display:flex;flex-direction:column;gap:4px">
+                <sc-for list="{{ b.saved }}" as="s" hint-placeholder-count="3">
+                  <li><button type="button" onClick="{{ s.pick }}" aria-current="{{ s.current }}" style="width:100%;min-height:{{ s.h }};display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border-radius:12px;border:2px solid {{ s.border }};background:{{ s.bg }};text-align:left;cursor:pointer">
+                    <span style="font-size:15px;font-weight:{{ s.weight }};min-width:0;overflow-wrap:anywhere">{{ s.name }}</span><span style="flex-shrink:0;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#3D3832">{{ s.count }}</span>
+                  </button></li>
+                </sc-for>
+              </ul>
+            </section>
+
+            <div style="order:{{ b.builderOrder }};display:flex;flex-direction:column;gap:16px;min-width:0">
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;color:#3D3832">SEGMENTS / {{ b.crumb }}</div>
+                <label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:14px;font-weight:700">Segment name</span>
+                  <input value="{{ b.name }}" onChange="{{ b.onName }}" aria-invalid="{{ b.nameInvalid }}" placeholder="e.g. Pro plan, opened lately" style="height:{{ b.nameH }};padding:0 14px;border:2px {{ b.nameLine }} #1C1916;border-radius:12px;background:#FFFFFF;font-size:{{ b.nameSize }};font-weight:800;letter-spacing:-.02em;box-sizing:border-box;width:100%;min-width:0"></label>
+                <sc-if value="{{ b.hasNameErr }}" hint-placeholder-val="{{ false }}"><span role="alert" style="padding:6px 10px;border:2px solid #1C1916;border-radius:10px;background:#FFD6C9;font-size:14px;font-weight:700;align-self:flex-start">Give the segment a name.</span></sc-if>
+              </div>
+
+              <section aria-label="Live result" style="background:#FBF9F5;border:2px solid #1C1916;border-radius:18px;box-shadow:0 3px 0 #1C1916;padding:16px 18px;display:grid;grid-template-columns:{{ b.resultCols }};gap:14px;align-items:center">
+                <div aria-live="polite" style="display:flex;flex-direction:column;gap:2px">
+                  <span style="font-size:{{ b.countSize }};font-weight:800;letter-spacing:-.03em;line-height:1">{{ b.countNum }}</span>
+                  <span style="font-size:15px;font-weight:700">{{ b.countWords }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#6B6359">{{ b.countOf }}</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.06em;color:#3D3832">SUMMARY</span>
+                  <p style="margin:0;font-size:15px;line-height:1.5;overflow-wrap:anywhere;text-wrap:pretty">{{ b.summary }}</p>
+                </div>
+                <button type="button" onClick="{{ b.save }}" style="height:{{ b.ctl }};padding:0 18px;border-radius:12px;border:2px solid #1C1916;background:#FF5A36;font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 3px 0 #1C1916;white-space:nowrap">Save segment</button>
+              </section>
+              <sc-if value="{{ b.hasNote }}" hint-placeholder-val="{{ false }}"><div role="status" style="padding:8px 12px;border:2px dashed #1C1916;border-radius:12px;background:#FBF9F5;font-size:14px">{{ b.note }}</div></sc-if>
+              <sc-if value="{{ b.hasErrors }}" hint-placeholder-val="{{ false }}"><div role="alert" style="padding:10px 14px;border:2px solid #1C1916;border-radius:12px;background:#FFD6C9;font-size:15px;font-weight:700">{{ b.errorsTitle }}</div></sc-if>
+
+              <section aria-labelledby="{{ b.rulesId }}" style="display:flex;flex-direction:column;gap:12px">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+                  <h2 id="{{ b.rulesId }}" style="margin:0;font-size:19px;font-weight:800">Rules</h2>
+                  <sc-if value="{{ b.multiGroups }}" hint-placeholder-val="{{ false }}">
+                    <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700">Groups
+                      <select value="{{ b.match }}" onChange="{{ b.onMatch }}" style="height:{{ b.ctl }};padding:0 10px;border:2px solid #1C1916;border-radius:10px;background:#FFFFFF;font-size:14px;font-weight:700"><option value="all">all must match (AND)</option><option value="any">any can match (OR)</option></select></label>
+                  </sc-if>
+                </div>
+
+                <sc-if value="{{ b.empty }}" hint-placeholder-val="{{ false }}">
+                  <div style="padding:22px;border:2px dashed #1C1916;border-radius:16px;background:#FBF9F5;display:flex;flex-direction:column;gap:10px;align-items:flex-start">
+                    <div style="font-size:17px;font-weight:800">No rules yet</div>
+                    <p style="margin:0;font-size:15px;line-height:1.5;color:#3D3832;text-wrap:pretty">Without rules this segment includes every contact. Add a rule to narrow it down by tag, consent, unsubscribe state, a contact property or recent email activity.</p>
+                    <button type="button" onClick="{{ b.addFirst }}" style="height:{{ b.ctl }};padding:0 16px;border-radius:12px;border:2px solid #1C1916;background:#FF5A36;font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 3px 0 #1C1916">Add first rule</button>
+                  </div>
+                </sc-if>
+
+                <sc-for list="{{ b.groups }}" as="g" hint-placeholder-count="1">
+                  <div style="display:flex;flex-direction:column;gap:12px">
+                    <sc-if value="{{ g.showJoin }}" hint-placeholder-val="{{ false }}"><div style="align-self:center;display:inline-flex;align-items:center;height:30px;padding:0 14px;border-radius:999px;border:2px solid #1C1916;background:#F7D56E;font-size:13px;font-weight:800">{{ g.join }}</div></sc-if>
+                    <fieldset style="margin:0;padding:{{ g.pad }};border:2px solid #1C1916;border-radius:16px;background:#FBF9F5;box-shadow:0 3px 0 #1C1916;min-width:0;display:flex;flex-direction:column;gap:10px">
+                      <legend style="padding:0 6px;font-size:15px;font-weight:800">{{ g.legend }}</legend>
+                      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+                        <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;flex-wrap:wrap">Contacts match
+                          <select value="{{ g.match }}" onChange="{{ g.onMatch }}" aria-label="{{ g.matchAria }}" style="height:{{ g.h }};padding:0 10px;border:2px solid #1C1916;border-radius:10px;background:#FFFFFF;font-size:14px;font-weight:700"><option value="all">all rules (AND)</option><option value="any">any rule (OR)</option></select></label>
+                        <sc-if value="{{ g.canRemove }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ g.remove }}" style="height:{{ g.h }};padding:0 12px;border-radius:10px;border:2px solid #1C1916;background:#FBF9F5;font-size:14px;font-weight:700;cursor:pointer" style-hover="background:#FFD6C9">Remove group</button></sc-if>
+                      </div>
+                      <ol style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px">
+                        <sc-for list="{{ g.rules }}" as="r" hint-placeholder-count="2">
+                          <li style="display:flex;flex-direction:column;gap:8px">
+                            <sc-if value="{{ r.showJoin }}" hint-placeholder-val="{{ false }}"><span style="align-self:flex-start;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:500;padding:2px 8px;border:2px solid #1C1916;border-radius:8px;background:#F4EEE3">{{ r.join }}</span></sc-if>
+                            <div style="display:grid;grid-template-columns:{{ r.cols }};gap:8px;align-items:start;padding:10px;border:2px {{ r.line }} #1C1916;border-radius:12px;background:#FFFFFF">
+                              <select value="{{ r.kind }}" onChange="{{ r.onKind }}" aria-label="{{ r.kindAria }}" style="height:{{ r.h }};padding:0 10px;border:2px solid #1C1916;border-radius:10px;background:#F4EEE3;font-size:14px;font-weight:700;min-width:0"><option value="tag">Tag</option><option value="consent">Consent</option><option value="unsubscribed">Unsubscribe state</option><option value="property">Contact property</option><option value="activity">Email activity</option></select>
+                              <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-width:0">
+                                <sc-if value="{{ r.isTag }}" hint-placeholder-val="{{ false }}">
+                                  <select value="{{ r.op }}" onChange="{{ r.onOp }}" aria-label="{{ r.opAria }}" style="height:{{ r.h }};padding:0 10px;border:2px solid #1C1916;border-radius:10px;background:#FFFFFF;font-size:14px;flex:{{ r.fieldFlex }};min-width:0"><option value="has">has tag</option><option value="not_has">doesn’t have tag</option></select>
+                                  <input value="{{ r.value }}" onChange="{{ r.onValue }}" aria-label="{{ r.valueAria }}" placeholder="tag name" style="height:{{ r.h }};padding:0 10px;border:2px solid #1C1916;border-radius:10px;background:#FFFFFF;font-size:14px;flex:1 1 140px;min-width:0;box-sizing:border-box">
+                                </sc-if>
+                                <sc-if value="{{ r.isConsent }}" hint-placeholder-val="{{ false }}">
+                                  <span style="font-size:14px;font-weight:700">is</span>
+                                  <select value="{{ r.value }}" onChange="{{ r.onValue }}" aria-label="{{ r.valueAria }}" style="height:{{ r.h }};padding:0 10px;border:2px solid #1C1916;border-radius:10px;background:#FFFFFF;font-size:14px;flex:1 1 180px;min-width:0"><option value="opted_in">Opted in</option><option value="not_recorded">No consent recorded</option></select>
+                                </sc-if>
+                                <sc-if value="{{ r.isUnsub }}" hint-placeholder-val="{{ false }}">
+                                  <select value="{{ r.value }}" onChange="{{ r.onValue }}" aria-label="{{ r.valueAria }}" style="height:{{ r.h }};padding:0 10px;border:2px solid #1C1916;border-radius:10px;background:#FFFFFF;font-size:14px;flex:1 1 200px;min-width:0"><option value="false">Is not unsubscribed</option><option value="true">Is unsubscribed</option></select>
+                                </sc-if>
+                                <sc-if value="{{ r.isProp }}" hint-placeholder-val="{{ false }}">
+                                  <input value="{{ r.key }}" onChange="{{ r.onKey }}" aria-label="{{ r.keyAria }}" placeholder="property" spellCheck="false" style="height:{{ r.h }};padding:0 10px;border:2px solid #1C1916;border-radius:10px;background:#FFFFFF;font-family:'IBM Plex Mono',monospace;font-size:13px;flex:1 1 120px;min-width:0;box-sizing:border-box">
+                                  <select value="{{ r.ptype }}" onChange="{{ r.onType }}" aria-label="{{ r.typeAria }}" style="height:{{ r.h }};padding:0 10px;border:2px solid #1C1916;border-radius:10px;background:#FFFFFF;font-size:14px;flex:0 0 auto;min-width:0"><option value="string">Text</option><option value="number">Number</option></select>
+                                  <select value="{{ r.op }}" onChange="{{ r.onOp }}" aria-label="{{ r.opAria }}" style="height:{{ r.h }};padding:0 10px;border:2px solid #1C1916;border-radius:10px;background:#FFFFFF;font-size:14px;flex:1 1 130px;min-width:0"><sc-for list="{{ r.opOpts }}" as="o" hint-placeholder-count="5"><option value="{{ o.value }}">{{ o.label }}</option></sc-for></select>
+                                  <sc-if value="{{ r.needsValue }}" hint-placeholder-val="{{ true }}"><input value="{{ r.value }}" onChange="{{ r.onValue }}" inputMode="{{ r.inputMode }}" aria-label="{{ r.valueAria }}" placeholder="value" style="height:{{ r.h }};padding:0 10px;border:2px solid #1C1916;border-radius:10px;background:#FFFFFF;font-size:14px;flex:1 1 110px;min-width:0;box-sizing:border-box"></sc-if>
+                                </sc-if>
+                                <sc-if value="{{ r.isAct }}" hint-placeholder-val="{{ false }}">
+                                  <select value="{{ r.op }}" onChange="{{ r.onOp }}" aria-label="{{ r.opAria }}" style="height:{{ r.h }};padding:0 10px;border:2px solid #1C1916;border-radius:10px;background:#FFFFFF;font-size:14px;flex:0 0 auto;min-width:0"><option value="happened">was</option><option value="not_happened">was not</option></select>
+                                  <select value="{{ r.event }}" onChange="{{ r.onEvent }}" aria-label="{{ r.eventAria }}" style="height:{{ r.h }};padding:0 10px;border:2px solid #1C1916;border-radius:10px;background:#FFFFFF;font-size:14px;flex:1 1 130px;min-width:0"><option value="sent">sent an email</option><option value="delivered">delivered an email</option><option value="opened">opened an email</option><option value="clicked">clicked in an email</option><option value="bounced">bounced</option><option value="complained">complained</option></select>
+                                  <span style="display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:700;flex:1 1 170px">in the last
+                                    <input type="number" min="1" max="365" value="{{ r.days }}" onChange="{{ r.onDays }}" inputMode="numeric" aria-label="{{ r.daysAria }}" style="height:{{ r.h }};width:76px;padding:0 8px;border:2px solid #1C1916;border-radius:10px;background:#FFFFFF;font-size:14px;box-sizing:border-box">days</span>
+                                </sc-if>
+                              </div>
+                              <button type="button" onClick="{{ r.remove }}" aria-label="{{ r.rmAria }}" style="height:{{ r.h }};padding:0 12px;border-radius:10px;border:2px solid #1C1916;background:#FBF9F5;font-size:14px;font-weight:700;cursor:pointer" style-hover="background:#FFD6C9">Remove</button>
+                            </div>
+                            <sc-if value="{{ r.hasErr }}" hint-placeholder-val="{{ false }}"><span role="alert" style="align-self:flex-start;padding:6px 10px;border:2px solid #1C1916;border-radius:10px;background:#FFD6C9;font-size:13px;font-weight:700">{{ r.err }}</span></sc-if>
+                          </li>
+                        </sc-for>
+                      </ol>
+                      <button type="button" onClick="{{ g.addRule }}" style="align-self:flex-start;height:{{ g.h }};padding:0 14px;border-radius:10px;border:2px solid #1C1916;background:#FBF9F5;font-size:14px;font-weight:700;cursor:pointer" style-hover="background:#F7D56E">Add rule</button>
+                    </fieldset>
+                  </div>
+                </sc-for>
+
+                <sc-if value="{{ b.notEmpty }}" hint-placeholder-val="{{ true }}"><button type="button" onClick="{{ b.addGroup }}" style="align-self:flex-start;height:{{ b.ctl }};padding:0 16px;border-radius:12px;border:2px dashed #1C1916;background:#FBF9F5;font-size:14px;font-weight:800;cursor:pointer" style-hover="background:#F7D56E">Add a group</button></sc-if>
+              </section>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const TOTAL = 4812;
+const NAV = ['Overview', 'Emails', 'Campaigns', 'Segments', 'Contacts', 'Domains'].map(l => ({ label: l, current: l === 'Segments' ? 'page' : undefined, border: l === 'Segments' ? '#1C1916' : 'transparent', bg: l === 'Segments' ? '#F7D56E' : 'transparent', weight: l === 'Segments' ? 800 : 600 }));
+const STR_OPS = [['equals', 'is'], ['not_equals', 'is not'], ['contains', 'contains'], ['is_set', 'has any value'], ['is_not_set', 'is empty']];
+const NUM_OPS = [['eq', '='], ['neq', '≠'], ['gt', '>'], ['gte', '≥'], ['lt', '<'], ['lte', '≤'], ['is_set', 'has any value'], ['is_not_set', 'is empty']];
+const EVENTS = { sent: 'was sent an email', delivered: 'had an email delivered', opened: 'opened an email', clicked: 'clicked in an email', bounced: 'bounced', complained: 'complained' };
+const NOT_EVENTS = { sent: 'was not sent an email', delivered: 'had no email delivered', opened: 'did not open an email', clicked: 'did not click in an email', bounced: 'did not bounce', complained: 'did not complain' };
+const RULE = {
+  tag: () => ({ kind: 'tag', op: 'has', value: '' }), consent: () => ({ kind: 'consent', op: 'is', value: 'opted_in' }), unsubscribed: () => ({ kind: 'unsubscribed', op: 'is', value: false }),
+  property: () => ({ kind: 'property', key: '', type: 'string', op: 'equals', value: '' }), activity: () => ({ kind: 'activity', event: 'opened', op: 'happened', days: 30 })
+};
+// Illustrative saved segments (prototype only).
+const SAVED = [
+  { id: 's1', name: 'Pro plan, opened lately', filters: { match: 'all', groups: [{ match: 'all', rules: [{ kind: 'property', key: 'plan', type: 'string', op: 'equals', value: 'pro' }, { kind: 'activity', event: 'opened', op: 'happened', days: 30 }] }] } },
+  { id: 's2', name: 'Workshop regulars', filters: { match: 'all', groups: [{ match: 'all', rules: [{ kind: 'tag', op: 'has', value: 'workshops' }, { kind: 'property', key: 'classes_attended', type: 'number', op: 'gte', value: '3' }, { kind: 'consent', op: 'is', value: 'opted_in' }] }] } },
+  { id: 's3', name: 'Quiet for 90 days', filters: { match: 'all', groups: [{ match: 'all', rules: [{ kind: 'unsubscribed', op: 'is', value: false }, { kind: 'activity', event: 'opened', op: 'not_happened', days: 90 }] }, { match: 'any', rules: [{ kind: 'tag', op: 'has', value: 'customer' }, { kind: 'tag', op: 'has', value: 'wholesale' }] }] } }
+];
+const clone = o => JSON.parse(JSON.stringify(o));
+const ACT = { sent: .9, delivered: .88, opened: .42, clicked: .18, bounced: .03, complained: .01 };
+const share = r => {
+  switch (r.kind) {
+    case 'tag': return r.op === 'has' ? .35 : .65;
+    case 'consent': return r.value === 'opted_in' ? .72 : .28;
+    case 'unsubscribed': return String(r.value) === 'true' ? .06 : .94;
+    case 'property': return ({ equals: .3, not_equals: .7, contains: .45, is_set: .8, is_not_set: .2, eq: .2, neq: .8, gt: .4, gte: .45, lt: .4, lte: .45 })[r.op] || .5;
+    case 'activity': { const x = Math.min(.98, ACT[r.event] * Math.sqrt(Math.max(1, Number(r.days) || 1) / 30)); return r.op === 'happened' ? x : 1 - x; }
+  }
+  return 1;
+};
+const combine = (xs, m) => !xs.length ? 1 : m === 'all' ? xs.reduce((a, b) => a * b, 1) : 1 - xs.reduce((a, b) => a * (1 - b), 1);
+const ruleErr = r => {
+  if (r.kind === 'tag' && !String(r.value).trim()) return 'Enter a tag name.';
+  if (r.kind === 'property') { if (!r.key.trim()) return 'Enter a property name.';
+    if (!['is_set', 'is_not_set'].includes(r.op)) { if (!String(r.value).trim()) return 'Enter a value to compare with.'; if (r.type === 'number' && !Number.isFinite(Number(r.value))) return 'Use a number, like 3 or 12.5.'; } }
+  if (r.kind === 'activity') { const d = Number(r.days); if (!Number.isInteger(d) || d < 1 || d > 365) return 'Use a whole number of days from 1 to 365.'; }
+  return '';
+};
+const opLabel = r => (r.type === 'number' ? NUM_OPS : STR_OPS).find(o => o[0] === r.op)?.[1] || r.op;
+const sentence = r => {
+  switch (r.kind) {
+    case 'tag': return `${r.op === 'has' ? 'has' : 'doesn’t have'} the tag “${r.value || '…'}”`;
+    case 'consent': return r.value === 'opted_in' ? 'has opted in' : 'has no consent recorded';
+    case 'unsubscribed': return String(r.value) === 'true' ? 'is unsubscribed' : 'is not unsubscribed';
+    case 'property': return ['is_set', 'is_not_set'].includes(r.op) ? `${r.key || '…'} ${opLabel(r)}` : `${r.key || '…'} ${opLabel(r)} ${r.type === 'number' ? (r.value || '…') : '“' + (r.value || '…') + '”'}`;
+    case 'activity': return `${(r.op === 'happened' ? EVENTS : NOT_EVENTS)[r.event]} in the last ${r.days || '…'} days`;
+  }
+  return '';
+};
+const ONES = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+const TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+const words = n => { if (n < 20) return ONES[n]; if (n < 100) return TENS[Math.floor(n / 10)] + (n % 10 ? '-' + ONES[n % 10] : '');
+  if (n < 1000) return ONES[Math.floor(n / 100)] + ' hundred' + (n % 100 ? ' and ' + words(n % 100) : ''); return words(Math.floor(n / 1000)) + ' thousand' + (n % 1000 ? (n % 1000 < 100 ? ' and ' : ' ') + words(n % 1000) : ''); };
+const BOARDS = [
+  { id: 'g1a', caption: 'Desktop 1440 × 1000 · editing', layout: 'desktop', seg: 's1' },
+  { id: 'g1b', caption: 'Desktop 1440 × 1000 · empty new segment', layout: 'desktop', seg: null },
+  { id: 'g2a', caption: 'Phone 390 × 844 · editing', layout: 'mobile', seg: 's1' },
+  { id: 'g2b', caption: 'Phone 390 × 844 · empty new segment', layout: 'mobile', seg: null }
+];
+const fresh = seg => { const s = SAVED.find(x => x.id === seg); return { seg, name: s ? s.name : '', filters: s ? clone(s.filters) : { match: 'all', groups: [] }, tried: false, note: '' }; };
+
+class Component extends DCLogic {
+  state = { st: Object.fromEntries(BOARDS.map(b => [b.id, fresh(b.seg)])) };
+  upd(id, fn) { this.setState(s => ({ st: { ...s.st, [id]: fn(clone(s.st[id])) } })); }
+  renderVals() {
+    const nf = new Intl.NumberFormat('en-AU');
+    const boards = BOARDS.map(b => {
+      const s = this.state.st[b.id], d = b.layout === 'desktop', h = d ? '44px' : '52px', F = s.filters;
+      const edit = fn => this.upd(b.id, x => { fn(x.filters); x.note = ''; return x; });
+      const count = Math.round(TOTAL * combine(F.groups.map(g => combine(g.rules.map(share), g.match)), F.match));
+      const allRules = F.groups.flatMap(g => g.rules), errs = allRules.map(ruleErr).filter(Boolean).length + (s.name.trim() ? 0 : 1);
+      const groupText = g => g.rules.map(sentence).join(g.match === 'all' ? ' and ' : ' or ');
+      const summary = !allRules.length ? 'All contacts. No rules yet.'
+        : 'Contacts who ' + F.groups.filter(g => g.rules.length).map(g => F.groups.length > 1 ? `(${groupText(g)})` : groupText(g)).join(F.match === 'all' ? ' and ' : ' or ') + '.';
+      const savedCount = x => nf.format(Math.round(TOTAL * combine(x.filters.groups.map(g => combine(g.rules.map(share), g.match)), x.filters.match)));
+      return {
+        id: b.id, caption: b.caption, desktop: d, mobile: !d, ctl: h, w: d ? '1440px' : '390px', h: d ? '1000px' : '844px', dir: d ? 'row' : 'column',
+        frameRad: d ? '20px' : '36px', frameShadow: d ? 'none' : '0 4px 0 #1C1916', pad: d ? '32px 32px 48px' : '16px 12px 32px',
+        cols: d ? '280px minmax(0,1fr)' : 'minmax(0,1fr)', savedOrder: d ? 0 : 2, builderOrder: d ? 0 : 1, savedId: b.id + '-saved', rulesId: b.id + '-rules',
+        resultCols: d ? 'auto minmax(0,1fr) auto' : 'minmax(0,1fr)', countSize: d ? '40px' : '34px', nameH: d ? '52px' : '52px', nameSize: d ? '24px' : '20px',
+        crumb: s.seg ? 'EDIT' : 'NEW', name: s.name, onName: e => { const v = e.target.value; this.upd(b.id, x => { x.name = v; return x; }); },
+        hasNameErr: s.tried && !s.name.trim(), nameInvalid: String(s.tried && !s.name.trim()), nameLine: s.tried && !s.name.trim() ? 'dashed' : 'solid',
+        countNum: nf.format(count), countWords: `${words(count)} ${count === 1 ? 'contact matches' : 'contacts match'}`, countOf: `OF ${nf.format(TOTAL)} · ILLUSTRATIVE`, summary,
+        save: () => this.upd(b.id, x => { x.tried = true; x.note = errs ? '' : `Saved “${x.name.trim()}”.`; return x; }),
+        hasNote: !!s.note, note: s.note, hasErrors: s.tried && errs > 0, errorsTitle: `${errs} ${errs === 1 ? 'thing needs' : 'things need'} fixing before this segment can be saved.`,
+        newSeg: () => this.upd(b.id, () => fresh(null)),
+        saved: SAVED.map(x => { const c = s.seg === x.id; return { name: x.name, count: savedCount(x), h, current: c ? 'true' : undefined, border: c ? '#1C1916' : 'transparent', bg: c ? '#F7D56E' : 'transparent', weight: c ? 800 : 600,
+          pick: () => this.upd(b.id, () => fresh(x.id)) }; }),
+        match: F.match, onMatch: e => { const v = e.target.value; edit(f => { f.match = v; }); }, multiGroups: F.groups.length > 1,
+        empty: !F.groups.length, notEmpty: F.groups.length > 0,
+        addFirst: () => edit(f => { f.groups.push({ match: 'all', rules: [RULE.property()] }); }),
+        addGroup: () => edit(f => { f.groups.push({ match: 'all', rules: [RULE.tag()] }); }),
+        groups: F.groups.map((g, gi) => ({
+          showJoin: gi > 0, join: F.match === 'all' ? 'AND' : 'OR', legend: `Group ${gi + 1}`, pad: d ? '12px 16px 16px' : '10px 10px 12px', h, match: g.match,
+          matchAria: `Group ${gi + 1} matching`, onMatch: e => { const v = e.target.value; edit(f => { f.groups[gi].match = v; }); },
+          canRemove: F.groups.length > 1, remove: () => edit(f => { f.groups.splice(gi, 1); }),
+          addRule: () => edit(f => { f.groups[gi].rules.push(RULE.activity()); }),
+          rules: g.rules.map((r, ri) => {
+            const set = patch => edit(f => { Object.assign(f.groups[gi].rules[ri], patch); });
+            const err = s.tried ? ruleErr(r) : '', n = `Group ${gi + 1} rule ${ri + 1}`;
+            return { showJoin: ri > 0, join: g.match === 'all' ? 'AND' : 'OR', cols: d ? '180px minmax(0,1fr) auto' : 'minmax(0,1fr)', h, line: err ? 'dashed' : 'solid', fieldFlex: '0 0 auto',
+              kind: r.kind, onKind: e => { const k = e.target.value; edit(f => { f.groups[gi].rules[ri] = RULE[k](); }); },
+              isTag: r.kind === 'tag', isConsent: r.kind === 'consent', isUnsub: r.kind === 'unsubscribed', isProp: r.kind === 'property', isAct: r.kind === 'activity',
+              op: r.op, onOp: e => set({ op: e.target.value }), value: String(r.value ?? ''), onValue: e => set({ value: r.kind === 'unsubscribed' ? e.target.value === 'true' : e.target.value }),
+              key: r.key || '', onKey: e => set({ key: e.target.value }), ptype: r.type || 'string', onType: e => set({ type: e.target.value, op: e.target.value === 'number' ? 'eq' : 'equals', value: '' }),
+              opOpts: (r.type === 'number' ? NUM_OPS : STR_OPS).map(([value, label]) => ({ value, label })), needsValue: !['is_set', 'is_not_set'].includes(r.op), inputMode: r.type === 'number' ? 'decimal' : 'text',
+              event: r.event, onEvent: e => set({ event: e.target.value }), days: r.days, onDays: e => set({ days: e.target.value === '' ? '' : Number(e.target.value) }),
+              kindAria: `${n} type`, opAria: `${n} condition`, valueAria: `${n} value`, keyAria: `${n} property name`, typeAria: `${n} property type`, eventAria: `${n} activity`, daysAria: `${n} number of days`,
+              rmAria: `Remove ${n}`, remove: () => edit(f => { f.groups[gi].rules.splice(ri, 1); if (!f.groups[gi].rules.length) f.groups.splice(gi, 1); }),
+              hasErr: !!err, err };
+          })
+        }))
+      };
+    });
+    return { boards, nav: NAV };
+  }
+}
+</script>
+</body>
+</html>

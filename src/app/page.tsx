@@ -5,7 +5,8 @@ import SendThanksDashboard, { type ApiKeyRow, type BlockRow, type DomainRow, typ
 import SendThanksOverview, { type EmailFilter } from '@/components/SendThanksOverview';
 import { SendThanksLogo } from '@/components/SendThanksLogo';
 import EmailDetail from '@/components/EmailDetail';
-import { BroadcastsWorkspace, ContactsWorkspace, SegmentsWorkspace, TemplatesWorkspace, TopicsWorkspace } from '@/components/email-workspaces';
+import { BroadcastsWorkspace, ContactsWorkspace, TemplatesWorkspace, TopicsWorkspace } from '@/components/email-workspaces';
+import { SegmentsWorkspace } from '@/components/segments/SegmentsWorkspace';
 import { WebhooksWorkspace } from '@/components/webhook-workspace';
 import { ReceivingWorkspace } from '@/components/receiving-workspace';
 import { AutomationWorkspace } from '@/components/automation-workspace';
