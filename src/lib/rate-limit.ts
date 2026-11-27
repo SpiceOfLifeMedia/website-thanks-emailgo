@@ -1,4 +1,4 @@
-export const API_RATE_LIMIT_WINDOW_MS = 60_000;
+export const API_RATE_LIMIT_WINDOW_MS = 1_000;
 
 export type ApiRateLimitState = {
   limit: number;

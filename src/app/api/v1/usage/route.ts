@@ -59,7 +59,7 @@ async function __emailgo_GET_handler(request: Request) {
     broadcasts: { used: broadcasts, limit: null },
     domains: { used: domains, limit: null },
     automation_runs: { used: Number(automationRuns.rows[0]?.used ?? 0), limit: null, resets_at: monthlyWindow.resets_at },
-    rate_limit: { limit: 60, duration: '60000ms', applies_to: 'authenticated API requests per API key' },
+    rate_limit: { limit: 10, duration: '1000ms', applies_to: 'authenticated API requests per workspace' },
   });
 }
 

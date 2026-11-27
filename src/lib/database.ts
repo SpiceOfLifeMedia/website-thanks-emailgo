@@ -177,6 +177,7 @@ const postgresSchema = [
     api_key_id TEXT PRIMARY KEY, window_started INTEGER NOT NULL, request_count INTEGER NOT NULL,
     FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
   )`,
+  'CREATE TABLE IF NOT EXISTS api_request_limits (workspace_id TEXT PRIMARY KEY, window_started INTEGER NOT NULL, request_count INTEGER NOT NULL)',
   'CREATE TABLE IF NOT EXISTS login_limits (source_hash TEXT PRIMARY KEY, window_started INTEGER NOT NULL, attempt_count INTEGER NOT NULL)',
   'CREATE TABLE IF NOT EXISTS webhook_limits (source_hash TEXT PRIMARY KEY, window_started INTEGER NOT NULL, request_count INTEGER NOT NULL)',
   `CREATE TABLE IF NOT EXISTS email_template_folders (
@@ -491,6 +492,7 @@ function getSqlite() {
       api_key_id TEXT PRIMARY KEY, window_started INTEGER NOT NULL, request_count INTEGER NOT NULL,
       FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
     );
+    CREATE TABLE IF NOT EXISTS api_request_limits (workspace_id TEXT PRIMARY KEY, window_started INTEGER NOT NULL, request_count INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS login_limits (source_hash TEXT PRIMARY KEY, window_started INTEGER NOT NULL, attempt_count INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS webhook_limits (source_hash TEXT PRIMARY KEY, window_started INTEGER NOT NULL, request_count INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS email_template_folders (
@@ -790,13 +792,13 @@ async function consumeLimit(statement: string, key: string, perMinute: number) {
   return count <= perMinute;
 }
 
-export async function consumeApiRequestLimit(apiKeyId: string, perMinute = 60, nowMs = Date.now()) {
+export async function consumeApiRequestLimit(_apiKeyId: string, perSecond = 10, nowMs = Date.now()) {
   const windowStarted = Math.floor(nowMs / API_RATE_LIMIT_WINDOW_MS);
-  const result = await query<{ request_count: number }>(`INSERT INTO send_limits(api_key_id,window_started,request_count) VALUES(?,?,1)
-    ON CONFLICT(api_key_id) DO UPDATE SET window_started=excluded.window_started,
-    request_count=CASE WHEN send_limits.window_started=excluded.window_started THEN send_limits.request_count+1 ELSE 1 END
-    RETURNING request_count`, [apiKeyId, windowStarted]);
-  return apiRateLimitState(Number(result.rows[0]?.request_count ?? 0), perMinute, windowStarted * API_RATE_LIMIT_WINDOW_MS);
+  const result = await query<{ request_count: number }>(`INSERT INTO api_request_limits(workspace_id,window_started,request_count) VALUES(?,?,1)
+    ON CONFLICT(workspace_id) DO UPDATE SET window_started=excluded.window_started,
+    request_count=CASE WHEN api_request_limits.window_started=excluded.window_started THEN api_request_limits.request_count+1 ELSE 1 END
+    RETURNING request_count`, ['default', windowStarted]);
+  return apiRateLimitState(Number(result.rows[0]?.request_count ?? 0), perSecond, windowStarted * API_RATE_LIMIT_WINDOW_MS);
 }
 
 export function consumeLoginAttempt(sourceHash: string, perMinute = 10) {
