@@ -34,6 +34,104 @@ export function replyRequestHash(threadId: string, text: string): string {
   return createHash('sha256').update(JSON.stringify({ threadId, text })).digest('hex');
 }
 
+const inboxEmailPattern = /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/;
+
+export type InboxComposeMode = 'reply' | 'reply_all' | 'forward';
+
+/** Pulls one address from a stored mailbox value and rejects header injection. */
+export function extractMailboxAddress(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length > 500 || /[\r\n\u0000-\u001f\u007f]/.test(value)) return null;
+  const candidate = (/<([^<>]+)>$/.exec(value.trim())?.[1] ?? value).trim();
+  return candidate.length <= 320 && inboxEmailPattern.test(candidate) ? candidate : null;
+}
+
+/** Validates a bounded recipient array while preserving the user's casing and order. */
+export function normalizeInboxRecipients(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length > 50) return null;
+  const recipients: string[] = [];
+  const seen = new Set<string>();
+  for (const item of value) {
+    if (typeof item !== 'string') return null;
+    const address = item.trim();
+    if (!address) continue;
+    const normalized = extractMailboxAddress(address);
+    if (!normalized) return null;
+    const key = normalized.toLowerCase();
+    if (!seen.has(key)) {
+      recipients.push(normalized);
+      seen.add(key);
+    }
+  }
+  return recipients;
+}
+
+/** Parses the comma-separated recipient fields used by the inbox composer. */
+export function parseInboxRecipientText(value: unknown): string[] | null {
+  if (Array.isArray(value)) return normalizeInboxRecipients(value);
+  if (typeof value !== 'string' || value.length > 10_000 || /[\r\n\u0000-\u001f\u007f]/.test(value)) return null;
+  const entries: string[] = [];
+  let entry = '';
+  let inQuotes = false;
+  let angleDepth = 0;
+  for (const character of value) {
+    if (character === '"') inQuotes = !inQuotes;
+    if (!inQuotes && character === '<') angleDepth += 1;
+    if (!inQuotes && character === '>' && angleDepth > 0) angleDepth -= 1;
+    if (!inQuotes && angleDepth === 0 && (character === ',' || character === ';')) {
+      entries.push(entry);
+      entry = '';
+    } else {
+      entry += character;
+    }
+  }
+  entries.push(entry);
+  return normalizeInboxRecipients(entries);
+}
+
+/** Uses the latest received message's reply address and preserves the visible To and Cc groups. */
+export function replyAllRecipients(input: {
+  from: unknown;
+  replyTo?: unknown;
+  to: unknown;
+  cc?: unknown;
+  inboxAddress: unknown;
+}): { to: string[]; cc: string[] } | null {
+  const originalSender = extractMailboxAddress(input.from);
+  const primary = extractMailboxAddress(input.replyTo) ?? originalSender;
+  const inbox = extractMailboxAddress(input.inboxAddress);
+  const originalTo = normalizeInboxRecipients(input.to);
+  const originalCc = normalizeInboxRecipients(input.cc ?? []);
+  if (!originalSender || !primary || !inbox || !originalTo || !originalCc) return null;
+  const seen = new Set([inbox.toLowerCase()]);
+  const to = [primary, ...originalTo].filter((address) => {
+    const key = address.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  seen.add(originalSender.toLowerCase());
+  const cc = originalCc.filter((address) => {
+    const key = address.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return { to, cc };
+}
+
+export function composeSubject(mode: InboxComposeMode, subject: string): string {
+  const base = subject.replace(/[\r\n\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, 900) || '(no subject)';
+  const prefix = mode === 'forward' ? 'Fwd:' : 'Re:';
+  return new RegExp(`^${mode === 'forward' ? 'fwd' : 're'}\\s*:`, 'i').test(base) ? base : `${prefix} ${base}`;
+}
+
+/** Stable for retries of one composed message, regardless of later thread activity. */
+export function composeRequestHash(threadId: string, message: {
+  mode: InboxComposeMode; from: string; to: string[]; cc: string[]; bcc: string[]; subject: string; text: string;
+}): string {
+  return createHash('sha256').update(JSON.stringify({ threadId, ...message })).digest('hex');
+}
+
 export function normalizeFolder(value: unknown): InboxFolder | null {
   return typeof value === 'string' && inboxFolders.includes(value as InboxFolder) ? value as InboxFolder : null;
 }

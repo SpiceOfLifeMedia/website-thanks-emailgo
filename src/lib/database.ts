@@ -136,6 +136,15 @@ const postgresSchema = [
   )`,
   'ALTER TABLE inbox_threads ADD COLUMN IF NOT EXISTS inbox_address TEXT',
   'CREATE INDEX IF NOT EXISTS inbox_threads_key_folder_updated ON inbox_threads(api_key_id,folder,updated_at DESC,id DESC)',
+  `CREATE TABLE IF NOT EXISTS inbox_reply_drafts (
+    thread_id TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, mode TEXT NOT NULL DEFAULT 'reply', from_address TEXT NOT NULL,
+    to_text TEXT NOT NULL DEFAULT '', cc_text TEXT NOT NULL DEFAULT '', bcc_text TEXT NOT NULL DEFAULT '',
+    subject TEXT NOT NULL DEFAULT '', text_body TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL,
+    FOREIGN KEY(thread_id) REFERENCES inbox_threads(id) ON DELETE CASCADE,
+    FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
+  )`,
+  'ALTER TABLE inbox_reply_drafts ADD COLUMN IF NOT EXISTS from_address TEXT NOT NULL DEFAULT \'\'',
+  'CREATE INDEX IF NOT EXISTS inbox_reply_drafts_updated ON inbox_reply_drafts(updated_at DESC)',
   'CREATE INDEX IF NOT EXISTS received_emails_thread ON received_emails(api_key_id,thread_id,received_at,id)',
   'CREATE INDEX IF NOT EXISTS emails_thread ON emails(api_key_id,thread_id,created_at,id)',
   `CREATE TABLE IF NOT EXISTS received_email_attachments (
@@ -446,6 +455,14 @@ function getSqlite() {
       FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
     );
     CREATE INDEX IF NOT EXISTS inbox_threads_key_folder_updated ON inbox_threads(api_key_id,folder,updated_at DESC,id DESC);
+    CREATE TABLE IF NOT EXISTS inbox_reply_drafts (
+      thread_id TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, mode TEXT NOT NULL DEFAULT 'reply', from_address TEXT NOT NULL,
+      to_text TEXT NOT NULL DEFAULT '', cc_text TEXT NOT NULL DEFAULT '', bcc_text TEXT NOT NULL DEFAULT '',
+      subject TEXT NOT NULL DEFAULT '', text_body TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL,
+      FOREIGN KEY(thread_id) REFERENCES inbox_threads(id) ON DELETE CASCADE,
+      FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
+    );
+    CREATE INDEX IF NOT EXISTS inbox_reply_drafts_updated ON inbox_reply_drafts(updated_at DESC);
     CREATE TABLE IF NOT EXISTS received_email_attachments (
       id TEXT PRIMARY KEY, received_email_id TEXT NOT NULL, filename TEXT NOT NULL,
       content_type TEXT NOT NULL, content_disposition TEXT, content_id TEXT,
@@ -633,6 +650,8 @@ function getSqlite() {
   db.exec('CREATE INDEX IF NOT EXISTS received_emails_thread ON received_emails(api_key_id,thread_id,received_at,id)');
   const inboxThreadColumns = db.prepare('PRAGMA table_info(inbox_threads)').all() as Array<{ name: string }>;
   if (!inboxThreadColumns.some(({ name }) => name === 'inbox_address')) db.exec('ALTER TABLE inbox_threads ADD COLUMN inbox_address TEXT');
+  const inboxDraftColumns = db.prepare('PRAGMA table_info(inbox_reply_drafts)').all() as Array<{ name: string }>;
+  if (!inboxDraftColumns.some(({ name }) => name === 'from_address')) db.exec("ALTER TABLE inbox_reply_drafts ADD COLUMN from_address TEXT NOT NULL DEFAULT ''");
   const broadcastColumns = db.prepare('PRAGMA table_info(broadcasts)').all() as Array<{ name: string }>;
   if (!broadcastColumns.some(({ name }) => name === 'editor_json')) db.exec('ALTER TABLE broadcasts ADD COLUMN editor_json TEXT');
   if (!broadcastColumns.some(({ name }) => name === 'folder_id')) db.exec('ALTER TABLE broadcasts ADD COLUMN folder_id TEXT REFERENCES broadcast_folders(id) ON DELETE SET NULL');

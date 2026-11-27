@@ -23,6 +23,11 @@ function mailbox(value: string): Mailbox {
   return match ? { name: match[1].trim().replace(/^"|"$/g, ''), address: match[2].trim() } : { address: value.trim() };
 }
 
+function headerValue(value: string | null, name: string) {
+  const headers = jsonValue<Record<string, string>>(value, {});
+  return Object.entries(headers).find(([key]) => key.toLowerCase() === name.toLowerCase())?.[1] ?? '';
+}
+
 function plainBody(text: string | null, html: string | null) {
   if (text !== null) return text;
   return (html ?? '')
@@ -116,6 +121,7 @@ export async function GET(_request: Request, context: Context) {
       id: row.id, direction: 'inbound' as const, from: mailbox(row.from_address), to: jsonValue(row.to_json, [] as string[]).map(mailbox),
       ...(row.cc_json ? { cc: jsonValue(row.cc_json, [] as string[]).map(mailbox) } : {}),
       ...(row.bcc_json ? { bcc: jsonValue(row.bcc_json, [] as string[]).map(mailbox) } : {}),
+      ...(headerValue(row.headers_json, 'reply-to') ? { reply_to: mailbox(headerValue(row.headers_json, 'reply-to')) } : {}),
       sent_at: row.received_at, text: plainBody(row.text_body, row.html_body), html_preview: row.html_body,
       attachments: (attachmentsFor.get(row.id) ?? []).map(attachment => ({ id: attachment.id, filename: attachment.filename, content_type: attachment.content_type, byte_length: attachment.byte_length, download_url: attachment.download_url })),
     })),

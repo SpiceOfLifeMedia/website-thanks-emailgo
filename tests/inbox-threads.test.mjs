@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { boundedMessageReferences, makeMessagePreview, normalizeFolder, parseMessageIds, replyReferences, replyRequestHash, safeLabels, searchClause } from '../src/lib/inbox-thread-utils.ts';
+import { boundedMessageReferences, composeRequestHash, composeSubject, extractMailboxAddress, makeMessagePreview, normalizeFolder, normalizeInboxRecipients, parseInboxRecipientText, parseMessageIds, replyAllRecipients, replyReferences, replyRequestHash, safeLabels, searchClause } from '../src/lib/inbox-thread-utils.ts';
 
 test('parses bounded message IDs without turning header newlines into references', () => {
   assert.deepEqual(parseMessageIds('reply <one@example.test> <two@example.test>'), ['<one@example.test>', '<two@example.test>']);
@@ -29,6 +29,36 @@ test('keeps the reply idempotency hash stable when a thread later changes', () =
   const retry = replyRequestHash('rx_123', 'Thanks!');
   assert.equal(firstAttempt, retry);
   assert.notEqual(firstAttempt, replyRequestHash('rx_123', 'Different reply'));
+});
+
+test('normalizes recipient arrays without accepting injected or malformed addresses', () => {
+  assert.deepEqual(normalizeInboxRecipients(['First <first@example.test>', 'first@example.test', 'second@example.test']), ['first@example.test', 'second@example.test']);
+  assert.equal(normalizeInboxRecipients(['first@example.test\r\nBcc: hidden@example.test']), null);
+  assert.equal(normalizeInboxRecipients(Array.from({ length: 51 }, (_, index) => `user${index}@example.test`)), null);
+  assert.deepEqual(parseInboxRecipientText('"Taylor, Lee" <taylor@example.test>, next@example.test'), ['taylor@example.test', 'next@example.test']);
+  assert.equal(parseInboxRecipientText('not-an-address'), null);
+  assert.equal(extractMailboxAddress('Team <team@example.test>'), 'team@example.test');
+  assert.equal(extractMailboxAddress('team@example.test\nBcc: hidden@example.test'), null);
+});
+
+test('reply all preserves To and Cc, removes the inbox, and drops duplicates', () => {
+  assert.deepEqual(replyAllRecipients({
+    from: 'writer@example.test', replyTo: 'Reply desk <reply@example.test>',
+    to: ['inbox@example.test', 'writer@example.test', 'teammate@example.test'],
+    cc: ['teammate@example.test', 'observer@example.test'], inboxAddress: 'INBOX@example.test',
+  }), { to: ['reply@example.test', 'writer@example.test', 'teammate@example.test'], cc: ['observer@example.test'] });
+  assert.deepEqual(replyAllRecipients({ from: 'writer@example.test', to: ['inbox@example.test'], inboxAddress: 'inbox@example.test' }), {
+    to: ['writer@example.test'], cc: [],
+  });
+});
+
+test('composed subjects and idempotency include mode and recipients', () => {
+  assert.equal(composeSubject('reply_all', 'Re: Topic'), 'Re: Topic');
+  assert.equal(composeSubject('forward', 'Fwd: Topic'), 'Fwd: Topic');
+  const first = composeRequestHash('rx_123', { mode: 'reply', from: 'inbox@example.test', to: ['a@example.test'], cc: [], bcc: [], subject: 'Re: Topic', text: 'Thanks' });
+  assert.equal(first, composeRequestHash('rx_123', { mode: 'reply', from: 'inbox@example.test', to: ['a@example.test'], cc: [], bcc: [], subject: 'Re: Topic', text: 'Thanks' }));
+  assert.notEqual(first, composeRequestHash('rx_123', { mode: 'reply_all', from: 'inbox@example.test', to: ['a@example.test'], cc: [], bcc: [], subject: 'Re: Topic', text: 'Thanks' }));
+  assert.notEqual(first, composeRequestHash('rx_123', { mode: 'reply', from: 'other@example.test', to: ['a@example.test'], cc: [], bcc: [], subject: 'Re: Topic', text: 'Thanks' }));
 });
 
 test('accepts only known inbox folders', () => {

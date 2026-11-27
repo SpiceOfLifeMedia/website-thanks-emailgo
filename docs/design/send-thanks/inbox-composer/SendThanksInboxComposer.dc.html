@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#E9E1D3;font-family:'Schibsted Grotesk',sans-serif;color:#1C1916;-webkit-font-smoothing:antialiased}button,input,select,textarea{font:inherit;color:inherit}:focus{outline:none}:focus-visible{outline:3px solid #1C1916;outline-offset:2px;box-shadow:0 0 0 6px #F7D56E}[data-scroll]::-webkit-scrollbar{display:none}a{color:#1C1916}a:hover{color:#3D3832}@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}</style>
+</helmet>
+<div style="padding:56px 64px 64px;display:flex;flex-direction:column;gap:28px">
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:.08em;color:#6B6359">RECEIVING · THREAD COMPOSER · LIVE · FICTIONAL MESSAGES · NOTHING IS SENT</div>
+    <div style="font-size:34px;font-weight:800;letter-spacing:-.03em">Reply, Reply all and Forward, with saved drafts</div>
+    <div style="font-size:15px;color:#3D3832;max-width:900px">Each frame is live. Switch modes, add Cc or Bcc, edit, then Save draft, Close and Reopen. Discard draft asks first. Send checks the recipients, but sends nothing.</div>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start">
+  <sc-for list="{{ frames }}" as="b" hint-placeholder-count="8">
+    <div id="{{ b.id }}" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;gap:10px"><span style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:500;background:#1C1916;color:#FBF9F5;padding:4px 10px;border-radius:6px">{{ b.id }}</span><span style="font-size:17px;font-weight:700">{{ b.caption }}</span></div>
+      <div data-screen-label="{{ b.caption }}" style="width:{{ b.w }};height:{{ b.h }};border:2px solid #1C1916;border-radius:{{ b.frameRad }};overflow:hidden;background:#F4EEE3;box-shadow:{{ b.frameShadow }};display:flex;flex-direction:column">
+        <header style="flex-shrink:0;min-height:56px;padding:{{ b.headPad }};background:#FBF9F5;border-bottom:2px solid #1C1916;display:flex;align-items:center;justify-content:space-between;gap:10px;box-sizing:border-box">
+          <sc-if value="{{ b.desktop }}" hint-placeholder-val="{{ true }}"><div style="display:flex;align-items:center;gap:8px" role="img" aria-label="Send, thanks"><svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true"><rect x="1.5" y="1.5" width="61" height="61" rx="16" style="fill:#FF5A36;stroke:#1C1916;stroke-width:3"></rect><circle cx="32" cy="23" r="9" style="fill:#FBF9F5"></circle><path d="M41 35.5C41 43 34 49 21 52C27 48 31 43.5 32.5 38.5Z" style="fill:#FBF9F5"></path></svg><span aria-hidden="true" style="font-size:18px;font-weight:800;letter-spacing:-.035em">Send<span style="color:#FF5A36">,</span> thanks</span></div><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#6B6359">RECEIVING / INBOX</span></sc-if>
+          <sc-if value="{{ b.mobile }}" hint-placeholder-val="{{ false }}"><button type="button" aria-label="Back to Inbox" style="height:52px;padding:0 14px 0 8px;border-radius:12px;border:2px solid #1C1916;background:#FBF9F5;font-size:16px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:4px"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round"><path d="M15 6l-6 6 6 6"></path></svg>Inbox</button><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#3D3832">2 MESSAGES</span></sc-if>
+        </header>
+        <div style="flex:1;min-height:0;display:grid;grid-template-columns:{{ b.cols }}">
+          <sc-if value="{{ b.desktop }}" hint-placeholder-val="{{ true }}">
+            <nav aria-label="Conversations" style="border-right:2px solid #1C1916;background:#FBF9F5;overflow:hidden">
+              <div style="padding:12px 16px;border-bottom:2px solid #1C1916;font-size:17px;font-weight:800">Inbox</div>
+              <sc-for list="{{ rows }}" as="r" hint-placeholder-count="4"><div aria-current="{{ r.current }}" style="padding:12px 16px 12px 14px;border-bottom:1px solid #E3DCD0;border-left:4px solid {{ r.edge }};background:{{ r.bg }};display:flex;flex-direction:column;gap:4px"><div style="display:flex;justify-content:space-between;gap:10px"><span style="font-size:15px;font-weight:{{ r.weight }}">{{ r.name }}</span><span style="font-size:13px;color:#3D3832">{{ r.when }}</span></div><span style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.subject }}</span><sc-if value="{{ r.draft }}" hint-placeholder-val="{{ false }}"><span style="align-self:flex-start;display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:999px;border:2px dashed #1C1916;background:#FBF9F5;font-size:12px;font-weight:800;box-sizing:border-box">Draft</span></sc-if></div></sc-for>
+            </nav>
+          </sc-if>
+          <section aria-label="Conversation" data-scroll="1" style="min-width:0;min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;background:#FBF9F5;padding:{{ b.pad }}">
+            <div style="max-width:820px;display:flex;flex-direction:column;gap:14px">
+              <h1 style="margin:0;font-size:{{ b.h1 }};font-weight:800;letter-spacing:-.02em;line-height:1.2;overflow-wrap:anywhere">{{ subject }}</h1>
+              <div style="font-size:13px;color:#3D3832;overflow-wrap:anywhere">Inbox <span style="font-family:'IBM Plex Mono',monospace">hello@goodyarn.example</span> · 2 messages</div>
+              <ol aria-label="Messages, oldest first" style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px">
+                <sc-for list="{{ messages }}" as="m" hint-placeholder-count="2">
+                  <li><article style="border:2px solid #1C1916;border-radius:14px;background:{{ m.bg }};padding:12px 14px;display:flex;flex-direction:column;gap:6px">
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-size:15px;font-weight:800">{{ m.fromName }}</span><span style="display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:999px;border:2px solid #1C1916;background:#F4EEE3;font-size:12px;font-weight:800;box-sizing:border-box">{{ m.dir }}</span><span style="margin-left:auto;font-size:13px;color:#3D3832">{{ m.when }}</span></div>
+                    <div style="font-size:13px;color:#3D3832;overflow-wrap:anywhere">From {{ m.from }} · To {{ m.to }}{{ m.ccText }}</div>
+                    <p style="margin:0;font-size:15px;line-height:1.55;overflow-wrap:anywhere">{{ m.text }}</p>
+                  </article></li>
+                </sc-for>
+              </ol>
+
+              <sc-if value="{{ b.showToolbar }}" hint-placeholder-val="{{ false }}">
+                <div role="toolbar" aria-label="Reply options" style="display:grid;grid-template-columns:{{ b.toolCols }};gap:8px">
+                  <sc-for list="{{ b.openers }}" as="o" hint-placeholder-count="3"><button type="button" onClick="{{ o.go }}" style="height:{{ b.ctl }};padding:0 16px;border-radius:12px;border:2px solid #1C1916;background:{{ o.bg }};font-size:15px;font-weight:800;cursor:pointer">{{ o.label }}</button></sc-for>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ b.closedDraft }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:12px 14px;border:2px dashed #1C1916;border-radius:14px;background:#FCEFC0">
+                  <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span style="font-size:15px;font-weight:800">{{ b.modeLabel }} draft</span><span style="font-size:14px;color:#3D3832;overflow-wrap:anywhere">{{ b.statusText }} · To {{ b.toPreview }}</span></div>
+                  <button type="button" onClick="{{ b.reopen }}" style="height:{{ b.ctl }};padding:0 16px;border-radius:12px;border:2px solid #1C1916;background:#FF5A36;font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 2px 0 #1C1916">Reopen draft</button>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ b.hasSent }}" hint-placeholder-val="{{ false }}"><div role="status" style="padding:10px 14px;border:2px dashed #1C1916;border-radius:12px;background:#FBF9F5;font-size:15px">{{ b.sentText }}</div></sc-if>
+
+              <sc-if value="{{ b.open }}" hint-placeholder-val="{{ true }}">
+                <form onSubmit="{{ b.send }}" noValidate="{{ true }}" aria-labelledby="{{ b.formTitle }}" style="border:2px solid #1C1916;border-radius:16px;background:#FCEFC0;box-shadow:0 3px 0 #1C1916;padding:{{ b.cardPad }};display:flex;flex-direction:column;gap:12px;min-width:0">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+                    <h2 id="{{ b.formTitle }}" style="margin:0;font-size:17px;font-weight:800">{{ b.modeLabel }}</h2>
+                    <span aria-live="polite" style="font-size:14px;font-weight:700;color:#1C1916;padding:4px 10px;border:2px {{ b.statusLine }} #1C1916;border-radius:999px;background:#FBF9F5">{{ b.statusText }}</span>
+                  </div>
+                  <div role="radiogroup" aria-label="Composer mode" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px">
+                    <sc-for list="{{ b.modes }}" as="o" hint-placeholder-count="3"><button type="button" role="radio" aria-checked="{{ o.checked }}" onClick="{{ o.pick }}" style="height:{{ b.ctl }};min-width:0;padding:0 8px;border-radius:12px;border:2px solid {{ o.border }};background:{{ o.bg }};font-size:15px;font-weight:{{ o.weight }};cursor:pointer;white-space:nowrap">{{ o.label }}</button></sc-for>
+                  </div>
+
+                  <div style="display:flex;flex-direction:column;gap:10px">
+                    <sc-for list="{{ b.fields }}" as="f" hint-placeholder-count="3">
+                      <div style="display:grid;grid-template-columns:{{ f.cols }};gap:{{ f.gap }};align-items:start">
+                        <label for="{{ f.id }}" style="font-size:14px;font-weight:800;padding-top:{{ f.labelTop }}">{{ f.label }}</label>
+                        <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+                          <sc-if value="{{ f.isSelect }}" hint-placeholder-val="{{ false }}"><select id="{{ f.id }}" value="{{ f.value }}" onChange="{{ f.onChange }}" style="height:{{ f.h }};padding:0 10px;border:2px solid #1C1916;border-radius:12px;background:#FFFFFF;font-size:15px;min-width:0;width:100%"><sc-for list="{{ f.opts }}" as="x" hint-placeholder-count="2"><option value="{{ x.value }}">{{ x.label }}</option></sc-for></select></sc-if>
+                          <sc-if value="{{ f.isInput }}" hint-placeholder-val="{{ true }}"><input id="{{ f.id }}" value="{{ f.value }}" onChange="{{ f.onChange }}" inputMode="{{ f.inputMode }}" autoComplete="off" spellCheck="{{ f.spell }}" placeholder="{{ f.placeholder }}" aria-invalid="{{ f.invalid }}" aria-describedby="{{ f.describedBy }}" style="height:{{ f.h }};padding:0 12px;border:2px {{ f.line }} #1C1916;border-radius:12px;background:#FFFFFF;font-size:15px;box-sizing:border-box;width:100%;min-width:0"></sc-if>
+                          <sc-if value="{{ f.hasHint }}" hint-placeholder-val="{{ false }}"><span id="{{ f.hintId }}" style="font-size:13px;color:#3D3832;line-height:1.4">{{ f.hint }}</span></sc-if>
+                          <sc-if value="{{ f.hasErr }}" hint-placeholder-val="{{ false }}"><span id="{{ f.errId }}" role="alert" style="align-self:flex-start;padding:6px 10px;border:2px solid #1C1916;border-radius:10px;background:#FFD6C9;font-size:13px;font-weight:700;overflow-wrap:anywhere">{{ f.err }}</span></sc-if>
+                        </div>
+                      </div>
+                    </sc-for>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;padding-left:{{ b.revealPad }}">
+                      <sc-if value="{{ b.canAddCc }}" hint-placeholder-val="{{ true }}"><button type="button" onClick="{{ b.addCc }}" style="height:{{ b.ctl }};padding:0 12px;border-radius:10px;border:2px solid transparent;background:transparent;font-size:14px;font-weight:800;text-decoration:underline;text-underline-offset:3px;cursor:pointer" style-hover="background:#FBF9F5">Add Cc</button></sc-if>
+                      <sc-if value="{{ b.canAddBcc }}" hint-placeholder-val="{{ true }}"><button type="button" onClick="{{ b.addBcc }}" style="height:{{ b.ctl }};padding:0 12px;border-radius:10px;border:2px solid transparent;background:transparent;font-size:14px;font-weight:800;text-decoration:underline;text-underline-offset:3px;cursor:pointer" style-hover="background:#FBF9F5">Add Bcc</button></sc-if>
+                    </div>
+                  </div>
+
+                  <div style="display:flex;flex-direction:column;gap:6px">
+                    <label for="{{ b.bodyId }}" style="font-size:14px;font-weight:800">Message <span style="font-weight:500;color:#3D3832">(plain text)</span></label>
+                    <textarea id="{{ b.bodyId }}" value="{{ b.body }}" onChange="{{ b.onBody }}" rows="{{ b.rows }}" aria-invalid="{{ b.bodyInvalid }}" placeholder="Write your message" style="padding:12px;border:2px {{ b.bodyLine }} #1C1916;border-radius:12px;background:#FFFFFF;font-size:16px;line-height:1.5;box-sizing:border-box;width:100%;min-width:0;resize:vertical"></textarea>
+                    <sc-if value="{{ b.hasBodyErr }}" hint-placeholder-val="{{ false }}"><span role="alert" style="align-self:flex-start;padding:6px 10px;border:2px solid #1C1916;border-radius:10px;background:#FFD6C9;font-size:13px;font-weight:700">{{ b.bodyErr }}</span></sc-if>
+                  </div>
+
+                  <sc-if value="{{ b.isForward }}" hint-placeholder-val="{{ false }}">
+                    <figure aria-label="Forwarded message" style="margin:0;padding:12px 14px;border:2px dashed #1C1916;border-radius:12px;background:#FBF9F5;display:flex;flex-direction:column;gap:6px">
+                      <figcaption style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.04em;color:#3D3832">FORWARDED MESSAGE · INCLUDED BELOW YOURS</figcaption>
+                      <dl style="margin:0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;font-size:13px"><dt style="font-weight:700">From</dt><dd style="margin:0;overflow-wrap:anywhere">{{ quoted.from }}</dd><dt style="font-weight:700">Date</dt><dd style="margin:0">{{ quoted.when }}</dd><dt style="font-weight:700">Subject</dt><dd style="margin:0;overflow-wrap:anywhere">{{ subject }}</dd><dt style="font-weight:700">To</dt><dd style="margin:0;overflow-wrap:anywhere">{{ quoted.to }}</dd></dl>
+                      <blockquote style="margin:4px 0 0;padding-left:12px;border-left:3px solid #E3DCD0;font-size:14px;line-height:1.5;color:#3D3832;overflow-wrap:anywhere">{{ quoted.text }}</blockquote>
+                    </figure>
+                  </sc-if>
+
+                  <sc-if value="{{ b.hasFormErr }}" hint-placeholder-val="{{ false }}"><div role="alert" style="padding:8px 12px;border:2px solid #1C1916;border-radius:10px;background:#FFD6C9;font-size:14px;font-weight:700">{{ b.formErr }}</div></sc-if>
+
+                  <sc-if value="{{ b.confirming }}" hint-placeholder-val="{{ false }}">
+                    <div role="alertdialog" aria-labelledby="{{ b.confirmId }}" aria-describedby="{{ b.confirmDesc }}" style="padding:14px;border:2px solid #1C1916;border-radius:12px;background:#FFD6C9;display:flex;flex-direction:column;gap:10px">
+                      <div id="{{ b.confirmId }}" style="font-size:16px;font-weight:800">Discard this draft?</div>
+                      <div id="{{ b.confirmDesc }}" style="font-size:15px;line-height:1.45">Its recipients, subject and message will be deleted. This can’t be undone.</div>
+                      <div style="display:grid;grid-template-columns:{{ b.pairCols }};gap:8px">
+                        <button type="button" onClick="{{ b.keep }}" autoFocus="{{ true }}" style="height:{{ b.ctl }};padding:0 16px;border-radius:12px;border:2px solid #1C1916;background:#FBF9F5;font-size:15px;font-weight:700;cursor:pointer">Keep draft</button>
+                        <button type="button" onClick="{{ b.discard }}" style="height:{{ b.ctl }};padding:0 16px;border-radius:12px;border:2px solid #1C1916;background:#1C1916;color:#FBF9F5;font-size:15px;font-weight:800;cursor:pointer">Discard draft</button>
+                      </div>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ b.notConfirming }}" hint-placeholder-val="{{ true }}">
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                      <button type="submit" style="height:{{ b.ctl }};padding:0 20px;border-radius:12px;border:2px solid #1C1916;background:#FF5A36;font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 2px 0 #1C1916;flex:{{ b.sendFlex }}">Send</button>
+                      <button type="button" onClick="{{ b.save }}" disabled="{{ b.saveDisabled }}" style="height:{{ b.ctl }};padding:0 14px;border-radius:12px;border:2px solid #1C1916;background:#FBF9F5;font-size:15px;font-weight:700;cursor:pointer;opacity:{{ b.saveOpacity }};flex:{{ b.btnFlex }}">Save draft</button>
+                      <button type="button" onClick="{{ b.close }}" style="height:{{ b.ctl }};padding:0 14px;border-radius:12px;border:2px solid #1C1916;background:#FBF9F5;font-size:15px;font-weight:700;cursor:pointer;flex:{{ b.btnFlex }}">Close</button>
+                      <button type="button" onClick="{{ b.askDiscard }}" style="height:{{ b.ctl }};padding:0 14px;margin-left:{{ b.discardMargin }};border-radius:12px;border:2px solid #1C1916;background:transparent;font-size:15px;font-weight:700;cursor:pointer;flex:{{ b.discardFlex }}" style-hover="background:#FFD6C9">Discard draft</button>
+                    </div>
+                  </sc-if>
+                </form>
+              </sc-if>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+// Fictional thread (prototype only).
+const INBOX = { name: 'Good Yarn Co.', address: 'hello@goodyarn.example' };
+const FROM_OPTS = [INBOX, { name: 'Good Yarn Co.', address: 'orders@goodyarn.example' }];
+const SUBJECT = 'Weekend class: can I bring a friend?';
+const MESSAGES = [
+  { id: 'm1', dir: 'Received', from: { name: 'Mia Thompson', address: 'mia.thompson@example.com' }, to: [INBOX], cc: [{ name: 'Zoe Clarke', address: 'zoe.clarke@example.net' }], when: 'Yesterday, 6:20 pm', text: 'Hi! I’m booked into Saturday’s beginner class. Could my friend Zoe come along too? I’ve copied her in.' },
+  { id: 'm2', dir: 'Received', from: { name: 'Mia Thompson', address: 'mia.thompson@example.com' }, to: [INBOX, { name: 'Sam Carter', address: 'sam.carter@example.org' }], cc: [{ name: 'Zoe Clarke', address: 'zoe.clarke@example.net' }], when: 'Today, 9:41 am', text: 'Adding Sam too, who runs the knitting group. We’d both bring 5 mm needles.' }
+];
+const fmt = m => m.name ? `${m.name} <${m.address}>` : m.address;
+const ADDR = /^[^\s@<>",;]+@[^\s@<>",;]+\.[^\s@<>",;]+$/;
+const parse = s => s.split(/[,;]/).map(x => x.trim()).filter(Boolean);
+const addrOf = x => { const m = x.match(/<([^>]+)>\s*$/); return (m ? m[1] : x).trim(); };
+const badList = s => parse(s).filter(x => !ADDR.test(addrOf(x)));
+// Reply-all: sender + other To recipients go in To; Cc stays Cc; the current inbox is always removed. Bcc is never prefilled.
+const recipients = (mode, inbox) => {
+  const last = MESSAGES[MESSAGES.length - 1], not = m => m.address.toLowerCase() !== inbox.toLowerCase();
+  if (mode === 'reply') return { to: fmt(last.from), cc: '' };
+  if (mode === 'replyAll') return { to: [last.from, ...last.to].filter(not).map(fmt).join(', '), cc: (last.cc || []).filter(not).map(fmt).join(', ') };
+  return { to: '', cc: '' };
+};
+const subjectFor = mode => mode === 'forward' ? 'Fwd: ' + SUBJECT : 'Re: ' + SUBJECT;
+const LABEL = { reply: 'Reply', replyAll: 'Reply all', forward: 'Forward' };
+const start = (mode, extra = {}) => { const r = recipients(mode, INBOX.address);
+  return { open: true, mode, from: INBOX.address, to: r.to, cc: r.cc, bcc: '', showCc: !!r.cc, showBcc: false, subject: subjectFor(mode), body: '', status: 'new', savedAt: '', confirming: false, tried: false, sent: '', ...extra }; };
+const FRAMES = [
+  { id: 'c1a', caption: 'Desktop · Reply, draft saved', layout: 'desktop', s: start('reply', { body: 'Hi Mia, of course! There are two spots left. I’ll hold one for Zoe.', status: 'saved', savedAt: '9:52 am' }) },
+  { id: 'c1b', caption: 'Desktop · Reply all', layout: 'desktop', s: start('replyAll', { status: 'dirty', body: 'Hi all, great to have you. See you Saturday at 10.' }) },
+  { id: 'c1c', caption: 'Desktop · Forward', layout: 'desktop', s: start('forward', { to: 'ruby.patel@example.net', body: 'Ruby, can you check the class roster for Saturday?', status: 'dirty' }) },
+  { id: 'c1d', caption: 'Desktop · Discard confirmation', layout: 'desktop', s: start('reply', { body: 'Hi Mia, of course! There are two spots left.', status: 'saved', savedAt: '9:52 am', confirming: true }) },
+  { id: 'c2a', caption: 'Phone · Reply, draft saved', layout: 'mobile', s: start('reply', { body: 'Hi Mia, of course! There are two spots left. I’ll hold one for Zoe.', status: 'saved', savedAt: '9:52 am' }) },
+  { id: 'c2b', caption: 'Phone · Reply all', layout: 'mobile', s: start('replyAll', { status: 'dirty', body: 'Hi all, great to have you. See you Saturday at 10.' }) },
+  { id: 'c2c', caption: 'Phone · Forward', layout: 'mobile', s: start('forward', { to: 'ruby.patel@example.net', body: 'Ruby, can you check the roster?', status: 'dirty' }) },
+  { id: 'c2d', caption: 'Phone · Discard confirmation', layout: 'mobile', s: start('reply', { body: 'Hi Mia, of course!', status: 'saved', savedAt: '9:52 am', confirming: true }) }
+];
+
+class Component extends DCLogic {
+  state = { st: Object.fromEntries(FRAMES.map(f => [f.id, f.s])) };
+  upd(id, patch) { this.setState(s => ({ st: { ...s.st, [id]: { ...s.st[id], ...(typeof patch === 'function' ? patch(s.st[id]) : patch) } } })); }
+  renderVals() {
+    const frames = FRAMES.map(F => {
+      const s = this.state.st[F.id], d = F.layout === 'desktop', h = d ? '44px' : '52px', id = k => `${F.id}-${k}`;
+      const edit = patch => this.upd(F.id, { ...patch, status: 'dirty', sent: '' });
+      const errs = {};
+      if (s.tried) {
+        if (!parse(s.to).length) errs.to = 'Add at least one recipient.';
+        else if (badList(s.to).length) errs.to = `Check this address: ${badList(s.to)[0]}`;
+        if (badList(s.cc).length) errs.cc = `Check this address: ${badList(s.cc)[0]}`;
+        if (badList(s.bcc).length) errs.bcc = `Check this address: ${badList(s.bcc)[0]}`;
+        if (!s.subject.trim()) errs.subject = 'Add a subject.';
+        if (s.mode !== 'forward' && !s.body.trim()) errs.body = 'Write a message before sending.';
+      }
+      const nErr = Object.keys(errs).length;
+      const field = (key, label, extra = {}) => ({ id: id(key), label, value: s[key], h, cols: d ? '72px minmax(0,1fr)' : 'minmax(0,1fr)', gap: d ? '12px' : '6px', labelTop: d ? '12px' : '0px',
+        isInput: true, isSelect: false, inputMode: 'email', spell: 'false', placeholder: 'name@example.com, another@example.com',
+        hasErr: !!errs[key], err: errs[key] || '', errId: id(key + '-err'), invalid: String(!!errs[key]), line: errs[key] ? 'dashed' : 'solid',
+        hasHint: false, hint: '', hintId: id(key + '-hint'), describedBy: errs[key] ? id(key + '-err') : undefined,
+        onChange: e => edit({ [key]: e.target.value }), ...extra });
+      const fields = [
+        field('from', 'From', { isInput: false, isSelect: true, opts: FROM_OPTS.map(m => ({ value: m.address, label: fmt(m) })) }),
+        field('to', 'To'),
+        ...(s.showCc ? [field('cc', 'Cc')] : []),
+        ...(s.showBcc ? [field('bcc', 'Bcc', { hasHint: true, hint: 'Bcc recipients are hidden from everyone else. Nobody is added here automatically.', describedBy: errs.bcc ? `${id('bcc-hint')} ${id('bcc-err')}` : id('bcc-hint') })] : []),
+        field('subject', 'Subject', { inputMode: 'text', spell: 'true', placeholder: 'Subject' })
+      ];
+      const statusText = { new: 'Not saved yet', dirty: 'Unsaved changes', saved: `Draft saved ${s.savedAt}` }[s.status];
+      const switchMode = m => this.upd(F.id, x => { const r = recipients(m, x.from); return { mode: m, to: m === 'forward' ? '' : r.to, cc: r.cc, showCc: x.showCc || !!r.cc, subject: subjectFor(m), status: 'dirty', tried: false, confirming: false }; });
+      const toPreview = parse(s.to).map(addrOf).join(', ') || 'no recipients yet';
+      return {
+        id: F.id, caption: F.caption, desktop: d, mobile: !d, ctl: h, w: d ? '1440px' : '390px', h: d ? '1000px' : '844px', frameRad: d ? '20px' : '36px', frameShadow: d ? 'none' : '0 4px 0 #1C1916',
+        headPad: d ? '0 24px' : 'max(8px, env(safe-area-inset-top)) 12px 8px', cols: d ? '360px minmax(0,1fr)' : 'minmax(0,1fr)',
+        pad: d ? '24px 32px 40px' : '16px 14px calc(28px + env(safe-area-inset-bottom))', h1: d ? '24px' : '21px', cardPad: d ? '16px 18px 18px' : '12px',
+        toolCols: d ? 'repeat(3,max-content)' : 'repeat(3,minmax(0,1fr))', pairCols: d ? 'max-content max-content' : '1fr 1fr', revealPad: d ? '84px' : '0px',
+        rows: d ? 5 : 6, sendFlex: d ? '0 0 auto' : '1 1 100%', btnFlex: d ? '0 0 auto' : '1 1 40%', discardFlex: d ? '0 0 auto' : '1 1 100%', discardMargin: d ? 'auto' : '0',
+        open: s.open, closedDraft: !s.open && s.status !== 'new' && !s.sent, showToolbar: !s.open, hasSent: !!s.sent, sentText: s.sent,
+        openers: Object.entries(LABEL).map(([m, label], i) => ({ label, bg: i === 0 ? '#FF5A36' : '#FBF9F5', go: () => this.upd(F.id, start(m)) })),
+        reopen: () => this.upd(F.id, { open: true }), modeLabel: LABEL[s.mode], statusText, statusLine: s.status === 'saved' ? 'solid' : 'dashed', toPreview,
+        modes: Object.entries(LABEL).map(([m, label]) => { const c = s.mode === m; return { label, checked: String(c), border: c ? '#1C1916' : '#E3DCD0', bg: c ? '#F7D56E' : '#FBF9F5', weight: c ? 800 : 600, pick: () => switchMode(m) }; }),
+        formTitle: id('title'), fields, canAddCc: !s.showCc, canAddBcc: !s.showBcc, addCc: () => this.upd(F.id, { showCc: true }), addBcc: () => this.upd(F.id, { showBcc: true }),
+        bodyId: id('body'), body: s.body, onBody: e => edit({ body: e.target.value }), hasBodyErr: !!errs.body, bodyErr: errs.body || '', bodyInvalid: String(!!errs.body), bodyLine: errs.body ? 'dashed' : 'solid',
+        isForward: s.mode === 'forward', hasFormErr: nErr > 0, formErr: `${nErr} ${nErr === 1 ? 'thing needs' : 'things need'} fixing before this can be sent.`,
+        confirming: s.confirming, notConfirming: !s.confirming, confirmId: id('confirm'), confirmDesc: id('confirm-desc'),
+        keep: () => this.upd(F.id, { confirming: false }), askDiscard: () => this.upd(F.id, { confirming: true }),
+        discard: () => this.upd(F.id, { ...start(s.mode), open: false, status: 'new', sent: 'Draft discarded.' }),
+        save: () => this.upd(F.id, { status: 'saved', savedAt: '9:58 am' }), saveDisabled: s.status === 'saved', saveOpacity: s.status === 'saved' ? 0.5 : 1,
+        close: () => this.upd(F.id, x => ({ open: false, status: x.status === 'dirty' ? 'saved' : x.status, savedAt: x.status === 'dirty' ? '9:58 am' : x.savedAt })),
+        send: e => { e.preventDefault(); const bad = !parse(s.to).length || badList(s.to).length || badList(s.cc).length || badList(s.bcc).length || !s.subject.trim() || (s.mode !== 'forward' && !s.body.trim());
+          if (bad) { this.upd(F.id, { tried: true }); return; }
+          this.upd(F.id, { ...start(s.mode), open: false, status: 'new', sent: `Ready to send to ${toPreview}. This prototype doesn’t send anything.` }); }
+      };
+    });
+    const st = this.state.st;
+    return {
+      frames, subject: SUBJECT,
+      messages: MESSAGES.map(m => ({ ...m, fromName: m.from.name, from: m.from.address, to: m.to.map(x => x.address).join(', '), ccText: m.cc && m.cc.length ? ' · Cc ' + m.cc.map(x => x.address).join(', ') : '', bg: '#FFFFFF' })),
+      rows: [
+        { name: 'Mia Thompson', when: '9:41 am', subject: SUBJECT, current: 'true', edge: '#1C1916', bg: '#FCEFC0', weight: 800, draft: true },
+        { name: 'Jack Wilson', when: '8:12 am', subject: 'December wholesale order', edge: 'transparent', bg: 'transparent', weight: 600, draft: false },
+        { name: 'Priya Desai', when: 'Mon 24 Nov', subject: 'Order arrived with a pulled skein', edge: 'transparent', bg: 'transparent', weight: 600, draft: false },
+        { name: 'Tom Baker', when: 'Sun 23 Nov', subject: 'Do you dye to order?', edge: 'transparent', bg: 'transparent', weight: 600, draft: false }
+      ],
+      quoted: { from: fmt(MESSAGES[1].from), when: MESSAGES[1].when, to: MESSAGES[1].to.map(fmt).join(', '), text: MESSAGES[1].text }
+    };
+  }
+}
+</script>
+</body>
+</html>

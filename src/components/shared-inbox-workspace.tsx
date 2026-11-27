@@ -2,6 +2,7 @@
 
 import { FormEvent, KeyboardEvent as ReactKeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 'react';
 import styles from './shared-inbox-workspace.module.css';
+import { SendThanksInboxComposer, type ComposerErrors, type ComposerMode, type ComposerValue, type DraftStatus } from './send-thanks-inbox-composer';
 
 /* ---------- Serializable data contract ---------- */
 export type FolderId = 'inbox' | 'sent' | 'archive' | 'spam' | 'trash';
@@ -19,6 +20,7 @@ export interface ThreadSummary {
 export interface ThreadMessage {
   id: string; direction: 'inbound' | 'outbound'; from: Mailbox; to: Mailbox[]; cc?: Mailbox[]; bcc?: Mailbox[];
   sentAt: string; /** Plain text. Sanitise and convert HTML on the server. */ text: string;
+  replyTo?: Mailbox;
   htmlPreview?: string | null;
   attachments?: Array<{ id: string; filename: string; contentType: string; byteLength: number; downloadUrl: string }>;
 }
@@ -45,6 +47,19 @@ export interface SharedInboxWorkspaceProps {
   thread: ThreadDetail | null;
   threadStatus: Status | 'idle';
   threadError?: string | null;
+  composerValue: ComposerValue;
+  composerOpen: boolean;
+  composerDraftStatus: DraftStatus;
+  composerSavedAtLabel?: string | null;
+  composerErrors?: ComposerErrors;
+  composerSending?: boolean;
+  onComposerChange: (patch: Partial<ComposerValue>) => void;
+  onComposerModeChange: (mode: ComposerMode) => void;
+  onComposerOpen: (mode?: ComposerMode) => void;
+  onComposerClose: () => void;
+  onSaveComposerDraft: () => void;
+  onDiscardComposerDraft: () => void;
+  onSendComposer: () => void;
   /** Shown in the unobtrusive receiving notice. Pass null to hide. */
   receivingNotice?: string | null;
   layout?: 'desktop' | 'mobile';
@@ -66,7 +81,6 @@ export interface SharedInboxWorkspaceProps {
   onSpam: (threadId: string) => Promise<void>;
   onTrash: (threadId: string) => Promise<void>;
   onSetLabels: (threadId: string, labelIds: string[]) => Promise<void>;
-  onReply: (input: { threadId: string; inboxId: string; text: string }) => Promise<void>;
 }
 
 const FOLDER_LABEL: Record<FolderId, string> = { inbox: 'Inbox', sent: 'Sent', archive: 'Archive', spam: 'Spam', trash: 'Trash' };
@@ -119,8 +133,6 @@ export function SharedInboxWorkspace(p: SharedInboxWorkspaceProps) {
 
   const [draft, setDraft] = useState(query);
   useEffect(() => setDraft(query), [query]);
-  const [composer, setComposer] = useState(false);
-  const [replyText, setReplyText] = useState('');
   const [labelsOpen, setLabelsOpen] = useState(false);
   const [labelDraft, setLabelDraft] = useState<string[]>([]);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -128,7 +140,7 @@ export function SharedInboxWorkspace(p: SharedInboxWorkspaceProps) {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
   const [actionError, setActionError] = useState('');
-  useEffect(() => { setComposer(false); setLabelsOpen(false); setMoreOpen(false); setActionError(''); }, [selectedThreadId]);
+  useEffect(() => { setLabelsOpen(false); setMoreOpen(false); setActionError(''); }, [selectedThreadId]);
 
   const run = async (fn: () => Promise<void>, ok: string) => {
     setBusy(true); setActionError('');
@@ -140,7 +152,7 @@ export function SharedInboxWorkspace(p: SharedInboxWorkspaceProps) {
   const escRef = useRef<() => void>(() => {});
   escRef.current = () => {
     if (moreOpen || labelsOpen) { setMoreOpen(false); setLabelsOpen(false); return; }
-    if (composer) { setComposer(false); return; }
+    if (p.composerOpen) { p.onComposerClose(); return; }
     if (mobile && selectedThreadId) p.onSelectThread(null);
   };
   useEffect(() => {
@@ -200,8 +212,6 @@ export function SharedInboxWorkspace(p: SharedInboxWorkspaceProps) {
 
   const saveLabels = (e: FormEvent) => { e.preventDefault(); if (!th) return; const ids = labelDraft.slice();
     run(async () => { await p.onSetLabels(th.id, ids); setLabelsOpen(false); }, 'Labels saved.'); };
-  const sendReply = (e: FormEvent) => { e.preventDefault(); if (!th || !replyText.trim() || busy) return; const text = replyText.trim();
-    run(async () => { await p.onReply({ threadId: th.id, inboxId: th.inboxId, text }); setReplyText(''); setComposer(false); }, `Reply sent from ${inboxAddr(th.inboxId)}.`); };
 
   /* ---------- pieces ---------- */
   const notice = p.receivingNotice === undefined ? 'New mail only arrives here while this account’s receiving connection is active.' : p.receivingNotice;
@@ -312,20 +322,32 @@ export function SharedInboxWorkspace(p: SharedInboxWorkspaceProps) {
     );
   };
 
-  const renderComposer = () => th && composer && (
-    <form onSubmit={sendReply} aria-label="Reply" className={styles.composer}>
-      <div className={styles.composerMeta}><span><b>To</b> {who(th.counterpart)}</span><span><b>From</b> {inboxAddr(th.inboxId)}</span></div>
-      <label className={styles.field}><span className={styles.srOnly}>Your reply</span>
-        <textarea value={replyText} onChange={e => setReplyText(e.target.value)} rows={mobile ? 5 : 4} placeholder="Write your reply" className={styles.textarea} autoFocus />
-      </label>
-      <div className={mobile ? styles.twoUp : styles.btnRow}>
-        {mobile && <button type="button" className={styles.btn} onClick={() => setComposer(false)}>Cancel</button>}
-        <button type="submit" className={styles.btnTomato} disabled={!replyText.trim() || busy}>{busy ? 'Sending…' : 'Send reply'}</button>
-        {!mobile && <button type="button" className={styles.btn} onClick={() => setComposer(false)}>Cancel</button>}
-        {!mobile && <span className={styles.hint}>Esc closes</span>}
-      </div>
-    </form>
-  );
+  const renderComposer = () => {
+    if (!th) return null;
+    const sourceMessage = [...th.messages].reverse().find(message => message.direction === 'inbound');
+    if (!sourceMessage) return <div role="status" className={styles.threadState}>Only conversations with received messages can be replied to.</div>;
+    const fromOptions: Array<{ address: string; name?: string | null }> = inboxes.map(inbox => ({ address: inbox.address, name: inbox.name }));
+    if (!fromOptions.some(inbox => inbox.address.toLowerCase() === th.inboxId.toLowerCase())) fromOptions.unshift({ address: th.inboxId });
+    return <SendThanksInboxComposer
+      value={p.composerValue}
+      fromOptions={fromOptions}
+      source={{ from: sourceMessage.from, to: sourceMessage.to, cc: sourceMessage.cc, replyTo: sourceMessage.replyTo, sentAtLabel: dates.msg(sourceMessage.sentAt), text: sourceMessage.text }}
+      threadSubject={th.subject}
+      open={p.composerOpen}
+      draftStatus={p.composerDraftStatus}
+      savedAtLabel={p.composerSavedAtLabel}
+      errors={p.composerErrors}
+      sending={p.composerSending}
+      layout={layout}
+      onChange={p.onComposerChange}
+      onModeChange={p.onComposerModeChange}
+      onOpen={p.onComposerOpen}
+      onClose={p.onComposerClose}
+      onSaveDraft={p.onSaveComposerDraft}
+      onDiscardDraft={p.onDiscardComposerDraft}
+      onSend={p.onSendComposer}
+    />;
+  };
 
   const renderThreadHead = () => th && (<>
     <h2 id={`${uid}-subject`} className={styles.subject}>{th.subject}</h2>
@@ -418,7 +440,6 @@ export function SharedInboxWorkspace(p: SharedInboxWorkspaceProps) {
             <div className={styles.detailHead}>
               {renderThreadHead()}
               <div role="toolbar" aria-label="Conversation actions" className={styles.toolbar}>
-                <button type="button" className={styles.btnReply} onClick={() => { setComposer(true); setLabelsOpen(false); }}><Svg d={I.reply} />Reply</button>
                 {actions.map(a => (
                   <button key={a.key} type="button" className={`${styles.btn} ${a.key === 'labels' && labelsOpen ? styles.on : ''}`} onClick={a.fn}
                     disabled={busy || a.disabled} aria-expanded={a.key === 'labels' ? labelsOpen : undefined}><Svg d={a.icon} />{a.label}</button>
@@ -456,9 +477,8 @@ export function SharedInboxWorkspace(p: SharedInboxWorkspaceProps) {
             {renderThreadState()}
             {th && (<>{renderThreadHead()}{renderMessages()}{renderComposer()}</>)}
           </div>
-          {th && !composer && (
+          {th && !p.composerOpen && (
             <div role="toolbar" aria-label="Conversation actions" className={styles.actionBarM}>
-              <button type="button" className={styles.btnReply} onClick={() => setComposer(true)}><Svg d={I.reply} size={18} />Reply</button>
               {primaryMove && <button type="button" className={styles.btn} onClick={primaryMove.fn} disabled={busy || primaryMove.disabled}>{primaryMove.label}</button>}
               <button type="button" className={styles.btn} onClick={() => setMoreOpen(true)} aria-haspopup="dialog" aria-expanded={moreOpen}>More</button>
             </div>
