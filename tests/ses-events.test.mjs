@@ -44,12 +44,13 @@ test('signs subscription confirmations over their own fields', async () => {
 
 test('permanent bounces and complaints suppress the recipient; transient bounces do not', () => {
   const permanent = parseSesNotification(sesMessage({ notificationType: 'Bounce', bounce: { bounceType: 'Permanent', bounceSubType: 'General', bouncedRecipients: [{ emailAddress: 'Gone@Example.com' }] } }));
-  assert.deepEqual(permanent, [{ type: 'bounced', relayMessageId: 'ses-123', recipient: 'gone@example.com', suppress: true, detail: 'Permanent / General' }]);
+  assert.deepEqual(permanent, [{ type: 'bounced', relayMessageId: 'ses-123', recipient: 'gone@example.com', suppress: true, detail: 'Permanent / General', bounce: { type: 'Permanent', subType: 'General' } }]);
   const transient = parseSesNotification(sesMessage({ notificationType: 'Bounce', bounce: { bounceType: 'Transient', bouncedRecipients: [{ emailAddress: 'full@example.com' }] } }));
   assert.equal(transient[0].type, 'deferred');
   assert.equal(transient[0].suppress, false);
   const complaint = parseSesNotification(sesMessage({ eventType: 'Complaint', complaint: { complaintFeedbackType: 'abuse', complainedRecipients: [{ emailAddress: 'angry@example.com' }] } }));
   assert.deepEqual(complaint.map(({ type, suppress }) => [type, suppress]), [['complained', true]]);
+  assert.deepEqual(complaint[0].complaint, { feedbackType: 'abuse' });
   const shared = parseSesNotification(sesMessage({ notificationType: 'Complaint', complaint: { complainedRecipients: [{ emailAddress: 'a@example.com' }, { emailAddress: 'b@example.com' }] } }));
   assert.deepEqual(shared.map(({ type, suppress }) => [type, suppress]), [['complained', false], ['complained', false]]);
   const delivered = parseSesNotification(sesMessage({ notificationType: 'Delivery', delivery: { recipients: ['ok@example.com'] } }));

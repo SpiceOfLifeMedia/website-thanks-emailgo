@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { request as httpsRequest } from 'node:https';
@@ -6,6 +6,7 @@ import { execute, nowIso, query, randomId } from '@/lib/database';
 
 export const WEBHOOK_EVENT_TYPES = [
   'email.sent', 'email.failed', 'email.suppressed', 'email.opened', 'email.clicked', 'email.received',
+  'email.delivered', 'email.delivery_delayed', 'email.bounced', 'email.complained',
   'contact.created', 'contact.updated', 'contact.deleted', 'contact.subscribed', 'contact.unsubscribed',
   'suppression.added', 'suppression.removed',
 ] as const;
@@ -43,23 +44,25 @@ export function validateWebhookEvents(value: unknown): WebhookEventType[] | null
   return events.length === value.length ? events : null;
 }
 
-export async function emitWebhookEvent(apiKeyId: string, type: WebhookEventType, data: Record<string, unknown>) {
+export async function emitWebhookEvent(apiKeyId: string, type: WebhookEventType, data: Record<string, unknown>, stableEventId?: string) {
   try {
     const rows = await query<WebhookRow>('SELECT id,api_key_id,endpoint,events_json,secret_generation FROM webhooks WHERE api_key_id=? AND disabled_at IS NULL', [apiKeyId]);
     const matched = rows.rows.filter((row) => {
       try { return (JSON.parse(row.events_json) as string[]).includes(type); } catch { return false; }
     });
-    if (!matched.length) return;
-    const eventId = randomId('evt');
+    if (!matched.length) return true;
+    const eventId = stableEventId ?? randomId('evt');
     const createdAt = nowIso();
     const payload = JSON.stringify({ type, created_at: createdAt, data: { ...data, event_id: eventId, created_at: createdAt } });
     await Promise.all(matched.map((webhook) => execute(
       `INSERT INTO webhook_deliveries(id,event_id,webhook_id,api_key_id,event_type,payload_json,status,created_at)
-       VALUES(?,?,?,?,?,?,'pending',?)`,
-      [randomId('whd'), eventId, webhook.id, apiKeyId, type, payload, createdAt],
+       VALUES(?,?,?,?,?,?,'pending',?) ON CONFLICT(id) DO NOTHING`,
+      [stableEventId ? `whd_${createHash('sha256').update(`${webhook.id}\0${stableEventId}`).digest('hex').slice(0, 32)}` : randomId('whd'), eventId, webhook.id, apiKeyId, type, payload, createdAt],
     )));
+    return true;
   } catch {
     console.error('Send, thanks could not queue a webhook event.', { type });
+    return false;
   }
 }
 

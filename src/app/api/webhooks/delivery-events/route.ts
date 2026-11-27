@@ -4,6 +4,8 @@ import { consumeWebhookLimit, execute, nowIso, queryOne, randomId } from '@/lib/
 import { readJsonLimited } from '@/lib/request-json';
 import { addSuppression } from '@/lib/suppressions';
 import { parseSesNotification, parseSnsEnvelope, strongerStatus, trustedSnsUrl, verifySnsSignature } from '@/lib/ses-events';
+import { deliveryWebhookData, deliveryWebhookEventId, deliveryWebhookType } from '@/lib/delivery-webhook';
+import { emitWebhookEvent } from '@/lib/webhooks';
 export const runtime = 'nodejs';
 export const maxDuration = 30;
 
@@ -42,17 +44,28 @@ export async function POST(request: Request) {
   const events = parseSesNotification(envelope.Message);
   let recorded = 0;
   for (const event of events) {
-    const email = await queryOne<{ id: string; status: string }>('SELECT id,status FROM emails WHERE relay_message_id = ?', [event.relayMessageId]);
+    const email = await queryOne<{ id: string; status: string; api_key_id: string; from_address: string; subject: string; message_id: string | null; broadcast_id: string | null }>(
+      'SELECT id,status,api_key_id,from_address,subject,message_id,broadcast_id FROM emails WHERE relay_message_id = ?', [event.relayMessageId],
+    );
     // Suppression and status writes are idempotent and run before the event is saved, so an SNS retry finishes a failed attempt.
     if (event.suppress) {
       await addSuppression(event.recipient, event.type === 'complained' ? 'complaint' : 'bounce', envelope.MessageId);
     }
     // Compare-and-set so an overlapping copy with a stale read can never downgrade the status.
-    for (let current = email; current;) {
+    for (let current: { id: string; status: string } | undefined = email; current;) {
       const status = strongerStatus(current.status, event.type);
       if (status === current.status) break;
       if (await execute('UPDATE emails SET status = ? WHERE id = ? AND status = ?', [status, current.id, current.status])) break;
       current = await queryOne<{ id: string; status: string }>('SELECT id,status FROM emails WHERE id = ?', [current.id]);
+    }
+    if (email) {
+      const queued = await emitWebhookEvent(
+        email.api_key_id,
+        deliveryWebhookType(event.type),
+        deliveryWebhookData(event, email),
+        deliveryWebhookEventId(envelope.MessageId, event),
+      );
+      if (!queued) return reject('Delivery event could not be queued.', 503);
     }
     recorded += Number(await execute(`INSERT INTO delivery_events(id,sns_message_id,email_id,relay_message_id,event_type,recipient,detail,created_at)
       VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(sns_message_id,recipient) DO NOTHING`,
