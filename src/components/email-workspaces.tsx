@@ -780,13 +780,13 @@ export function BroadcastsWorkspace({ apiKeys, domains, canQueue }: { apiKeys: B
         <label>Audience type<select value={draft.audience_type} onChange={(event) => { const type = event.target.value as 'segment' | 'topic'; update('audience_type', type); update('audience_id', ''); }}><option value="segment">Saved segment</option><option value="topic">Subscribed topic</option></select></label>
         <label>{draft.audience_type === 'segment' ? 'Saved segment' : 'Subscribed topic'}<select value={draft.audience_id} onChange={(event) => update('audience_id', event.target.value)} required><option value="">Choose an audience</option>{audienceOptions.map((audience) => <option key={audience.id} value={audience.id}>{audience.name}</option>)}</select></label>
         <label className="broadcastSubject">Subject<input value={draft.subject} onChange={(event) => update('subject', event.target.value)} maxLength={998} required /></label>
-        <label>Text body<textarea value={draft.text} onChange={(event) => update('text', event.target.value)} maxLength={500000} rows={7} placeholder="Plain text content. {{name}} and {{email}} are available." /></label>
+        <label>Text body<textarea value={draft.text} onChange={(event) => update('text', event.target.value)} maxLength={500000} rows={7} placeholder="Plain text content. {{FIRST_NAME|there}}, {{LAST_NAME}}, {{EMAIL}} and {{name}} are available." /></label>
         <div className="broadcastEditorField">
           <div className="templateEditorMode" role="group" aria-label="Email editor mode">
             <button type="button" className={editorMode === 'visual' ? 'selected' : ''} onClick={() => { if (!draft.design) update('design', createClaudeStarterDesign()); setEditorMode('visual'); setEditorOpen(true); }}>Visual editor</button>
             <button type="button" className={editorMode === 'html' ? 'selected' : ''} onClick={() => { if (draft.design) update('html', renderEmailDesign(draft.design)); update('design', null); setEditorMode('html'); }}>HTML source</button>
           </div>
-          <label>HTML body<textarea value={draft.html} onChange={(event) => update('html', event.target.value)} maxLength={500000} rows={7} placeholder="Optional HTML. {{name}}, {{email}}, {{preferences_url}} and {{unsubscribe_url}} are available." /></label>
+          <label>HTML body<textarea value={draft.html} onChange={(event) => update('html', event.target.value)} maxLength={500000} rows={7} placeholder="Optional HTML. Use {{NAME}} for escaped values and {{{HTML}}} for trusted markup. Add |fallback inside a tag." /></label>
           <EmailCompatibilityPanel html={draft.design ? renderEmailDesign(draft.design) : draft.html} />
         </div>
         <div className="broadcastDisclosure">Each queued message gets a signed preference link and a List-Unsubscribe header. Message delivery starts from the scheduled worker. Opens and clicks are approximate metrics.</div>

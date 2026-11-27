@@ -5,6 +5,7 @@ import { authorizeBroadcastRequest, eligibleBroadcastContacts, type BroadcastInp
 import { readJsonLimited } from '@/lib/request-json';
 import { smtpConfigured } from '@/lib/smtp';
 import { checkEmailLinks, type EmailLinkIssue } from '@/lib/email-link-checker';
+import { broadcastContactVariables, renderBroadcastContent } from '@/lib/broadcast-template';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -16,15 +17,6 @@ class BroadcastLinkValidationError extends Error {
 }
 
 function htmlEscape(value: string) { return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character] ?? character); }
-function render(source: string | null, values: Record<string, unknown>, html: boolean) {
-  if (source === null) return null;
-  return source.replace(/{{\s*([A-Za-z_][A-Za-z0-9_.-]{0,99})\s*}}/g, (_match, name: string) => {
-    const value = values[name];
-    if (value === null || value === undefined) return '';
-    const text = String(value);
-    return html ? htmlEscape(text) : text;
-  });
-}
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   const authorization = await authorizeBroadcastRequest(request);
@@ -91,11 +83,11 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           try { properties[property.property_key] = JSON.parse(property.fallback_value_json ?? 'null'); } catch {}
         }
       }
-      const values = { ...properties, email: recipient.email, name: recipient.name ?? '', unsubscribe_url: unsubscribeUrl, preferences_url: preferencesUrl };
-      const subject = render(campaign.subject, values, false)?.replace(/[\r\n]/g, ' ').trim() ?? '';
+      const values = broadcastContactVariables({ properties, email: recipient.email, name: recipient.name, preferencesUrl, unsubscribeUrl });
+      const subject = renderBroadcastContent(campaign.subject, values, false)?.replace(/[\r\n]/g, ' ').trim() ?? '';
       if (!subject || subject.length > 998) throw new Error('A rendered broadcast subject is invalid.');
-      const textBody = render(campaign.text, values, false);
-      const htmlBody = render(campaign.html, values, true);
+      const textBody = renderBroadcastContent(campaign.text, values, false);
+      const htmlBody = renderBroadcastContent(campaign.html, values, true);
       const textWithFooter = textBody === null ? null : `${textBody}\n\nManage preferences: ${preferencesUrl}\nUnsubscribe: ${unsubscribeUrl}`;
       const htmlWithFooter = htmlBody === null ? null : `${htmlBody}<div style="margin-top:24px;font-size:12px;color:#666"><a href="${htmlEscape(preferencesUrl)}">Manage preferences</a> · <a href="${htmlEscape(unsubscribeUrl)}">Unsubscribe</a></div>`;
       const linkIssues = checkEmailLinks(htmlWithFooter, textWithFooter);
