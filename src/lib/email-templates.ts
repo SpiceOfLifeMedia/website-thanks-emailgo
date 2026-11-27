@@ -24,6 +24,7 @@ export type TemplateContent = {
 
 export type TemplateRecord = TemplateContent & {
   id: string;
+  folder_id: string | null;
   current_version_id: string | null;
   published_version_id: string | null;
   published_at: string | null;
@@ -52,8 +53,8 @@ type StoredTemplateSummary = Omit<StoredTemplate, 'html' | 'text'>;
 
 type StoredVersion = { id: string; template_id: string; snapshot_json: string; created_at: string; published_at: string | null };
 
-const templateColumns = 'id,name,alias,from_address,subject,reply_to,html,text,variables_json,editor_json,current_version_id,published_version_id,published_at,created_at,updated_at';
-const templateSummaryColumns = 'id,name,alias,from_address,subject,reply_to,variables_json,current_version_id,published_version_id,published_at,created_at,updated_at';
+const templateColumns = 'id,name,alias,from_address,folder_id,subject,reply_to,html,text,variables_json,editor_json,current_version_id,published_version_id,published_at,created_at,updated_at';
+const templateSummaryColumns = 'id,name,alias,from_address,folder_id,subject,reply_to,variables_json,current_version_id,published_version_id,published_at,created_at,updated_at';
 const reservedVariables = new Set(['FIRST_NAME', 'LAST_NAME', 'EMAIL', 'RESEND_UNSUBSCRIBE_URL', 'UNSUBSCRIBE_URL', 'CONTACT', 'THIS']);
 const emailPattern = /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/;
 
@@ -214,11 +215,12 @@ export function emailTemplateResponse(template: StoredTemplate) {
   };
 }
 
-export function emailTemplateSummaryResponse(template: StoredTemplateSummary) {
+export function emailTemplateSummaryResponse(template: StoredTemplateSummary, includeFolderId = false) {
   const content = { name: template.name, alias: template.alias, from: template.from_address, subject: template.subject, reply_to: template.reply_to, variables: parseJson<TemplateVariable[]>(template.variables_json, []) };
   return {
     object: 'template',
     id: template.id,
+    ...(includeFolderId ? { folder_id: template.folder_id } : {}),
     current_version_id: template.current_version_id,
     alias: content.alias,
     name: content.name,
@@ -250,13 +252,13 @@ export async function ensureCurrentTemplateVersion(template: StoredTemplate) {
   return refreshed?.current_version_id ?? versionId;
 }
 
-export async function createEmailTemplate(content: TemplateContent) {
+export async function createEmailTemplate(content: TemplateContent, folderId: string | null = null) {
   const id = randomId('tpl');
   const versionId = randomId('tplv');
   const timestamp = nowIso();
   await transaction([
-    { sql: `INSERT INTO email_templates(id,name,alias,from_address,subject,reply_to,html,text,variables_json,editor_json,current_version_id,status,created_at,updated_at)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,'draft',?,?)`, params: [id, content.name, content.alias, content.from, content.subject, content.reply_to, content.html, content.text, JSON.stringify(content.variables), content.design ? JSON.stringify(content.design) : null, versionId, timestamp, timestamp] },
+    { sql: `INSERT INTO email_templates(id,name,alias,from_address,folder_id,subject,reply_to,html,text,variables_json,editor_json,current_version_id,status,created_at,updated_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'draft',?,?)`, params: [id, content.name, content.alias, content.from, folderId, content.subject, content.reply_to, content.html, content.text, JSON.stringify(content.variables), content.design ? JSON.stringify(content.design) : null, versionId, timestamp, timestamp] },
     { sql: 'INSERT INTO email_template_versions(id,template_id,snapshot_json,created_at,published_at) VALUES(?,?,?,?,NULL)', params: [versionId, id, serializeContent(content), timestamp] },
   ]);
   return findEmailTemplate(id);

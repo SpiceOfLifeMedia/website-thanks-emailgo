@@ -26,7 +26,7 @@ async function __emailgo_POST_handler(request: Request, context: { params: Promi
 
   try {
     const content = { ...storedTemplateToContent(source), name: typeof body?.name === 'string' ? body.name.trim() : `Copy of ${source.name}`, alias: null };
-    const duplicate = await createEmailTemplate(content);
+    const duplicate = await createEmailTemplate(content, source.folder_id);
     return duplicate ? NextResponse.json({ id: duplicate.id, object: 'template' }, { status: 201 }) : NextResponse.json({ error: { message: 'The template could not be duplicated.' } }, { status: 500 });
   } catch {
     return NextResponse.json({ error: { message: 'A template with that name already exists.' } }, { status: 409 });

@@ -29,7 +29,7 @@ async function __emailgo_GET_handler(request: Request) {
   const data = result.data;
   return NextResponse.json({
     object: 'list',
-    data: data.map(emailTemplateSummaryResponse),
+    data: data.map((template) => emailTemplateSummaryResponse(template)),
     has_more: result.hasMore,
     ...(result.hasMore && before ? { next_before: data[0]?.id } : {}),
     ...(result.hasMore && !before ? { next_after: data.at(-1)?.id } : {}),

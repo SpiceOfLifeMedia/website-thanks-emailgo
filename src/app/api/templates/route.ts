@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   if (!await isAdminSession()) return NextResponse.json({ error: 'Sign in required.' }, { status: 401 });
   const templates = await listEmailTemplates();
-  return NextResponse.json({ data: templates.slice(0, 200).map(emailTemplateSummaryResponse) });
+  return NextResponse.json({ data: templates.slice(0, 200).map((template) => emailTemplateSummaryResponse(template, true)) });
 }
 
 export async function POST(request: Request) {

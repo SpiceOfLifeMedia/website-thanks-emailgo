@@ -9,7 +9,8 @@ Send, thanks is an independent mail platform. It must not call the external mail
 | REST email send, get and paginated list | Implemented, local smoke validation passed | SMTP handoff; message list and detail are scoped to the authenticated API key. Detail includes retained text and HTML. Delivery status means relay acceptance, not recipient delivery. No retention windows or self-service message deletion yet. |
 | To, Cc, Bcc, reply-to, headers and tags | Implemented, local validation passed | Stored as message metadata; relay behavior depends on the SMTP server. |
 | Base64 attachments | Implemented, local validation passed | Request limit is 1 MB; attachments capped at 650 KB total and 10 files per message. Attachment bytes are not retained. |
-| Reusable templates with variables | Implemented, local smoke validation passed | Draft and published versions, immutable version history, aliases, fallback values, duplicate/publish operations, HTML escaping, a visual block editor with sandboxed preview, and protection against deleting templates referenced by automations. Link validation runs before publication or sending. Per-workspace isolation is not implemented. |
+| Reusable templates with variables | Implemented, local smoke validation passed | Draft and published versions, immutable version history, aliases, fallback values, duplicate/publish operations, HTML escaping, a visual block editor with sandboxed preview, and protection against deleting templates referenced by automations. Nested template folders support creation, movement, and deletion; deleting a folder and its subfolders returns their templates to All templates. Link validation runs before publication or sending. Per-workspace isolation is not implemented. |
+| Broadcast folders | Not implemented | Campaign drafts do not have folder assignment or folder navigation. |
 | Email link checker | Partial, unit tests passed | Static checks run before API sends, broadcast queuing, template publication, and automation handoff. It detects missing or empty destinations, unsafe schemes, malformed URLs and common placeholders; dynamic variables are checked after rendering. It does not warn inline while editing or fetch remote pages to confirm that a destination responds. |
 | Email client compatibility checker | Partial, unit tests passed | Template and broadcast HTML source editors show advisory findings while editing for commonly stripped elements, event handlers, linked stylesheets, modern CSS layout and color features, and framework markup. Checks are a fixed heuristic list, not a refreshed client-support matrix; they do not annotate code or guarantee rendering across inboxes. |
 | Batch send | Implemented, local smoke validation passed | Accepts the standard direct JSON array and the earlier `{ "emails": [...] }` wrapper. Up to 100 messages, one API rate-limit unit, five SMTP sends in parallel, per-item results and idempotency keys. Each send is synchronous and can exceed a serverless execution window. |
@@ -106,6 +107,9 @@ Send, thanks is an independent mail platform. It must not call the external mail
 | `GET /api/v1/broadcasts/{id}/clicked-links` | Return key-scoped clicked-link analytics with stable keyset pagination and a 5,000-event request cap. |
 | `GET`, `POST /api/v1/templates` | List or create templates. Existing templates migrate as published snapshots; new templates start as drafts. |
 | `GET`, `PATCH`, `DELETE /api/v1/templates/{id}` | Retrieve, save a new draft version, or delete a template if no automation references it. |
+| `GET`, `POST /api/template-folders` | Authenticated dashboard list and creation of nested template folders. Names are unique among siblings. |
+| `DELETE /api/template-folders/{id}` | Delete a folder and its subfolders; return assigned templates to All templates. |
+| `PATCH /api/templates/{id}/folder` | Move a dashboard template to a folder or back to All templates. |
 | `POST /api/v1/templates/{id}/publish` | Validate static links and publish the current draft version using a compare-and-set update. Returns 422 and `link_issues` if a destination is missing, unsafe or still a placeholder. |
 | `POST /api/v1/templates/{id}/duplicate` | Create a draft copy from a template. |
 | `GET /api/v1/templates/{id}/versions` | List immutable draft and published template versions. |
@@ -121,6 +125,7 @@ Webhook signatures use `svix-id`, `svix-timestamp`, and `svix-signature` headers
 ## Verified official references
 
 - [Email Compatibility Checker](https://resend.com/changelog/email-compatibility-checker)
+- [Template Folders](https://resend.com/changelog/template-folders)
 - [Vercel Cron Jobs](https://vercel.com/docs/cron-jobs)
 
 Do not describe Send, thanks as a complete email platform until every applicable row has implemented behavior and verification evidence. Features requiring a delivery event provider, inbound mail provider, team identity system or worker must remain listed as dependencies until configured.

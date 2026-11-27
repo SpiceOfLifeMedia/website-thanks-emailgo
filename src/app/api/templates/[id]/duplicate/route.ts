@@ -25,7 +25,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   }
 
   try {
-    const duplicate = await createEmailTemplate({ ...storedTemplateToContent(source), name, alias: null });
+    const duplicate = await createEmailTemplate({ ...storedTemplateToContent(source), name, alias: null }, source.folder_id);
     return duplicate ? NextResponse.json(emailTemplateResponse(duplicate), { status: 201 }) : NextResponse.json({ error: 'The template could not be duplicated.' }, { status: 500 });
   } catch {
     return NextResponse.json({ error: 'A template with that name already exists.' }, { status: 409 });

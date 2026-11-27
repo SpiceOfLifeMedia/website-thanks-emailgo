@@ -146,12 +146,20 @@ const postgresSchema = [
   )`,
   'CREATE TABLE IF NOT EXISTS login_limits (source_hash TEXT PRIMARY KEY, window_started INTEGER NOT NULL, attempt_count INTEGER NOT NULL)',
   'CREATE TABLE IF NOT EXISTS webhook_limits (source_hash TEXT PRIMARY KEY, window_started INTEGER NOT NULL, request_count INTEGER NOT NULL)',
+  `CREATE TABLE IF NOT EXISTS email_template_folders (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, parent_id TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    FOREIGN KEY(parent_id) REFERENCES email_template_folders(id) ON DELETE CASCADE
+  )`,
+  'CREATE UNIQUE INDEX IF NOT EXISTS email_template_folders_child_name ON email_template_folders(parent_id,name) WHERE parent_id IS NOT NULL',
+  'CREATE UNIQUE INDEX IF NOT EXISTS email_template_folders_root_name ON email_template_folders(name) WHERE parent_id IS NULL',
   `CREATE TABLE IF NOT EXISTS email_templates (
     id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, alias TEXT, from_address TEXT,
+    folder_id TEXT REFERENCES email_template_folders(id) ON DELETE SET NULL,
     subject TEXT NOT NULL DEFAULT '', reply_to TEXT, html TEXT, text TEXT,
     variables_json TEXT NOT NULL DEFAULT '[]', editor_json TEXT, current_version_id TEXT, published_version_id TEXT,
     status TEXT NOT NULL DEFAULT 'draft', published_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`,
+  'ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS folder_id TEXT REFERENCES email_template_folders(id) ON DELETE SET NULL',
   'ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS alias TEXT',
   'ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS from_address TEXT',
   "ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS subject TEXT NOT NULL DEFAULT ''",
@@ -164,6 +172,7 @@ const postgresSchema = [
   'ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS published_at TEXT',
   'CREATE UNIQUE INDEX IF NOT EXISTS email_templates_alias_unique ON email_templates(alias) WHERE alias IS NOT NULL',
   'CREATE INDEX IF NOT EXISTS email_templates_updated_at ON email_templates(updated_at DESC)',
+  'CREATE INDEX IF NOT EXISTS email_templates_folder_updated_at ON email_templates(folder_id,updated_at DESC,id DESC)',
   `CREATE TABLE IF NOT EXISTS email_template_versions (
     id TEXT PRIMARY KEY, template_id TEXT NOT NULL, snapshot_json TEXT NOT NULL,
     created_at TEXT NOT NULL, published_at TEXT,
@@ -427,6 +436,12 @@ function getSqlite() {
     );
     CREATE TABLE IF NOT EXISTS login_limits (source_hash TEXT PRIMARY KEY, window_started INTEGER NOT NULL, attempt_count INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS webhook_limits (source_hash TEXT PRIMARY KEY, window_started INTEGER NOT NULL, request_count INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS email_template_folders (
+      id TEXT PRIMARY KEY, name TEXT NOT NULL, parent_id TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      FOREIGN KEY(parent_id) REFERENCES email_template_folders(id) ON DELETE CASCADE
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS email_template_folders_child_name ON email_template_folders(parent_id,name) WHERE parent_id IS NOT NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS email_template_folders_root_name ON email_template_folders(name) WHERE parent_id IS NULL;
     CREATE TABLE IF NOT EXISTS email_templates (
       id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, alias TEXT, from_address TEXT,
       subject TEXT NOT NULL DEFAULT '', reply_to TEXT, html TEXT, text TEXT,
@@ -575,7 +590,7 @@ function getSqlite() {
   const templateColumns = db.prepare('PRAGMA table_info(email_templates)').all() as Array<{ name: string }>;
   const existingTemplateColumns = new Set(templateColumns.map(({ name }) => name));
   for (const [column, definition] of [
-    ['alias', 'TEXT'], ['from_address', 'TEXT'], ['reply_to', 'TEXT'],
+    ['alias', 'TEXT'], ['from_address', 'TEXT'], ['folder_id', 'TEXT REFERENCES email_template_folders(id) ON DELETE SET NULL'], ['reply_to', 'TEXT'],
     ['variables_json', "TEXT NOT NULL DEFAULT '[]'"], ['editor_json', 'TEXT'], ['current_version_id', 'TEXT'],
     ['published_version_id', 'TEXT'], ["status", "TEXT NOT NULL DEFAULT 'draft'"], ['published_at', 'TEXT'],
   ] as const) {
@@ -601,6 +616,7 @@ function getSqlite() {
     }
   }
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS email_templates_alias_unique ON email_templates(alias) WHERE alias IS NOT NULL');
+  db.exec('CREATE INDEX IF NOT EXISTS email_templates_folder_updated_at ON email_templates(folder_id,updated_at DESC,id DESC)');
   const keyColumns = db.prepare('PRAGMA table_info(api_keys)').all() as Array<{ name: string }>;
   const existingKeyColumns = new Set(keyColumns.map(({ name }) => name));
   if (!existingKeyColumns.has('permission')) db.exec("ALTER TABLE api_keys ADD COLUMN permission TEXT NOT NULL DEFAULT 'full_access'");
