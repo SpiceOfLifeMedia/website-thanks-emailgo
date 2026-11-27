@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { nowIso, query, randomId, transaction } from '@/lib/database';
 import { parseCsv } from '@/lib/csv';
+import { DEFAULT_WORKSPACE_ID } from '@/lib/workspaces';
 
 type ExistingContact = { email: string; name: string | null; properties_json: string; tags_json: string; unsubscribed_at: string | null; consent_status: 'unknown' | 'opted_in'; consent_source: string | null; consented_at: string | null };
 type ImportStatement = { sql: string; params: readonly unknown[] };
@@ -32,6 +33,7 @@ export async function importContactsCsv(
   mode: 'skip' | 'upsert' = 'skip',
   includeAppliedEmails = false,
   additionalStatements?: (appliedEmails: readonly string[]) => Promise<ImportStatement[]>,
+  workspaceId = DEFAULT_WORKSPACE_ID,
 ) {
   const parsed = parseCsv(csv);
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
@@ -161,7 +163,7 @@ export async function importContactsCsv(
   for (let offset = 0; offset < uniqueEmails.length; offset += 400) {
     const batch = uniqueEmails.slice(offset, offset + 400);
     const placeholders = batch.map(() => '?').join(',');
-    const existing = await query<ExistingContact>(`SELECT email,name,properties_json,tags_json,unsubscribed_at,consent_status,consent_source,consented_at FROM contacts WHERE email IN (${placeholders})`, batch);
+    const existing = await query<ExistingContact>(`SELECT email,name,properties_json,tags_json,unsubscribed_at,consent_status,consent_source,consented_at FROM contacts WHERE workspace_id=? AND email IN (${placeholders})`, [workspaceId, ...batch]);
     for (const contact of existing.rows) existingByEmail.set(contact.email, contact);
   }
 
@@ -186,14 +188,14 @@ export async function importContactsCsv(
     const consentedAt = record.consentStatus === 'opted_in' ? record.consentedAt : previous?.consented_at ?? null;
     if (previous) updated += 1; else created += 1;
     statements.push({
-      sql: `INSERT INTO contacts(id,email,name,properties_json,tags_json,unsubscribed_at,consent_status,consent_source,consented_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)
-        ON CONFLICT(email) DO UPDATE SET name=excluded.name,properties_json=excluded.properties_json,tags_json=excluded.tags_json,
+      sql: `INSERT INTO contacts(id,email,name,properties_json,tags_json,unsubscribed_at,consent_status,consent_source,consented_at,created_at,updated_at,workspace_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(workspace_id,email) DO UPDATE SET name=excluded.name,properties_json=excluded.properties_json,tags_json=excluded.tags_json,
         unsubscribed_at=coalesce(contacts.unsubscribed_at,excluded.unsubscribed_at),
         consent_status=CASE WHEN excluded.consent_status='opted_in' THEN excluded.consent_status ELSE contacts.consent_status END,
         consent_source=CASE WHEN excluded.consent_status='opted_in' THEN excluded.consent_source ELSE contacts.consent_source END,
         consented_at=CASE WHEN excluded.consent_status='opted_in' THEN excluded.consented_at ELSE contacts.consented_at END,
         updated_at=excluded.updated_at`,
-      params: [contactId, record.email, name, JSON.stringify(properties), JSON.stringify(tags), unsubscribedAt, record.consentStatus, record.consentSource, record.consentedAt, timestamp, timestamp],
+      params: [contactId, record.email, name, JSON.stringify(properties), JSON.stringify(tags), unsubscribedAt, record.consentStatus, record.consentSource, record.consentedAt, timestamp, timestamp, workspaceId],
     });
     appliedEmails.push(record.email);
     existingByEmail.set(record.email, { email: record.email, name, properties_json: JSON.stringify(properties), tags_json: JSON.stringify(tags), unsubscribed_at: unsubscribedAt, consent_status: consentStatus, consent_source: consentSource, consented_at: consentedAt });

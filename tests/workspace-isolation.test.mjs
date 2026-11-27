@@ -34,7 +34,7 @@ function setupTemporaryDatabase(context, prefix) {
   return dataDirectory;
 }
 
-test('SQLite backfills legacy keys and domains once and replaces global domain uniqueness', async (context) => {
+test('SQLite backfills legacy keys, domains and contacts once and scopes unique values by workspace', async (context) => {
   const dataDirectory = setupTemporaryDatabase(context, 'send-thanks-workspace-migration-');
   const databaseFile = join(dataDirectory, 'emailgo.sqlite');
   const legacy = new DatabaseSync(databaseFile);
@@ -49,15 +49,23 @@ test('SQLite backfills legacy keys and domains once and replaces global domain u
       created_at TEXT NOT NULL, verified_at TEXT,
       open_tracking INTEGER NOT NULL DEFAULT 0, click_tracking INTEGER NOT NULL DEFAULT 0
     );
+    CREATE TABLE contacts (
+      id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, name TEXT,
+      properties_json TEXT NOT NULL, tags_json TEXT NOT NULL, unsubscribed_at TEXT,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
     INSERT INTO api_keys(id,name,prefix,secret_hash,created_at) VALUES('legacy_key','Legacy key','eg_live_legacy','legacy_hash','2026-01-01T00:00:00.000Z');
     INSERT INTO domains(id,domain,verification_token,created_at,verified_at,open_tracking,click_tracking)
       VALUES('legacy_domain','old.example.test','verify=old','2026-01-01T00:00:00.000Z',NULL,1,0);
+    INSERT INTO contacts(id,email,name,properties_json,tags_json,unsubscribed_at,created_at,updated_at)
+      VALUES('legacy_contact','shared@example.test','Legacy contact','{}','[]',NULL,'2026-01-01T00:00:00.000Z','2026-01-01T00:00:00.000Z');
   `);
   legacy.close();
 
   const database = await import('../src/lib/database.ts');
   const legacyKey = await database.queryOne('SELECT id,workspace_id FROM api_keys WHERE id=?', ['legacy_key']);
   const legacyDomain = await database.queryOne('SELECT id,domain,workspace_id,open_tracking,click_tracking FROM domains WHERE id=?', ['legacy_domain']);
+  const legacyContact = await database.queryOne('SELECT id,email,workspace_id FROM contacts WHERE id=?', ['legacy_contact']);
   assert.equal(legacyKey?.id, 'legacy_key');
   assert.equal(legacyKey?.workspace_id, 'default');
   assert.equal(legacyDomain?.id, 'legacy_domain');
@@ -65,18 +73,28 @@ test('SQLite backfills legacy keys and domains once and replaces global domain u
   assert.equal(legacyDomain?.workspace_id, 'default');
   assert.equal(legacyDomain?.open_tracking, 1);
   assert.equal(legacyDomain?.click_tracking, 0);
+  assert.equal(legacyContact?.id, 'legacy_contact');
+  assert.equal(legacyContact?.email, 'shared@example.test');
+  assert.equal(legacyContact?.workspace_id, 'default');
 
   await database.execute("INSERT INTO workspaces(id,name,created_at) VALUES(?,?,?)", ['workspace_b', 'Workspace B', '2026-01-01T00:00:00.000Z']);
   await database.execute(`INSERT INTO domains(id,domain,verification_token,created_at,workspace_id)
     VALUES(?,?,?,?,?)`, ['workspace_b_domain', 'old.example.test', 'verify=b', '2026-01-02T00:00:00.000Z', 'workspace_b']);
+  await database.execute(`INSERT INTO contacts(id,email,name,properties_json,tags_json,unsubscribed_at,created_at,updated_at,workspace_id)
+    VALUES(?,?,?,?,?,?,?,?,?)`, ['workspace_b_contact', 'shared@example.test', 'Workspace B contact', '{}', '[]', null, '2026-01-02T00:00:00.000Z', '2026-01-02T00:00:00.000Z', 'workspace_b']);
 
   const handle = globalThis.emailgoSqlite;
   handle.close();
   delete globalThis.emailgoSqlite;
   const workspaceCount = await database.queryOne('SELECT CAST(COUNT(*) AS INTEGER) AS count FROM workspaces WHERE id=?', ['default']);
   const keyCount = await database.queryOne('SELECT CAST(COUNT(*) AS INTEGER) AS count FROM api_keys WHERE id=? AND workspace_id=?', ['legacy_key', 'default']);
+  const contactCounts = await database.query('SELECT workspace_id,CAST(COUNT(*) AS INTEGER) AS count FROM contacts WHERE lower(email)=lower(?) GROUP BY workspace_id ORDER BY workspace_id', ['shared@example.test']);
   assert.equal(workspaceCount?.count, 1);
   assert.equal(keyCount?.count, 1);
+  assert.deepEqual(contactCounts.rows.map((row) => ({ ...row })), [
+    { workspace_id: 'default', count: 1 },
+    { workspace_id: 'workspace_b', count: 1 },
+  ]);
 
   await assert.rejects(database.execute(`INSERT INTO domains(id,domain,verification_token,created_at,workspace_id)
     VALUES(?,?,?,?,?)`, ['duplicate_default_domain', 'old.example.test', 'verify=dup', '2026-01-03T00:00:00.000Z', 'default']));
@@ -176,4 +194,112 @@ test('API key and domain routes isolate two workspaces', async (context) => {
   assert.equal(keyA?.revoked_at, null);
   assert.equal(domainB?.open_tracking, 0);
   assert.equal(domainB?.workspace_id, 'workspace_b');
+});
+
+test('API contact collection and item routes isolate two workspaces', async (context) => {
+  setupTemporaryDatabase(context, 'send-thanks-workspace-contacts-');
+  const database = await import('../src/lib/database.ts');
+  const [contactCollection, contactItem] = await Promise.all([
+    import('../src/app/api/v1/contacts/route.ts'),
+    import('../src/app/api/v1/contacts/[id]/route.ts'),
+  ]);
+  const timestamp = '2026-01-01T00:00:00.000Z';
+  await database.execute('INSERT INTO workspaces(id,name,created_at) VALUES(?,?,?)', ['workspace_a', 'Workspace A', timestamp]);
+  await database.execute('INSERT INTO workspaces(id,name,created_at) VALUES(?,?,?)', ['workspace_b', 'Workspace B', timestamp]);
+
+  const secrets = {
+    workspace_a: `eg_live_${Buffer.alloc(32, 3).toString('base64url')}`,
+    workspace_b: `eg_live_${Buffer.alloc(32, 4).toString('base64url')}`,
+  };
+  for (const [id, workspaceId, secret] of [
+    ['key_a', 'workspace_a', secrets.workspace_a],
+    ['key_b', 'workspace_b', secrets.workspace_b],
+  ]) {
+    await database.execute(`INSERT INTO api_keys(id,name,prefix,secret_hash,created_at,workspace_id) VALUES(?,?,?,?,?,?)`,
+      [id, `Key ${workspaceId}`, secret.slice(0, 20), database.hashSecret(secret), timestamp, workspaceId]);
+  }
+
+  async function seedContact(id, email, workspaceId, createdAt) {
+    await database.execute(`INSERT INTO contacts(id,email,name,properties_json,tags_json,unsubscribed_at,consent_status,consent_source,consented_at,created_at,updated_at,workspace_id)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`, [id, email, id, '{}', '[]', null, 'unknown', null, null, createdAt, createdAt, workspaceId]);
+  }
+  await seedContact('contact_a_older', 'shared@example.test', 'workspace_a', '2026-01-02T00:00:00.000Z');
+  await seedContact('contact_a_newer', 'a-newer@example.test', 'workspace_a', '2026-01-03T00:00:00.000Z');
+  await seedContact('contact_b', 'b-only@example.test', 'workspace_b', '2026-01-04T00:00:00.000Z');
+
+  async function request(handler, workspaceId, method = 'GET', path = 'http://send-thanks.test/api/v1/contacts', body, contextValue) {
+    await database.execute('DELETE FROM api_request_limits');
+    const request = new Request(path, {
+      method,
+      headers: {
+        authorization: `Bearer ${secrets[workspaceId]}`,
+        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    return contextValue === undefined ? handler(request) : handler(request, contextValue);
+  }
+  const params = (id) => ({ params: Promise.resolve({ id }) });
+
+  const firstPage = await request(contactCollection.GET, 'workspace_a', 'GET', 'http://send-thanks.test/api/v1/contacts?limit=1');
+  assert.equal(firstPage.status, 200);
+  const firstPageBody = await firstPage.json();
+  assert.deepEqual(firstPageBody.data.map(({ id }) => id), ['contact_a_newer']);
+  assert.equal(firstPageBody.has_more, true);
+  assert.equal(firstPageBody.next_after, 'contact_a_newer');
+
+  const nextPage = await request(contactCollection.GET, 'workspace_a', 'GET', `http://send-thanks.test/api/v1/contacts?limit=1&after=${firstPageBody.next_after}`);
+  assert.equal(nextPage.status, 200);
+  const nextPageBody = await nextPage.json();
+  assert.deepEqual(nextPageBody.data.map(({ id }) => id), ['contact_a_older']);
+  assert.equal(nextPageBody.has_more, false);
+
+  const foreignCursor = await request(contactCollection.GET, 'workspace_a', 'GET', 'http://send-thanks.test/api/v1/contacts?limit=1&after=contact_b');
+  assert.equal(foreignCursor.status, 400);
+
+  const hiddenContact = await request(contactItem.GET, 'workspace_a', 'GET', 'http://send-thanks.test/api/v1/contacts/contact_b', undefined, params('contact_b'));
+  assert.equal(hiddenContact.status, 404);
+  const patchForeignContact = await request(contactItem.PATCH, 'workspace_a', 'PATCH', 'http://send-thanks.test/api/v1/contacts/contact_b', { name: 'Changed by workspace A' }, params('contact_b'));
+  assert.equal(patchForeignContact.status, 404);
+  const deleteForeignContact = await request(contactItem.DELETE, 'workspace_a', 'DELETE', 'http://send-thanks.test/api/v1/contacts/contact_b', undefined, params('contact_b'));
+  assert.equal(deleteForeignContact.status, 404);
+
+  const protectedContact = await database.queryOne('SELECT name,workspace_id FROM contacts WHERE id=?', ['contact_b']);
+  assert.equal(protectedContact?.name, 'contact_b');
+  assert.equal(protectedContact?.workspace_id, 'workspace_b');
+
+  const createdByA = await request(contactCollection.POST, 'workspace_a', 'POST', 'http://send-thanks.test/api/v1/contacts', { email: 'created-a@example.test', name: 'Created A' });
+  assert.equal(createdByA.status, 201);
+  const createdA = await createdByA.json();
+  const createdARow = await database.queryOne('SELECT email,workspace_id FROM contacts WHERE id=?', [createdA.id]);
+  assert.equal(createdARow?.email, 'created-a@example.test');
+  assert.equal(createdARow?.workspace_id, 'workspace_a');
+
+  const sameNormalizedEmailInB = await request(contactCollection.POST, 'workspace_b', 'POST', 'http://send-thanks.test/api/v1/contacts', { email: 'SHARED@example.test', name: 'Shared in B' });
+  assert.equal(sameNormalizedEmailInB.status, 201);
+  const createdB = await sameNormalizedEmailInB.json();
+  assert.equal(createdB.email, 'shared@example.test');
+  const createdBRow = await database.queryOne('SELECT email,workspace_id FROM contacts WHERE id=?', [createdB.id]);
+  assert.equal(createdBRow?.email, 'shared@example.test');
+  assert.equal(createdBRow?.workspace_id, 'workspace_b');
+});
+
+test('CSV contact imports upsert only within the requested workspace', async (context) => {
+  setupTemporaryDatabase(context, 'send-thanks-workspace-contact-import-');
+  const database = await import('../src/lib/database.ts');
+  const { importContactsCsv } = await import('../src/lib/contact-import.ts');
+  await database.execute('INSERT INTO workspaces(id,name,created_at) VALUES(?,?,?)', ['workspace_import', 'Import workspace', '2026-01-01T00:00:00.000Z']);
+
+  const defaultImport = await importContactsCsv('email,name\nshared@example.test,Default contact\n', 'upsert', false);
+  assert.equal(defaultImport.status, 200);
+  const workspaceImport = await importContactsCsv('email,name\nshared@example.test,Workspace contact\n', 'upsert', false, undefined, 'workspace_import');
+  assert.equal(workspaceImport.status, 200);
+  const updateWorkspaceImport = await importContactsCsv('email,name\nshared@example.test,Updated workspace contact\n', 'upsert', false, undefined, 'workspace_import');
+  assert.equal(updateWorkspaceImport.status, 200);
+
+  const contacts = (await database.query('SELECT workspace_id,email,name FROM contacts ORDER BY workspace_id')).rows;
+  assert.deepEqual(contacts.map((contact) => ({ ...contact })), [
+    { workspace_id: 'default', email: 'shared@example.test', name: 'Default contact' },
+    { workspace_id: 'workspace_import', email: 'shared@example.test', name: 'Updated workspace contact' },
+  ]);
 });

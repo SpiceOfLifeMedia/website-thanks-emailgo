@@ -288,11 +288,17 @@ const postgresSchema = [
   )`,
   'CREATE INDEX IF NOT EXISTS automation_run_steps_run ON automation_run_steps(run_id,started_at)',
   `CREATE TABLE IF NOT EXISTS contacts (
-    id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, name TEXT,
+    id TEXT PRIMARY KEY, email TEXT NOT NULL, name TEXT,
     properties_json TEXT NOT NULL, tags_json TEXT NOT NULL, unsubscribed_at TEXT,
     consent_status TEXT NOT NULL DEFAULT 'unknown', consent_source TEXT, consented_at TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    workspace_id TEXT NOT NULL DEFAULT 'default' REFERENCES workspaces(id)
   )`,
+  "ALTER TABLE contacts ADD COLUMN IF NOT EXISTS workspace_id TEXT NOT NULL DEFAULT 'default' REFERENCES workspaces(id)",
+  "UPDATE contacts SET workspace_id='default' WHERE workspace_id IS NULL",
+  'ALTER TABLE contacts ALTER COLUMN workspace_id SET NOT NULL',
+  'ALTER TABLE contacts DROP CONSTRAINT IF EXISTS contacts_email_key',
+  'CREATE UNIQUE INDEX IF NOT EXISTS contacts_workspace_email_unique ON contacts(workspace_id,email)',
   `CREATE TABLE IF NOT EXISTS contact_imports (
     id TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, status TEXT NOT NULL,
     counts_json TEXT NOT NULL, errors_json TEXT NOT NULL, created_at TEXT NOT NULL, completed_at TEXT,
@@ -582,10 +588,11 @@ function getSqlite() {
     );
     CREATE INDEX IF NOT EXISTS automation_run_steps_run ON automation_run_steps(run_id,started_at);
     CREATE TABLE IF NOT EXISTS contacts (
-      id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, name TEXT,
+      id TEXT PRIMARY KEY, email TEXT NOT NULL, name TEXT,
       properties_json TEXT NOT NULL, tags_json TEXT NOT NULL, unsubscribed_at TEXT,
       consent_status TEXT NOT NULL DEFAULT 'unknown', consent_source TEXT, consented_at TEXT,
-      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      workspace_id TEXT NOT NULL DEFAULT 'default' REFERENCES workspaces(id)
     );
     CREATE TABLE IF NOT EXISTS contact_imports (
       id TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, status TEXT NOT NULL,
@@ -753,6 +760,48 @@ function getSqlite() {
   if (!existingContactColumns.has('consent_status')) db.exec("ALTER TABLE contacts ADD COLUMN consent_status TEXT NOT NULL DEFAULT 'unknown'");
   if (!existingContactColumns.has('consent_source')) db.exec('ALTER TABLE contacts ADD COLUMN consent_source TEXT');
   if (!existingContactColumns.has('consented_at')) db.exec('ALTER TABLE contacts ADD COLUMN consented_at TEXT');
+  const migratedContactColumns = db.prepare('PRAGMA table_info(contacts)').all() as Array<{ name: string }>;
+  const migratedContactColumnNames = new Set(migratedContactColumns.map(({ name }) => name));
+  const contactIndexes = db.prepare("PRAGMA index_list('contacts')").all() as Array<{ name: string; unique: number }>;
+  const hasGlobalContactEmailUnique = contactIndexes.some(({ name, unique }) => {
+    if (!unique) return false;
+    const escapedName = name.replaceAll('"', '""');
+    const columns = db.prepare(`PRAGMA index_info("${escapedName}")`).all() as Array<{ name: string }>;
+    return columns.length === 1 && columns[0]?.name === 'email';
+  });
+  if (!migratedContactColumnNames.has('workspace_id') || hasGlobalContactEmailUnique) {
+    db.exec('PRAGMA foreign_keys = OFF');
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      const workspaceSelection = migratedContactColumnNames.has('workspace_id') ? "COALESCE(workspace_id,'default')" : "'default'";
+      db.exec(`CREATE TABLE contacts_workspace_migration (
+        id TEXT PRIMARY KEY, email TEXT NOT NULL, name TEXT,
+        properties_json TEXT NOT NULL, tags_json TEXT NOT NULL, unsubscribed_at TEXT,
+        consent_status TEXT NOT NULL DEFAULT 'unknown', consent_source TEXT, consented_at TEXT,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+        workspace_id TEXT NOT NULL DEFAULT 'default' REFERENCES workspaces(id)
+      )`);
+      db.exec(`INSERT INTO contacts_workspace_migration(id,email,name,properties_json,tags_json,unsubscribed_at,consent_status,consent_source,consented_at,created_at,updated_at,workspace_id)
+        SELECT id,email,name,properties_json,tags_json,unsubscribed_at,consent_status,consent_source,consented_at,created_at,updated_at,${workspaceSelection} FROM contacts`);
+      db.exec('DROP TABLE contacts');
+      db.exec('ALTER TABLE contacts_workspace_migration RENAME TO contacts');
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    } finally {
+      db.exec('PRAGMA foreign_keys = ON');
+    }
+  }
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS contacts_workspace_email_unique ON contacts(workspace_id,email)');
+  db.exec(`CREATE TRIGGER IF NOT EXISTS contacts_workspace_insert
+    BEFORE INSERT ON contacts
+    WHEN NOT EXISTS (SELECT 1 FROM workspaces WHERE id=NEW.workspace_id)
+    BEGIN SELECT RAISE(ABORT,'Contact workspace does not exist'); END`);
+  db.exec(`CREATE TRIGGER IF NOT EXISTS contacts_workspace_update
+    BEFORE UPDATE OF workspace_id ON contacts
+    WHEN NOT EXISTS (SELECT 1 FROM workspaces WHERE id=NEW.workspace_id)
+    BEGIN SELECT RAISE(ABORT,'Contact workspace does not exist'); END`);
   const automationEventColumns = db.prepare('PRAGMA table_info(automation_events)').all() as Array<{ name: string }>;
   if (!automationEventColumns.some(({ name }) => name === 'request_hash')) db.exec('ALTER TABLE automation_events ADD COLUMN request_hash TEXT');
   const emailEventColumns = db.prepare('PRAGMA table_info(email_events)').all() as Array<{ name: string }>;

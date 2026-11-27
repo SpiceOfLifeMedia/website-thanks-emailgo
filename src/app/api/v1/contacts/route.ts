@@ -89,15 +89,16 @@ async function __emailgo_GET_handler(request: Request) {
   const limit = rawLimit === null ? 20 : Number(rawLimit);
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) return errorResponse('limit must be an integer from 1 to 100.', 400);
   const after = url.searchParams.get('after');
+  const workspaceId = apiKey.workspaceId;
   let rows: ContactRow[];
   if (after !== null) {
     if (!after) return errorResponse('after must be a non-empty contact ID.', 400);
-    const cursor = await queryOne<{ id: string; created_at: string }>('SELECT id,created_at FROM contacts WHERE id=?', [after]);
+    const cursor = await queryOne<{ id: string; created_at: string }>('SELECT id,created_at FROM contacts WHERE id=? AND workspace_id=?', [after, workspaceId]);
     if (!cursor) return errorResponse('after must be an existing contact ID.', 400);
     rows = (await query<ContactRow>(`SELECT id,email,name,properties_json,tags_json,unsubscribed_at,consent_status,consent_source,consented_at,created_at,updated_at FROM contacts
-      WHERE created_at < ? OR (created_at = ? AND id < ?) ORDER BY created_at DESC,id DESC LIMIT ?`, [cursor.created_at, cursor.created_at, cursor.id, limit + 1])).rows;
+      WHERE workspace_id=? AND (created_at < ? OR (created_at = ? AND id < ?)) ORDER BY created_at DESC,id DESC LIMIT ?`, [workspaceId, cursor.created_at, cursor.created_at, cursor.id, limit + 1])).rows;
   } else {
-    rows = (await query<ContactRow>('SELECT id,email,name,properties_json,tags_json,unsubscribed_at,consent_status,consent_source,consented_at,created_at,updated_at FROM contacts ORDER BY created_at DESC,id DESC LIMIT ?', [limit + 1])).rows;
+    rows = (await query<ContactRow>('SELECT id,email,name,properties_json,tags_json,unsubscribed_at,consent_status,consent_source,consented_at,created_at,updated_at FROM contacts WHERE workspace_id=? ORDER BY created_at DESC,id DESC LIMIT ?', [workspaceId, limit + 1])).rows;
   }
   const hasMore = rows.length > limit;
   const data = rows.slice(0, limit);
@@ -116,7 +117,7 @@ async function __emailgo_POST_handler(request: Request) {
   const timestamp = nowIso();
   const id = randomId('ct');
   try {
-    await execute('INSERT INTO contacts(id,email,name,properties_json,tags_json,unsubscribed_at,consent_status,consent_source,consented_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)', [
+    await execute('INSERT INTO contacts(id,email,name,properties_json,tags_json,unsubscribed_at,consent_status,consent_source,consented_at,created_at,updated_at,workspace_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)', [
       id,
       validated.value.email!,
       validated.value.name ?? null,
@@ -128,11 +129,12 @@ async function __emailgo_POST_handler(request: Request) {
       validated.value.consentStatus === 'opted_in' ? timestamp : null,
       timestamp,
       timestamp,
+      apiKey.workspaceId,
     ]);
   } catch {
     return errorResponse('A contact with that email already exists.', 409);
   }
-  const contact = await queryOne<ContactRow>('SELECT id,email,name,properties_json,tags_json,unsubscribed_at,consent_status,consent_source,consented_at,created_at,updated_at FROM contacts WHERE id=?', [id]);
+  const contact = await queryOne<ContactRow>('SELECT id,email,name,properties_json,tags_json,unsubscribed_at,consent_status,consent_source,consented_at,created_at,updated_at FROM contacts WHERE id=? AND workspace_id=?', [id, apiKey.workspaceId]);
   if (!contact) return errorResponse('The contact was created but could not be read.', 500);
   await emitWebhookEvent(apiKey.id, 'contact.created', { contact_id: id, email: contact.email });
   if (contact.unsubscribed_at) await emitWebhookEvent(apiKey.id, 'contact.unsubscribed', { contact_id: id, email: contact.email, unsubscribed_at: contact.unsubscribed_at });

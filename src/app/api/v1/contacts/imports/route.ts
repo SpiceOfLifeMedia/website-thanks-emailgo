@@ -221,8 +221,8 @@ async function __emailgo_POST_handler(request: Request) {
   if (!parsedNormalized.ok) return errorResponse('Could not prepare the mapped contact import.', 400);
   if (onConflict === 'upsert' && topics.some(({ subscription }) => subscription === 'opt_in') && sourceEmails.size) {
     const emails = [...sourceEmails];
-    const existing = (await query<{ email: string; unsubscribed_at: string | null }>(`SELECT lower(email) AS email,unsubscribed_at FROM contacts WHERE lower(email) IN (${emails.map(() => '?').join(',')})`, emails)).rows;
-    if (existing.some((contact) => contact.unsubscribed_at)) return errorResponse('A globally unsubscribed contact cannot be added to a topic by import.', 409);
+    const existing = (await query<{ email: string; unsubscribed_at: string | null }>(`SELECT lower(email) AS email,unsubscribed_at FROM contacts WHERE workspace_id=? AND lower(email) IN (${emails.map(() => '?').join(',')})`, [key.workspaceId, ...emails])).rows;
+    if (existing.some((contact) => contact.unsubscribed_at)) return errorResponse('A contact unsubscribed in this workspace cannot be added to a topic by import.', 409);
   }
   const total = parsedCsv.rows.length - 1;
   const startedAt = nowIso();
@@ -246,15 +246,15 @@ async function __emailgo_POST_handler(request: Request) {
         const segmentPlaceholders = segmentIds.map(() => '?').join(',');
         statements.push({
           sql: `DELETE FROM segment_contact_exclusions WHERE segment_id IN (${segmentPlaceholders})
-            AND contact_id IN (SELECT id FROM contacts WHERE lower(email) IN (${emailPlaceholders}))`,
-          params: [...segmentIds, ...appliedEmails],
+            AND contact_id IN (SELECT id FROM contacts WHERE workspace_id=? AND lower(email) IN (${emailPlaceholders}))`,
+          params: [...segmentIds, key.workspaceId, ...appliedEmails],
         });
         statements.push({
           sql: `INSERT INTO segment_contacts(segment_id,contact_id,created_at)
             SELECT s.id,c.id,? FROM segments s CROSS JOIN contacts c
-            WHERE s.id IN (${segmentPlaceholders}) AND lower(c.email) IN (${emailPlaceholders})
+            WHERE s.id IN (${segmentPlaceholders}) AND c.workspace_id=? AND lower(c.email) IN (${emailPlaceholders})
             ON CONFLICT(segment_id,contact_id) DO NOTHING`,
-          params: [timestamp, ...segmentIds, ...appliedEmails],
+          params: [timestamp, ...segmentIds, key.workspaceId, ...appliedEmails],
         });
       }
       for (const subscription of ['opt_in', 'opt_out'] as const) {
@@ -268,19 +268,19 @@ async function __emailgo_POST_handler(request: Request) {
           sql: subscription === 'opt_in'
             ? `INSERT INTO contact_topics(contact_id,topic_id,subscribed_at,unsubscribed_at,consent_source,consented_at)
               SELECT c.id,t.id,?,NULL,c.consent_source,c.consented_at FROM contacts c CROSS JOIN topics t
-              WHERE lower(c.email) IN (${emailPlaceholders}) AND t.id IN (${topicPlaceholders}) AND t.disabled_at IS NULL ${consentFilter}
+              WHERE c.workspace_id=? AND lower(c.email) IN (${emailPlaceholders}) AND t.id IN (${topicPlaceholders}) AND t.disabled_at IS NULL ${consentFilter}
               ON CONFLICT(contact_id,topic_id) DO UPDATE SET
                 subscribed_at=CASE WHEN contact_topics.unsubscribed_at IS NULL THEN contact_topics.subscribed_at ELSE excluded.subscribed_at END,
                 unsubscribed_at=NULL,consent_source=excluded.consent_source,consented_at=excluded.consented_at`
             : `INSERT INTO contact_topics(contact_id,topic_id,subscribed_at,unsubscribed_at,consent_source,consented_at)
               SELECT c.id,t.id,NULL,?,NULL,NULL FROM contacts c CROSS JOIN topics t
-              WHERE lower(c.email) IN (${emailPlaceholders}) AND t.id IN (${topicPlaceholders}) AND t.disabled_at IS NULL
+              WHERE c.workspace_id=? AND lower(c.email) IN (${emailPlaceholders}) AND t.id IN (${topicPlaceholders}) AND t.disabled_at IS NULL
               ON CONFLICT(contact_id,topic_id) DO UPDATE SET unsubscribed_at=excluded.unsubscribed_at`,
-          params: [timestamp, ...appliedEmails, ...topicIds],
+          params: [timestamp, key.workspaceId, ...appliedEmails, ...topicIds],
         });
       }
       return statements;
-    });
+    }, key.workspaceId);
     const importBody = await imported.json() as { counts?: { total?: number; created?: number; updated?: number; skipped?: number }; errors?: Array<{ row: number; message: string }>; applied_emails?: string[]; error?: string | { message?: string } };
     if (!imported.ok) {
       const message = typeof importBody.error === 'string' ? importBody.error : importBody.error?.message ?? 'Contact import failed.';
@@ -294,7 +294,7 @@ async function __emailgo_POST_handler(request: Request) {
     const webhookErrors: Array<{ row: number; message: string }> = [];
     if (appliedEmails.length && topics.length) {
       const placeholders = appliedEmails.map(() => '?').join(',');
-      const contacts = (await query<{ id: string; email: string; unsubscribed_at: string | null; consent_status: string; consent_source: string | null; consented_at: string | null }>(`SELECT id,email,unsubscribed_at,consent_status,consent_source,consented_at FROM contacts WHERE lower(email) IN (${placeholders})`, appliedEmails)).rows;
+      const contacts = (await query<{ id: string; email: string; unsubscribed_at: string | null; consent_status: string; consent_source: string | null; consented_at: string | null }>(`SELECT id,email,unsubscribed_at,consent_status,consent_source,consented_at FROM contacts WHERE workspace_id=? AND lower(email) IN (${placeholders})`, [key.workspaceId, ...appliedEmails])).rows;
       const topicIds = [...new Set(topics.map(({ id }) => id))];
       const activeTopics = new Set((await query<{ id: string }>(`SELECT id FROM topics WHERE disabled_at IS NULL AND id IN (${topicIds.map(() => '?').join(',')})`, topicIds)).rows.map(({ id }) => id));
       const timestamp = nowIso();

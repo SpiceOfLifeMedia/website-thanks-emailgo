@@ -47,7 +47,7 @@ async function __emailgo_GET_handler(request: Request, context: { params: Promis
   if (!apiKey) return errorResponse('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(apiKey)) return errorResponse('This API key has sending-only access.', 403);
   const { id } = await context.params;
-  const contact = await queryOne<ContactRow>('SELECT id,email,name,properties_json,tags_json,unsubscribed_at,consent_status,consent_source,consented_at,created_at,updated_at FROM contacts WHERE id=?', [id]);
+  const contact = await queryOne<ContactRow>('SELECT id,email,name,properties_json,tags_json,unsubscribed_at,consent_status,consent_source,consented_at,created_at,updated_at FROM contacts WHERE id=? AND workspace_id=?', [id, apiKey.workspaceId]);
   return contact ? NextResponse.json(toContact(contact)) : errorResponse('Contact not found.', 404);
 }
 
@@ -56,7 +56,7 @@ async function __emailgo_PATCH_handler(request: Request, context: { params: Prom
   if (!apiKey) return errorResponse('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(apiKey)) return errorResponse('This API key has sending-only access.', 403);
   const { id } = await context.params;
-  const current = await queryOne<ContactRow>('SELECT id,email,name,properties_json,tags_json,unsubscribed_at,consent_status,consent_source,consented_at,created_at,updated_at FROM contacts WHERE id=?', [id]);
+  const current = await queryOne<ContactRow>('SELECT id,email,name,properties_json,tags_json,unsubscribed_at,consent_status,consent_source,consented_at,created_at,updated_at FROM contacts WHERE id=? AND workspace_id=?', [id, apiKey.workspaceId]);
   if (!current) return errorResponse('Contact not found.', 404);
   const parsed = await readJsonLimited(request, 50_000);
   if (!parsed.ok) return errorResponse(parsed.error, parsed.status);
@@ -94,11 +94,11 @@ async function __emailgo_PATCH_handler(request: Request, context: { params: Prom
   const consentSourceValue = consentStatus === 'opted_in' ? consentSource ?? current.consent_source : null;
   const consentedAt = consentStatus === 'opted_in' ? current.consent_status === 'opted_in' ? current.consented_at : updatedAt : null;
   try {
-    await execute('UPDATE contacts SET email=?,name=?,properties_json=?,tags_json=?,unsubscribed_at=?,consent_status=?,consent_source=?,consented_at=?,updated_at=? WHERE id=?', [email, name, propertiesJson, tagsJson, unsubscribedAt, consentStatus, consentSourceValue, consentedAt, updatedAt, id]);
+    await execute('UPDATE contacts SET email=?,name=?,properties_json=?,tags_json=?,unsubscribed_at=?,consent_status=?,consent_source=?,consented_at=?,updated_at=? WHERE id=? AND workspace_id=?', [email, name, propertiesJson, tagsJson, unsubscribedAt, consentStatus, consentSourceValue, consentedAt, updatedAt, id, apiKey.workspaceId]);
   } catch {
     return errorResponse('A contact with that email already exists.', 409);
   }
-  const updated = await queryOne<ContactRow>('SELECT id,email,name,properties_json,tags_json,unsubscribed_at,consent_status,consent_source,consented_at,created_at,updated_at FROM contacts WHERE id=?', [id]);
+  const updated = await queryOne<ContactRow>('SELECT id,email,name,properties_json,tags_json,unsubscribed_at,consent_status,consent_source,consented_at,created_at,updated_at FROM contacts WHERE id=? AND workspace_id=?', [id, apiKey.workspaceId]);
   if (updated) {
     await emitWebhookEvent(apiKey.id, 'contact.updated', { contact_id: id, email: updated.email });
     if (!current.unsubscribed_at && updated.unsubscribed_at) await emitWebhookEvent(apiKey.id, 'contact.unsubscribed', { contact_id: id, email: updated.email, unsubscribed_at: updated.unsubscribed_at });
@@ -112,9 +112,9 @@ async function __emailgo_DELETE_handler(request: Request, context: { params: Pro
   if (!apiKey) return errorResponse('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(apiKey)) return errorResponse('This API key has sending-only access.', 403);
   const { id } = await context.params;
-  const contact = await queryOne<{ id: string; email: string }>('SELECT id,email FROM contacts WHERE id=?', [id]);
+  const contact = await queryOne<{ id: string; email: string }>('SELECT id,email FROM contacts WHERE id=? AND workspace_id=?', [id, apiKey.workspaceId]);
   if (!contact) return errorResponse('Contact not found.', 404);
-  const deleted = await execute('DELETE FROM contacts WHERE id=?', [id]);
+  const deleted = await execute('DELETE FROM contacts WHERE id=? AND workspace_id=?', [id, apiKey.workspaceId]);
   if (!deleted) return errorResponse('Contact not found.', 404);
   await emitWebhookEvent(apiKey.id, 'contact.deleted', { contact_id: id, email: contact.email });
   return NextResponse.json({ object: 'contact', id, deleted: true });
