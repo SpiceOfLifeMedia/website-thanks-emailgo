@@ -6,6 +6,7 @@ import { readJsonLimited } from '@/lib/request-json';
 import { smtpConfigured } from '@/lib/smtp';
 import { checkEmailLinks, type EmailLinkIssue } from '@/lib/email-link-checker';
 import { broadcastContactVariables, renderBroadcastContent } from '@/lib/broadcast-template';
+import { normalizeScheduledAt } from '@/lib/scheduled-time';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -43,10 +44,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (Object.keys(body).some((key) => key !== 'scheduled_at')) return NextResponse.json({ error: 'Only scheduled_at is supported.' }, { status: 400, headers: privateHeaders });
   let scheduledAt = nowIso();
   if (body.scheduled_at !== undefined) {
-    if (typeof body.scheduled_at !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(body.scheduled_at) || !Number.isFinite(Date.parse(body.scheduled_at))) return NextResponse.json({ error: 'scheduled_at must be an ISO 8601 timestamp.' }, { status: 400, headers: privateHeaders });
-    const parsedTime = Date.parse(body.scheduled_at);
-    if (parsedTime <= Date.now() || parsedTime > Date.now() + 30 * 24 * 60 * 60 * 1000) return NextResponse.json({ error: 'scheduled_at must be within the next 30 days.' }, { status: 400, headers: privateHeaders });
-    scheduledAt = new Date(parsedTime).toISOString();
+    const schedule = normalizeScheduledAt(body.scheduled_at);
+    if (!schedule.ok) return NextResponse.json({ error: schedule.error }, { status: 400, headers: privateHeaders });
+    scheduledAt = schedule.scheduledAt;
   }
   const fromAddress = /<([^<>]+)>$/.exec(campaign.from)?.[1] ?? campaign.from;
   if (!emailPattern.test(fromAddress)) return NextResponse.json({ error: 'The broadcast sender is invalid.' }, { status: 400, headers: privateHeaders });

@@ -1,3 +1,5 @@
+import { normalizeScheduledAt } from './scheduled-time.ts';
+
 export type BroadcastCreateOptions = { send: boolean; scheduledAt?: string };
 
 export function parseBroadcastCreateOptions(value: unknown, now = Date.now()): { ok: true; options: BroadcastCreateOptions } | { ok: false; error: string } {
@@ -11,11 +13,7 @@ export function parseBroadcastCreateOptions(value: unknown, now = Date.now()): {
   if (!hasSnakeTime && !hasCamelTime) return { ok: true, options: { send } };
   if (!send) return { ok: false, error: 'scheduled_at requires send to be true.' };
   const scheduledValue = hasSnakeTime ? body.scheduled_at : body.scheduledAt;
-  if (typeof scheduledValue !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(scheduledValue) || !Number.isFinite(Date.parse(scheduledValue))) {
-    return { ok: false, error: 'scheduled_at must be an ISO 8601 timestamp.' };
-  }
-  const timestamp = Date.parse(scheduledValue);
-  if (timestamp <= now) return { ok: false, error: 'scheduled_at must be in the future.' };
-  if (timestamp > now + 30 * 24 * 60 * 60 * 1000) return { ok: false, error: 'scheduled_at cannot be more than 30 days in the future.' };
-  return { ok: true, options: { send, scheduledAt: new Date(timestamp).toISOString() } };
+  const schedule = normalizeScheduledAt(scheduledValue, now);
+  if (!schedule.ok) return { ok: false, error: schedule.error };
+  return { ok: true, options: { send, scheduledAt: schedule.scheduledAt } };
 }

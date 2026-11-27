@@ -10,6 +10,7 @@ import { trackedHtml } from '@/lib/tracking';
 import { emitWebhookEvent } from '@/lib/webhooks';
 import { findEmailTemplate, getPublishedTemplateContent, storedTemplateToContent } from '@/lib/email-templates';
 import { sanitizeCustomerCopy } from '@/lib/customer-copy';
+import { normalizeScheduledAt } from '@/lib/scheduled-time';
 import { relayMessageIdFromResponse } from '@/lib/ses-events';
 import { recordEmailSentActivity } from '@/lib/email-activity';
 
@@ -323,11 +324,9 @@ export async function sendEmailRequest(request: Request, options: { countRateLim
   let scheduledAt: string | null = null;
   if (body.scheduled_at !== undefined) {
     if (!process.env.CRON_SECRET) return responseError('Scheduled sending is not configured on this Send, thanks deployment.', 503);
-    if (typeof body.scheduled_at !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(body.scheduled_at) || !Number.isFinite(Date.parse(body.scheduled_at))) return responseError('scheduled_at must be an ISO 8601 timestamp.', 400);
-    const scheduleTime = Date.parse(body.scheduled_at);
-    if (scheduleTime <= Date.now()) return responseError('scheduled_at must be in the future.', 400);
-    if (scheduleTime > Date.now() + 30 * 24 * 60 * 60 * 1000) return responseError('scheduled_at cannot be more than 30 days in the future.', 400);
-    scheduledAt = new Date(scheduleTime).toISOString();
+    const schedule = normalizeScheduledAt(body.scheduled_at);
+    if (!schedule.ok) return responseError(schedule.error, 400);
+    scheduledAt = schedule.scheduledAt;
   }
 
   const suppliedSubject = body.subject === undefined ? '' : typeof body.subject === 'string' ? body.subject : null;

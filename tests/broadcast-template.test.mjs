@@ -65,6 +65,9 @@ test('broadcast create options preserve draft mode and support a scheduled one-r
   assert.deepEqual(parseBroadcastCreateOptions({ send: true, scheduledAt: '2026-11-28T01:00:00+01:00' }, now), {
     ok: true, options: { send: true, scheduledAt: '2026-11-28T00:00:00.000Z' },
   });
+  assert.deepEqual(parseBroadcastCreateOptions({ send: true, scheduled_at: 'in 1 hour' }, now), {
+    ok: true, options: { send: true, scheduledAt: '2026-11-27T01:00:00.000Z' },
+  });
 });
 
 test('broadcast create options reject ambiguous or unsafe schedule requests', () => {

@@ -4,6 +4,7 @@ import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { execute, queryOne } from '@/lib/database';
 import { readJsonLimited } from '@/lib/request-json';
 import { sanitizeCustomerCopy } from '@/lib/customer-copy';
+import { normalizeScheduledAt } from '@/lib/scheduled-time';
 export const runtime = 'nodejs';
 const privateHeaders = { 'Cache-Control': 'private, no-store' };
 
@@ -54,11 +55,10 @@ async function __emailgo_PATCH_handler(request: Request, context: { params: Prom
   if (!parsed.ok) return NextResponse.json({ error: { message: parsed.error } }, { status: parsed.status });
   if (!parsed.value || typeof parsed.value !== 'object' || Array.isArray(parsed.value)) return NextResponse.json({ error: { message: 'Request body must be a JSON object.' } }, { status: 400 });
   const body = parsed.value as Record<string, unknown>;
-  if (Object.keys(body).length !== 1 || typeof body.scheduled_at !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(body.scheduled_at) || !Number.isFinite(Date.parse(body.scheduled_at))) return NextResponse.json({ error: { message: 'Provide only a valid scheduled_at ISO 8601 timestamp.' } }, { status: 400 });
-  const scheduleTime = Date.parse(body.scheduled_at);
-  if (scheduleTime <= Date.now()) return NextResponse.json({ error: { message: 'scheduled_at must be in the future.' } }, { status: 400 });
-  if (scheduleTime > Date.now() + 30 * 24 * 60 * 60 * 1000) return NextResponse.json({ error: { message: 'scheduled_at cannot be more than 30 days in the future.' } }, { status: 400 });
-  const update = await execute('UPDATE emails SET scheduled_at=?,next_attempt_at=NULL WHERE id=? AND api_key_id=? AND status=?', [new Date(scheduleTime).toISOString(), id, apiKey.id, 'scheduled']);
+  if (Object.keys(body).length !== 1) return NextResponse.json({ error: { message: 'Provide only scheduled_at.' } }, { status: 400 });
+  const schedule = normalizeScheduledAt(body.scheduled_at);
+  if (!schedule.ok) return NextResponse.json({ error: { message: schedule.error } }, { status: 400 });
+  const update = await execute('UPDATE emails SET scheduled_at=?,next_attempt_at=NULL WHERE id=? AND api_key_id=? AND status=?', [schedule.scheduledAt, id, apiKey.id, 'scheduled']);
   if (!update) {
     const existing = await queryOne<{ id: string; status: string }>('SELECT id,status FROM emails WHERE id=? AND api_key_id=?', [id, apiKey.id]);
     if (!existing) return NextResponse.json({ error: { message: 'Email not found.' } }, { status: 404 });
