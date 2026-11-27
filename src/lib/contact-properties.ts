@@ -56,3 +56,9 @@ export async function updateContactProperty(key: string, type: ContactPropertyTy
 export async function deleteContactProperty(key: string, workspaceId = DEFAULT_WORKSPACE_ID) {
   return execute('DELETE FROM contact_properties WHERE property_key=? AND workspace_id=?', [key, workspaceId]);
 }
+
+export async function deleteContactProperties(keys: readonly string[], workspaceId = DEFAULT_WORKSPACE_ID) {
+  if (!keys.length) return 0;
+  const placeholders = keys.map(() => '?').join(',');
+  return execute(`DELETE FROM contact_properties WHERE workspace_id=? AND property_key IN (${placeholders})`, [workspaceId, ...keys]);
+}

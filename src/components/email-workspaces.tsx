@@ -543,6 +543,9 @@ export function ContactsWorkspace({ preferencesConfigured }: { preferencesConfig
 
 function ContactPropertiesPanel() {
   const [properties, setProperties] = useState<ContactProperty[]>([]);
+  const [selectedPropertyKeys, setSelectedPropertyKeys] = useState<string[]>([]);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteConfirmation, setBulkDeleteConfirmation] = useState('');
   const [editingKey, setEditingKey] = useState('');
   const [key, setKey] = useState('');
   const [type, setType] = useState<'string' | 'number'>('string');
@@ -551,6 +554,8 @@ function ContactPropertiesPanel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const propertySelectionTargets = properties.slice(0, 120);
+  const allPropertyTargetsSelected = propertySelectionTargets.length > 0 && propertySelectionTargets.every((property) => selectedPropertyKeys.includes(property.key));
 
   const load = useCallback(async () => {
     try { const result = await api<{ data: ContactProperty[] }>('/api/contact-properties'); setProperties(result.data); setError(''); }
@@ -559,7 +564,7 @@ function ContactPropertiesPanel() {
   useEffect(() => { void load(); }, [load]);
 
   function beginEdit(property: ContactProperty) {
-    setEditingKey(property.key); setKey(property.key); setType(property.type); setFallback(property.fallback_value === null ? '' : String(property.fallback_value)); setError(''); setNotice('');
+    setEditingKey(property.key); setKey(property.key); setType(property.type); setFallback(property.fallback_value === null ? '' : String(property.fallback_value)); setError(''); setNotice(''); setSelectedPropertyKeys([]); setBulkDeleteOpen(false); setBulkDeleteConfirmation('');
   }
 
   function resetForm() { setEditingKey(''); setKey(''); setType('string'); setFallback(''); }
@@ -588,8 +593,43 @@ function ContactPropertiesPanel() {
 
   async function remove(property: ContactProperty) {
     setBusy(true); setError(''); setNotice('');
-    try { await api(`/api/contact-properties/${encodeURIComponent(property.key)}`, { method: 'DELETE' }); setConfirmDelete(''); await load(); setNotice(`${property.key} was deleted. Values already stored on contacts were preserved.`); }
+    try { await api(`/api/contact-properties/${encodeURIComponent(property.key)}`, { method: 'DELETE' }); setConfirmDelete(''); setSelectedPropertyKeys((current) => current.filter((selectedKey) => selectedKey !== property.key)); await load(); setNotice(`${property.key} was deleted. Values already stored on contacts were preserved.`); }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not delete this property.'); }
+    finally { setBusy(false); }
+  }
+
+  function togglePropertySelection(propertyKey: string) {
+    if (selectedPropertyKeys.includes(propertyKey)) {
+      setSelectedPropertyKeys((current) => current.filter((selectedKey) => selectedKey !== propertyKey));
+      setError('');
+      return;
+    }
+    if (selectedPropertyKeys.length >= 120) { setError('Bulk delete is limited to 120 properties at a time.'); return; }
+    setSelectedPropertyKeys((current) => [...current, propertyKey]);
+    setError('');
+  }
+
+  function togglePropertyTargetSelection() {
+    if (allPropertyTargetsSelected) {
+      setSelectedPropertyKeys((current) => current.filter((selectedKey) => !propertySelectionTargets.some((property) => property.key === selectedKey)));
+      return;
+    }
+    setSelectedPropertyKeys(propertySelectionTargets.map((property) => property.key));
+    setError('');
+  }
+
+  async function deleteSelectedProperties() {
+    if (bulkDeleteConfirmation !== 'DELETE DEFINITIONS' || selectedPropertyKeys.length === 0) return;
+    setBusy(true); setError(''); setNotice('');
+    try {
+      const result = await api<{ deleted: number }>('/api/contact-properties', {
+        method: 'DELETE',
+        body: JSON.stringify({ keys: selectedPropertyKeys, confirmation: 'DELETE DEFINITIONS' }),
+      });
+      setSelectedPropertyKeys([]); setBulkDeleteOpen(false); setBulkDeleteConfirmation('');
+      await load();
+      setNotice(`${result.deleted} property definition${result.deleted === 1 ? '' : 's'} deleted. Values already stored on contacts were preserved.`);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not delete selected properties.'); }
     finally { setBusy(false); }
   }
 
@@ -603,11 +643,24 @@ function ContactPropertiesPanel() {
       <label>Fallback value{type === 'string' ? <textarea value={fallback} onChange={(event) => setFallback(event.target.value)} rows={2} maxLength={1000} placeholder="Optional" disabled={busy} /> : <input value={fallback} onChange={(event) => setFallback(event.target.value)} inputMode="decimal" placeholder="Optional number" disabled={busy} />}</label>
       <div className="contactPropertyFormActions"><button className="primaryButton" disabled={busy}>{busy ? 'Saving…' : editingKey ? 'Save changes' : 'Add property'}</button>{editingKey && <button type="button" className="outlineButton" onClick={resetForm} disabled={busy}>Cancel</button>}</div>
     </form>
-    {properties.length ? <div className="contactPropertyRows">{properties.map((property) => <article className="contactPropertyRow" key={property.key}>
+    {properties.length ? <>
+      <div className="contactBulkToolbar">
+        <label><input type="checkbox" checked={allPropertyTargetsSelected} onChange={togglePropertyTargetSelection} disabled={busy} />{properties.length > 120 ? `Select first 120 of ${properties.length} properties` : `Select all ${properties.length} properties`}</label>
+        <span className="recordCount" role="status" aria-live="polite">{selectedPropertyKeys.length} selected</span>
+        {selectedPropertyKeys.length > 0 && <><button type="button" className="textButton" onClick={() => { setSelectedPropertyKeys([]); setBulkDeleteOpen(false); setBulkDeleteConfirmation(''); }} disabled={busy}>Clear selection</button><button type="button" className="dangerButton" onClick={() => setBulkDeleteOpen(true)} disabled={busy}>Delete selected</button></>}
+      </div>
+      {bulkDeleteOpen && <div className="contactDeleteConfirm" role="group" aria-labelledby="delete-properties-title">
+        <div><strong id="delete-properties-title">{`Delete ${selectedPropertyKeys.length} property definition${selectedPropertyKeys.length === 1 ? '' : 's'}?`}</strong><p>Saved contact values stay in place. Type DELETE DEFINITIONS to confirm.</p></div>
+        <label>Confirmation phrase<input value={bulkDeleteConfirmation} onChange={(event) => setBulkDeleteConfirmation(event.target.value)} autoComplete="off" spellCheck={false} /></label>
+        <div className="contactDeleteActions"><button type="button" className="dangerButton" onClick={() => void deleteSelectedProperties()} disabled={busy || bulkDeleteConfirmation !== 'DELETE DEFINITIONS'}>{busy ? 'Deleting…' : 'Delete definitions'}</button><button type="button" className="textButton" onClick={() => { setBulkDeleteOpen(false); setBulkDeleteConfirmation(''); }} disabled={busy}>Cancel</button></div>
+      </div>}
+      <div className="contactPropertyRows">{properties.map((property) => <article className="contactPropertyRow" key={property.key}>
+      <label className="contactPropertySelectBox"><input type="checkbox" checked={selectedPropertyKeys.includes(property.key)} onChange={() => togglePropertySelection(property.key)} disabled={busy} aria-label={`Select property ${property.key}`} /></label>
       <div className="contactPropertyIdentity"><strong>{property.key}</strong><span>{property.type}</span></div>
       <div className="contactPropertyFallback"><small>Fallback</small><code>{property.fallback_value === null ? 'None' : String(property.fallback_value)}</code></div>
       {confirmDelete === property.key ? <div className="contactPropertyConfirm" role="group" aria-label={`Delete ${property.key}`}><span>Delete the definition? Saved contact values stay in place.</span><button className="dangerButton" onClick={() => void remove(property)} disabled={busy}>{busy ? 'Deleting…' : 'Confirm delete'}</button><button className="textButton" onClick={() => setConfirmDelete('')} disabled={busy}>Keep</button></div> : <div className="contactPropertyActions"><button className="textButton" onClick={() => beginEdit(property)} disabled={busy}>Edit</button><button className="textButton" onClick={() => setConfirmDelete(property.key)} disabled={busy}>Delete</button></div>}
-    </article>)}</div> : <div className="emptyPanel contactPropertyEmpty">No contact properties yet. Add a definition when you want consistent fields and broadcast fallbacks.</div>}
+    </article>)}</div>
+    </> : <div className="emptyPanel contactPropertyEmpty">No contact properties yet. Add a definition when you want consistent fields and broadcast fallbacks.</div>}
   </section>;
 }
 

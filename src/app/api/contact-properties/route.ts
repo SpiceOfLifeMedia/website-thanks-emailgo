@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { hasTrustedBrowserOrigin, isAdminSession } from '@/lib/auth';
-import { createContactProperty, contactPropertyResponse, listContactProperties, parseContactPropertyValue, type ContactPropertyType } from '@/lib/contact-properties';
+import { createContactProperty, contactPropertyResponse, deleteContactProperties, listContactProperties, parseContactPropertyValue, type ContactPropertyType } from '@/lib/contact-properties';
 import { readJsonLimited } from '@/lib/request-json';
 
 export const runtime = 'nodejs';
@@ -32,4 +32,20 @@ export async function POST(request: Request) {
   } catch {
     return error('A contact property with that key already exists.', 409);
   }
+}
+
+export async function DELETE(request: Request) {
+  if (!hasTrustedBrowserOrigin(request)) return error('Request origin is not allowed.', 403);
+  if (!await isAdminSession()) return error('Sign in required.', 401);
+  const parsed = await readJsonLimited(request, 24_000);
+  if (!parsed.ok) return error(parsed.error, parsed.status);
+  if (!parsed.value || typeof parsed.value !== 'object' || Array.isArray(parsed.value)) return error('Request body must be a JSON object.', 400);
+  const body = parsed.value as { keys?: unknown; confirmation?: unknown };
+  if (!Array.isArray(body.keys) || body.keys.length < 1 || body.keys.length > 120 || !body.keys.every((key) => typeof key === 'string' && keyPattern.test(key))) {
+    return error('keys must contain between 1 and 120 valid property keys.', 400);
+  }
+  if (body.confirmation !== 'DELETE DEFINITIONS') return error('Type DELETE DEFINITIONS to confirm this action.', 400);
+  const keys = [...new Set(body.keys as string[])];
+  const deleted = await deleteContactProperties(keys);
+  return NextResponse.json({ object: 'list', deleted, requested: keys.length }, { headers: { 'Cache-Control': 'private, no-store' } });
 }

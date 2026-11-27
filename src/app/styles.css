@@ -83,4 +83,8 @@
 .contactDeleteActions{display:flex;align-items:center;gap:4px}
 .contactDeleteActions .dangerButton,.contactDeleteActions .textButton{min-height:42px}
 @media(max-width:680px){.contactBulkToolbar{padding:8px 12px;gap:6px}.contactBulkToolbar>label{flex-basis:100%}.contactBulkToolbar .recordCount{margin-right:auto}.contactDeleteConfirm{grid-template-columns:1fr;padding:13px;gap:10px}.contactDeleteActions{flex-wrap:wrap}.contactDeleteActions .dangerButton{margin-left:0;flex:1}.contactRow .contactSelectBox{order:0;width:auto;min-width:26px}.contactRow .resourceMain{order:1;flex:1 1 calc(100% - 34px);min-width:0}}
+.contactPropertyRow{grid-template-columns:26px minmax(180px,1fr) minmax(140px,.8fr) auto}
+.contactPropertySelectBox{display:flex;align-items:center;justify-content:center;min-width:26px;min-height:44px;cursor:pointer}
+.contactPropertySelectBox input{width:18px;height:18px;margin:0;accent-color:var(--ink)}
+@media(max-width:680px){.contactPropertyRow{grid-template-columns:26px minmax(0,1fr) auto}.contactPropertyIdentity{grid-column:2/-1}.contactPropertyFallback{grid-column:2}.contactPropertyActions{grid-column:3;grid-row:2}}
 .broadcastFields .broadcastMetadata{grid-column:1/-1}
