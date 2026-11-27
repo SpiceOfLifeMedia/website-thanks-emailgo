@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { renderEmailDesign, type EmailDesign } from '@/lib/email-design';
+import { ContactActivityPanel, type ContactActivityItem } from '@/components/contact-activity-panel';
 import { EmailCompatibilityPanel } from '@/components/EmailCompatibilityPanel';
 import { TemplateFolderControls, type SavedTemplate } from '@/components/TemplateFolderControls';
 import { TemplatesEditor } from '@/components/templates-editor';
@@ -14,6 +15,8 @@ type Template = { id: string; name: string; alias: string | null; from: string |
 type TemplateDetail = Template & { html: string | null; text: string | null; design: EmailDesign | null };
 type TemplateVersion = { id: string; created_at: string; published_at: string | null; is_current: boolean; is_published: boolean; name: string; subject: string; html: string; text: string | null; alias: string | null; from: string | null; reply_to: string | null; variables: TemplateVariable[] };
 type Contact = { id: string; email: string; name: string | null; properties: Record<string, unknown>; tags: string[]; unsubscribed_at: string | null; consent_status: 'unknown' | 'opted_in'; consent_source: string | null; consented_at: string | null; created_at: string; updated_at: string };
+type ContactActivityRow = { id: string; type: string; created_at: string; subject: string | null; detail: string | null; email_id: string | null; bounce_type?: 'Permanent' | 'Temporary' | 'Undetermined' };
+type ContactActivityState = { items: ContactActivityItem[]; hasMore: boolean; nextAfter: string | null; status: 'loading' | 'ready' | 'error'; loadingMore: boolean; error: string; loadMoreError: string };
 type ContactProperty = { id: string; key: string; type: 'string' | 'number'; fallback_value: string | number | null; created_at: string; updated_at: string };
 type Segment = { id: string; name: string; filters: { tags_all?: string[]; tags_any?: string[]; consent_status?: 'unknown' | 'opted_in'; unsubscribed?: boolean }; contacts_count: number; created_at: string; updated_at: string };
 type Topic = { id: string; name: string; slug: string; description: string | null; subscribers_count: number; created_at: string; updated_at: string };
@@ -21,6 +24,24 @@ type BroadcastKey = { id: string; name: string; permission: 'full_access' | 'sen
 type BroadcastDomain = { id: string; domain: string; verified_at: string | null };
 type Broadcast = { id: string; name: string; api_key_id: string; from_address: string; subject: string; text_body: string | null; html_body: string | null; design: EmailDesign | null; audience_type: 'segment' | 'topic'; audience_id: string; status: string; scheduled_at: string | null; recipient_count: number; sent_count: number; failed_count: number; suppressed_count: number; pending_count: number; created_at: string; updated_at: string };
 type BroadcastDraft = { name: string; api_key_id: string; from: string; subject: string; text: string; html: string; design: EmailDesign | null; audience_type: 'segment' | 'topic'; audience_id: string };
+
+function toContactActivityItem(row: ContactActivityRow): ContactActivityItem | null {
+  const email = row.email_id ? { id: row.email_id, subject: row.subject } : null;
+  const base = { id: row.id, occurredAt: row.created_at };
+  switch (row.type) {
+    case 'contact.created': return { ...base, kind: 'contact_added' };
+    case 'contact.unsubscribed': return { ...base, kind: 'unsubscribed' };
+    case 'email.sent': return { ...base, kind: 'email_sent', email };
+    case 'email.received': return { ...base, kind: 'email_received', email };
+    case 'email.opened': return { ...base, kind: 'opened', email };
+    case 'email.clicked': return { ...base, kind: 'clicked', email };
+    case 'delivery.delivered': return { ...base, kind: 'delivered', email };
+    case 'delivery.delayed': return { ...base, kind: 'delayed', email, reason: row.detail };
+    case 'delivery.bounced': return { ...base, kind: 'bounced', email, bounceType: row.bounce_type ?? 'Undetermined', bounceSubtype: row.detail };
+    case 'delivery.complained': return { ...base, kind: 'complained', email };
+    default: return null;
+  }
+}
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, { ...init, headers: { ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers } });
@@ -287,6 +308,9 @@ export function TemplatesWorkspace() {
 
 export function ContactsWorkspace({ preferencesConfigured }: { preferencesConfigured: boolean }) {
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [activityOpen, setActivityOpen] = useState('');
+  const [contactActivity, setContactActivity] = useState<Record<string, ContactActivityState>>({});
+  const [isPhone, setIsPhone] = useState(false);
   const [contactTab, setContactTab] = useState<'contacts' | 'properties'>('contacts');
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
@@ -310,7 +334,45 @@ export function ContactsWorkspace({ preferencesConfigured }: { preferencesConfig
   }, []);
   useEffect(() => { void load(); }, [load]);
 
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 680px)');
+    const sync = () => setIsPhone(media.matches);
+    sync(); media.addEventListener('change', sync);
+    return () => media.removeEventListener('change', sync);
+  }, []);
+
+
   const filteredContacts = useMemo(() => contacts.filter((contact) => `${contact.email} ${contact.name ?? ''} ${contact.tags.join(' ')}`.toLowerCase().includes(search.toLowerCase())), [contacts, search]);
+
+  async function loadActivity(contactId: string, after: string | null = null) {
+    setContactActivity((current) => {
+      const previous = current[contactId] ?? { items: [], hasMore: false, nextAfter: null, status: 'loading' as const, loadingMore: false, error: '', loadMoreError: '' };
+      return { ...current, [contactId]: { ...previous, status: after && previous.items.length ? 'ready' : 'loading', loadingMore: Boolean(after), error: '', loadMoreError: '' } };
+    });
+    try {
+      const query = new URLSearchParams({ limit: '30' });
+      if (after) query.set('after', after);
+      const result = await api<{ data: ContactActivityRow[]; has_more: boolean; next_after?: string }>('/api/contacts/' + encodeURIComponent(contactId) + '/activity?' + query);
+      const rows = result.data.flatMap((row) => { const item = toContactActivityItem(row); return item ? [item] : []; });
+      setContactActivity((current) => {
+        const previous = current[contactId] ?? { items: [], hasMore: false, nextAfter: null, status: 'loading' as const, loadingMore: false, error: '', loadMoreError: '' };
+        const items = after ? [...previous.items, ...rows.filter((item) => !previous.items.some((row) => row.id === item.id))] : rows;
+        return { ...current, [contactId]: { items, hasMore: result.has_more, nextAfter: result.next_after ?? null, status: 'ready', loadingMore: false, error: '', loadMoreError: '' } };
+      });
+    } catch (cause) {
+      setContactActivity((current) => {
+        const previous = current[contactId] ?? { items: [], hasMore: false, nextAfter: null, status: 'loading' as const, loadingMore: false, error: '', loadMoreError: '' };
+        const message = cause instanceof Error ? cause.message : 'Could not load contact activity.';
+        return { ...current, [contactId]: after ? { ...previous, status: 'ready', loadingMore: false, loadMoreError: message } : { ...previous, status: 'error', loadingMore: false, error: message } };
+      });
+    }
+  }
+
+  function toggleActivity(contactId: string) {
+    if (activityOpen === contactId) { setActivityOpen(''); return; }
+    setActivityOpen(contactId);
+    if (!contactActivity[contactId] || contactActivity[contactId].status === 'error') void loadActivity(contactId);
+  }
 
   async function addContact(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError(''); setNotice('');
@@ -391,6 +453,21 @@ export function ContactsWorkspace({ preferencesConfigured }: { preferencesConfig
         <div className="resourceMeta"><span className={`plainStatus ${contact.unsubscribed_at ? 'failed' : contact.consent_status === 'opted_in' ? 'verified' : ''}`}>{contact.unsubscribed_at ? 'Unsubscribed' : contact.consent_status === 'opted_in' ? 'Opted in' : 'Consent unknown'}</span>{contact.consent_source && <small>Source: {contact.consent_source}</small>}{contact.consented_at && <small>Recorded {localTime(contact.consented_at)}</small>}</div>
         {preferencesConfigured && <div className="contactPreferenceAction">{preferenceLinks[contact.id] ? <a className="textButton" href={preferenceLinks[contact.id]} target="_blank" rel="noreferrer">Open preference center ↗</a> : <button className="textButton" onClick={() => void loadPreferenceLink(contact.id)} disabled={preferenceLoading === contact.id}>{preferenceLoading === contact.id ? 'Creating link…' : 'Preference link'}</button>}</div>}
         {!contact.unsubscribed_at && <button className="dangerButton" onClick={() => void unsubscribe(contact.id)} disabled={busy}>Unsubscribe</button>}
+        <button className={'contactActivityToggle' + (activityOpen === contact.id ? ' selected' : '')} type="button" aria-expanded={activityOpen === contact.id} aria-controls={'contact-activity-' + contact.id} aria-haspopup={isPhone ? 'dialog' : undefined} onClick={() => toggleActivity(contact.id)}>{activityOpen === contact.id ? 'Hide activity' : 'Activity'}</button>
+        {activityOpen === contact.id && contactActivity[contact.id] && <ContactActivityPanel
+          panelId={'contact-activity-' + contact.id}
+          variant={isPhone ? 'sheet' : 'inline'}
+          contact={{ id: contact.id, email: contact.email, name: contact.name }}
+          items={contactActivity[contact.id].items}
+          status={contactActivity[contact.id].status}
+          errorMessage={contactActivity[contact.id].error}
+          hasMore={contactActivity[contact.id].hasMore}
+          loadingMore={contactActivity[contact.id].loadingMore}
+          loadMoreError={contactActivity[contact.id].loadMoreError}
+          onLoadMore={() => loadActivity(contact.id, contactActivity[contact.id].nextAfter)}
+          onRetry={() => loadActivity(contact.id)}
+          onClose={() => setActivityOpen('')}
+        />}
       </article>) : <div className="emptyPanel">No matching contacts. Add a contact to start building an audience.</div>}
     </section>
     </div> : <div className="contactTabPanel" role="tabpanel" id="contact-properties-panel" aria-labelledby="contact-properties-tab"><ContactPropertiesPanel /></div>}

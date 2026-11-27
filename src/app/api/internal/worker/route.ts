@@ -7,6 +7,7 @@ import { emitEmailSuppressed, findSuppressedAddresses, normalizeSuppressionAddre
 import { deliverDueWebhooks, emitWebhookEvent } from '@/lib/webhooks';
 import { processAutomationRuns } from '@/lib/automations';
 import { relayMessageIdFromResponse } from '@/lib/ses-events';
+import { recordEmailSentActivity } from '@/lib/email-activity';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -116,9 +117,11 @@ export async function POST(request: Request) {
           ...(email.headers_json ? { headers: jsonValue<Record<string, string>>(email.headers_json, {}) } : {}),
           ...(attachments.length ? { attachments } : {}),
         });
+        const sentAt = nowIso();
         await execute('UPDATE emails SET status=?,provider_id=?,message_id=?,relay_message_id=?,error_message=NULL,processing_started_at=NULL,next_attempt_at=NULL,attachment_payload_json=NULL WHERE id=? AND status=?', [
           'sent', result.response.slice(0, 500), result.messageId, relayMessageIdFromResponse(result.response), email.id, 'processing',
         ]);
+        await recordEmailSentActivity(email.id, sentAt);
         await emitWebhookEvent(email.api_key_id, 'email.sent', { email_id: email.id, from: email.from_address, to: jsonValue<string[]>(email.to_json, []), subject: email.subject, message_id: result.messageId });
         sent += 1;
       } catch (cause) {

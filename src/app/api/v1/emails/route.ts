@@ -11,6 +11,7 @@ import { emitWebhookEvent } from '@/lib/webhooks';
 import { findEmailTemplate, getPublishedTemplateContent, storedTemplateToContent } from '@/lib/email-templates';
 import { sanitizeCustomerCopy } from '@/lib/customer-copy';
 import { relayMessageIdFromResponse } from '@/lib/ses-events';
+import { recordEmailSentActivity } from '@/lib/email-activity';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -453,7 +454,9 @@ export async function sendEmailRequest(request: Request, options: { countRateLim
       ...(Object.keys(parsedHeaders.headers).length ? { headers: parsedHeaders.headers } : {}),
       ...(parsedAttachments.attachments.length ? { attachments: parsedAttachments.attachments } : {}),
     });
+    const sentAt = nowIso();
     await execute('UPDATE emails SET status = ?, provider_id = ?, message_id = ?, relay_message_id = ? WHERE id = ?', ['sent', smtpResult.response.slice(0, 500), smtpResult.messageId, relayMessageIdFromResponse(smtpResult.response), id]);
+    await recordEmailSentActivity(id, sentAt);
     await emitWebhookEvent(apiKey.id, 'email.sent', { email_id: id, from, to, subject, message_id: smtpResult.messageId });
     const storedEmail = await getStoredEmail(id);
     if (!storedEmail) throw new Error('The sent email record could not be read.');
