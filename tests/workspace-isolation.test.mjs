@@ -577,3 +577,148 @@ test('CSV contact imports upsert only within the requested workspace', async (co
     { workspace_id: 'workspace_import', email: 'shared@example.test', name: 'Updated workspace contact' },
   ]);
 });
+
+test('usage API returns only the authenticated key workspace totals', async (context) => {
+  setupTemporaryDatabase(context, 'send-thanks-workspace-usage-');
+  const database = await import('../src/lib/database.ts');
+  const { GET } = await import('../src/app/api/v1/usage/route.ts');
+  const timestamp = new Date().toISOString();
+  const oldTimestamp = '2020-01-01T00:00:00.000Z';
+
+  await database.execute('INSERT INTO workspaces(id,name,created_at) VALUES(?,?,?)', ['workspace_usage_a', 'Usage workspace A', timestamp]);
+  await database.execute('INSERT INTO workspaces(id,name,created_at) VALUES(?,?,?)', ['workspace_usage_b', 'Usage workspace B', timestamp]);
+
+  const secrets = {
+    workspace_usage_a: `eg_live_${Buffer.alloc(32, 31).toString('base64url')}`,
+    workspace_usage_b: `eg_live_${Buffer.alloc(32, 32).toString('base64url')}`,
+  };
+  for (const [id, workspaceId] of [['usage_key_a', 'workspace_usage_a'], ['usage_key_b', 'workspace_usage_b']]) {
+    const secret = secrets[workspaceId];
+    await database.execute(
+      'INSERT INTO api_keys(id,name,prefix,secret_hash,created_at,workspace_id) VALUES(?,?,?,?,?,?)',
+      [id, `Key ${workspaceId}`, secret.slice(0, 20), database.hashSecret(secret), timestamp, workspaceId],
+    );
+  }
+
+  for (const [id, workspaceId] of [
+    ['usage_contact_a1', 'workspace_usage_a'],
+    ['usage_contact_a2', 'workspace_usage_a'],
+    ['usage_contact_b1', 'workspace_usage_b'],
+  ]) {
+    await database.execute(
+      'INSERT INTO contacts(id,email,name,properties_json,tags_json,created_at,updated_at,workspace_id) VALUES(?,?,?,?,?,?,?,?)',
+      [id, `${id}@example.test`, id, '{}', '[]', timestamp, timestamp, workspaceId],
+    );
+  }
+  for (const [id, workspaceId] of [
+    ['usage_segment_a1', 'workspace_usage_a'],
+    ['usage_segment_a2', 'workspace_usage_a'],
+    ['usage_segment_b1', 'workspace_usage_b'],
+  ]) {
+    await database.execute(
+      'INSERT INTO segments(id,name,filters_json,created_at,updated_at,workspace_id) VALUES(?,?,?,?,?,?)',
+      [id, id, '{}', timestamp, timestamp, workspaceId],
+    );
+  }
+  for (const [id, workspaceId] of [
+    ['usage_domain_a1', 'workspace_usage_a'],
+    ['usage_domain_b1', 'workspace_usage_b'],
+    ['usage_domain_b2', 'workspace_usage_b'],
+  ]) {
+    await database.execute(
+      'INSERT INTO domains(id,domain,verification_token,created_at,workspace_id) VALUES(?,?,?,?,?)',
+      [id, `${id}.example.test`, `verify=${id}`, timestamp, workspaceId],
+    );
+  }
+
+  const emailRows = [
+    ['usage_email_a1', 'usage_key_a', 'sent', timestamp],
+    ['usage_email_a2', 'usage_key_a', 'sent', timestamp],
+    ['usage_email_a_failed', 'usage_key_a', 'failed', timestamp],
+    ['usage_email_a_old', 'usage_key_a', 'sent', oldTimestamp],
+    ['usage_email_b1', 'usage_key_b', 'sent', timestamp],
+    ['usage_email_b2', 'usage_key_b', 'sent', timestamp],
+    ['usage_email_b_old', 'usage_key_b', 'sent', oldTimestamp],
+  ];
+  for (const [id, apiKeyId, status, createdAt] of emailRows) {
+    await database.execute(
+      'INSERT INTO emails(id,api_key_id,from_address,to_json,subject,status,created_at) VALUES(?,?,?,?,?,?,?)',
+      [id, apiKeyId, 'hello@example.test', '[]', id, status, createdAt],
+    );
+  }
+  for (const [id, apiKeyId, receivedAt] of [
+    ['usage_received_a1', 'usage_key_a', timestamp],
+    ['usage_received_a_old', 'usage_key_a', oldTimestamp],
+    ['usage_received_b1', 'usage_key_b', timestamp],
+    ['usage_received_b2', 'usage_key_b', timestamp],
+  ]) {
+    await database.execute(
+      'INSERT INTO received_emails(id,provider_event_id,api_key_id,from_address,to_json,subject,received_at,created_at) VALUES(?,?,?,?,?,?,?,?)',
+      [id, `event_${id}`, apiKeyId, 'sender@example.test', '[]', id, receivedAt, receivedAt],
+    );
+  }
+
+  for (const [id, apiKeyId] of [
+    ['usage_broadcast_a1', 'usage_key_a'],
+    ['usage_broadcast_a2', 'usage_key_a'],
+    ['usage_broadcast_b1', 'usage_key_b'],
+  ]) {
+    await database.execute(
+      `INSERT INTO broadcasts(id,name,api_key_id,from_address,subject,audience_type,audience_id,created_at,updated_at)
+       VALUES(?,?,?,?,?,?,?,?,?)`,
+      [id, id, apiKeyId, 'hello@example.test', id, 'all', 'all', timestamp, timestamp],
+    );
+  }
+
+  for (const [suffix, apiKeyId, runCount] of [['a', 'usage_key_a', 3], ['b', 'usage_key_b', 1]]) {
+    const automationId = `usage_automation_${suffix}`;
+    await database.execute(
+      'INSERT INTO automations(id,api_key_id,name,trigger_event,steps_json,connections_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)',
+      [automationId, apiKeyId, automationId, 'contact.created', '[]', '[]', timestamp, timestamp],
+    );
+    for (let index = 0; index < runCount; index += 1) {
+      const eventId = `usage_event_${suffix}_${index}`;
+      await database.execute(
+        'INSERT INTO automation_events(id,api_key_id,event_name,payload_json,created_at) VALUES(?,?,?,?,?)',
+        [eventId, apiKeyId, 'contact.created', '{}', timestamp],
+      );
+      await database.execute(
+        `INSERT INTO automation_runs(id,automation_id,api_key_id,event_id,event_name,payload_json,steps_json,connections_json,context_json,started_at,updated_at)
+         VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
+        [`usage_run_${suffix}_${index}`, automationId, apiKeyId, eventId, 'contact.created', '{}', '[]', '[]', '{}', timestamp, timestamp],
+      );
+    }
+  }
+
+  async function getUsage(workspaceId) {
+    return GET(new Request('http://send-thanks.test/api/v1/usage', {
+      headers: { authorization: `Bearer ${secrets[workspaceId]}` },
+    }));
+  }
+
+  const responseA = await getUsage('workspace_usage_a');
+  const responseB = await getUsage('workspace_usage_b');
+  assert.equal(responseA.status, 200);
+  assert.equal(responseB.status, 200);
+  const usageA = await responseA.json();
+  const usageB = await responseB.json();
+
+  for (const window of ['daily', 'monthly']) {
+    assert.deepEqual(
+      { used: usageA.emails[window].used, sent: usageA.emails[window].sent, received: usageA.emails[window].received },
+      { used: 3, sent: 2, received: 1 },
+    );
+    assert.deepEqual(
+      { used: usageB.emails[window].used, sent: usageB.emails[window].sent, received: usageB.emails[window].received },
+      { used: 4, sent: 2, received: 2 },
+    );
+  }
+  assert.deepEqual(
+    { contacts: usageA.contacts.used, segments: usageA.segments.used, broadcasts: usageA.broadcasts.used, domains: usageA.domains.used, automationRuns: usageA.automation_runs.used },
+    { contacts: 2, segments: 2, broadcasts: 2, domains: 1, automationRuns: 3 },
+  );
+  assert.deepEqual(
+    { contacts: usageB.contacts.used, segments: usageB.segments.used, broadcasts: usageB.broadcasts.used, domains: usageB.domains.used, automationRuns: usageB.automation_runs.used },
+    { contacts: 1, segments: 1, broadcasts: 1, domains: 2, automationRuns: 1 },
+  );
+});

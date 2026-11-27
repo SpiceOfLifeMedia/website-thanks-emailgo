@@ -176,7 +176,7 @@ Send, thanks returns a `whsec_` signing secret once. The database stores only th
 
 Send, thanks retries failed delivery up to five attempts with increasing delay and stores attempt status, duration and a bounded response excerpt. Individual delivered or failed events can be replayed. The worker must run for delivery to progress. Targets require public HTTPS on port 443; DNS results are checked and pinned per attempt, private addresses are blocked, and redirects are not followed. Keep event receiver responses free of secrets because response excerpts appear in the authenticated dashboard and API delivery history.
 
-`GET /api/v1/usage` reports current day and month sent and received counts, contacts, domains, webhooks, segments, topics, broadcasts, automation runs and the per-key API request limit. It has no paid-plan quotas or billing data.
+`GET /api/v1/usage` reports UTC daily and monthly sent and received counts, plus contacts, domains, segments, broadcasts and automation runs for the authenticated key's workspace. Its request limit is shared across that workspace. It has no paid-plan quotas, billing data or AI credit tracking.
 
 ## Domain authentication
 

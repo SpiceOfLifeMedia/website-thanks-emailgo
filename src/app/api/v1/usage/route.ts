@@ -22,10 +22,10 @@ async function count(table: 'contacts' | 'domains' | 'segments' | 'broadcasts', 
   return Number(result.rows[0]?.used ?? 0);
 }
 
-async function emailCounts(start: string) {
+async function emailCounts(start: string, workspaceId: string) {
   const [sentResult, receivedResult] = await Promise.all([
-    query<{ used: number }>("SELECT CAST(COUNT(*) AS INTEGER) AS used FROM emails WHERE status='sent' AND created_at>=?", [start]),
-    query<{ used: number }>('SELECT CAST(COUNT(*) AS INTEGER) AS used FROM received_emails WHERE received_at>=?', [start]),
+    query<{ used: number }>("SELECT CAST(COUNT(*) AS INTEGER) AS used FROM emails WHERE status='sent' AND created_at>=? AND api_key_id IN (SELECT id FROM api_keys WHERE workspace_id=?)", [start, workspaceId]),
+    query<{ used: number }>('SELECT CAST(COUNT(*) AS INTEGER) AS used FROM received_emails WHERE received_at>=? AND api_key_id IN (SELECT id FROM api_keys WHERE workspace_id=?)', [start, workspaceId]),
   ]);
   const sent = Number(sentResult.rows[0]?.used ?? 0);
   const received = Number(receivedResult.rows[0]?.used ?? 0);
@@ -40,13 +40,13 @@ async function __emailgo_GET_handler(request: Request) {
   const dailyWindow = period('daily');
   const monthlyWindow = period('monthly');
   const [daily, monthly, contacts, domains, segments, broadcasts, automationRuns] = await Promise.all([
-    emailCounts(dailyWindow.start),
-    emailCounts(monthlyWindow.start),
-    count('contacts'),
+    emailCounts(dailyWindow.start, apiKey.workspaceId),
+    emailCounts(monthlyWindow.start, apiKey.workspaceId),
+    count('contacts', 'WHERE workspace_id=?', [apiKey.workspaceId]),
     count('domains', 'WHERE workspace_id=?', [apiKey.workspaceId]),
-    count('segments'),
-    count('broadcasts'),
-    query<{ used: number }>('SELECT CAST(COUNT(*) AS INTEGER) AS used FROM automation_runs WHERE started_at>=?', [monthlyWindow.start]),
+    count('segments', 'WHERE workspace_id=?', [apiKey.workspaceId]),
+    count('broadcasts', 'WHERE api_key_id IN (SELECT id FROM api_keys WHERE workspace_id=?)', [apiKey.workspaceId]),
+    query<{ used: number }>('SELECT CAST(COUNT(*) AS INTEGER) AS used FROM automation_runs WHERE started_at>=? AND api_key_id IN (SELECT id FROM api_keys WHERE workspace_id=?)', [monthlyWindow.start, apiKey.workspaceId]),
   ]);
   return NextResponse.json({
     object: 'usage',
