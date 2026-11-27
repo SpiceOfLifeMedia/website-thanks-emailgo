@@ -13,7 +13,7 @@ const privateHeaders = { 'Cache-Control': 'private, no-store' };
 export async function GET(request: Request) {
   const authorization = await authorizeBroadcastRequest(request);
   if (!authorization.ok) return NextResponse.json({ error: authorization.error }, { status: authorization.status, headers: privateHeaders });
-  const result = await query(`SELECT b.id,b.name,b.api_key_id,b.from_address,b.subject,b.text_body,b.html_body,b.editor_json,b.audience_type,b.audience_id,b.status,b.scheduled_at,b.recipient_count,b.created_at,b.updated_at,
+  const result = await query(`SELECT b.id,b.name,b.api_key_id,b.from_address,b.subject,b.text_body,b.html_body,b.editor_json,b.audience_type,b.audience_id,b.status,b.folder_id,b.scheduled_at,b.recipient_count,b.created_at,b.updated_at,
     CAST((SELECT COUNT(*) FROM emails e WHERE e.broadcast_id=b.id AND e.status='sent') AS INTEGER) AS sent_count,
     CAST((SELECT COUNT(*) FROM emails e WHERE e.broadcast_id=b.id AND e.status='failed') AS INTEGER) AS failed_count,
     CAST((SELECT COUNT(*) FROM emails e WHERE e.broadcast_id=b.id AND e.status='suppressed') AS INTEGER) AS suppressed_count,

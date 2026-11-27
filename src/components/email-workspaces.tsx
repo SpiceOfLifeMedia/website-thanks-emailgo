@@ -7,6 +7,7 @@ import { EmailCompatibilityPanel } from '@/components/EmailCompatibilityPanel';
 import { TemplateFolderControls, type SavedTemplate } from '@/components/TemplateFolderControls';
 import { TemplatesEditor } from '@/components/templates-editor';
 import { createClaudeStarterDesign, designToEditor, editorToDesign } from '@/components/templates-editor/adapter';
+import { BroadcastFoldersWorkspace, type CampaignFolder as CampaignFolderView, type CampaignStatusFilter } from '@/components/broadcast-folders/BroadcastFoldersWorkspace';
 import type { Block, EmailTheme } from '@/components/templates-editor/blocks';
 import type { TemplateFolder } from '@/lib/template-folders';
 
@@ -22,7 +23,7 @@ type Segment = { id: string; name: string; filters: { tags_all?: string[]; tags_
 type Topic = { id: string; name: string; slug: string; description: string | null; subscribers_count: number; created_at: string; updated_at: string };
 type BroadcastKey = { id: string; name: string; permission: 'full_access' | 'sending_access'; domain_id: string | null };
 type BroadcastDomain = { id: string; domain: string; verified_at: string | null };
-type Broadcast = { id: string; name: string; api_key_id: string; from_address: string; subject: string; text_body: string | null; html_body: string | null; design: EmailDesign | null; audience_type: 'segment' | 'topic'; audience_id: string; status: string; scheduled_at: string | null; recipient_count: number; sent_count: number; failed_count: number; suppressed_count: number; pending_count: number; created_at: string; updated_at: string };
+type Broadcast = { id: string; name: string; api_key_id: string; from_address: string; subject: string; text_body: string | null; html_body: string | null; design: EmailDesign | null; audience_type: 'segment' | 'topic'; audience_id: string; status: string; scheduled_at: string | null; recipient_count: number; sent_count: number; failed_count: number; suppressed_count: number; pending_count: number; folder_id?: string | null; created_at: string; updated_at: string };
 type BroadcastDraft = { name: string; api_key_id: string; from: string; subject: string; text: string; html: string; design: EmailDesign | null; audience_type: 'segment' | 'topic'; audience_id: string };
 
 function toContactActivityItem(row: ContactActivityRow): ContactActivityItem | null {
@@ -658,6 +659,12 @@ export function TopicsWorkspace() {
 
 export function BroadcastsWorkspace({ apiKeys, domains, canQueue }: { apiKeys: BroadcastKey[]; domains: BroadcastDomain[]; canQueue: boolean }) {
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
+  const [folders, setFolders] = useState<CampaignFolderView[]>([]);
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [campaignQuery, setCampaignQuery] = useState('');
+  const [campaignStatus, setCampaignStatus] = useState<CampaignStatusFilter>('all');
+  const [listStatus, setListStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [listError, setListError] = useState('');
   const [segments, setSegments] = useState<Segment[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [editingId, setEditingId] = useState('');
@@ -670,17 +677,27 @@ export function BroadcastsWorkspace({ apiKeys, domains, canQueue }: { apiKeys: B
   const [notice, setNotice] = useState('');
 
   const load = useCallback(async () => {
+    setListStatus('loading');
     try {
-      const [broadcastResult, segmentResult, topicResult] = await Promise.all([
+      const [broadcastResult, segmentResult, topicResult, folderResult] = await Promise.all([
         api<{ data: Broadcast[] }>('/api/broadcasts'),
         api<{ data: Segment[] }>('/api/segments'),
         api<{ data: Topic[] }>('/api/topics'),
+        api<{ data: Array<{ id: string; name: string; broadcast_count: number }> }>('/api/broadcast-folders'),
       ]);
       setBroadcasts(broadcastResult.data);
       setSegments(segmentResult.data);
       setTopics(topicResult.data);
+      setFolders(folderResult.data.map((folder) => ({ id: folder.id, name: folder.name, campaignCount: folder.broadcast_count })));
+      setListError('');
+      setListStatus('ready');
       setError('');
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not load broadcasts.'); }
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'Could not load campaigns.';
+      setError(message);
+      setListError(message);
+      setListStatus('error');
+    }
   }, []);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
@@ -766,6 +783,36 @@ export function BroadcastsWorkspace({ apiKeys, domains, canQueue }: { apiKeys: B
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not delete this draft.'); }
     finally { setBusy(false); }
   }
+  const visibleCampaigns = useMemo(() => broadcasts.filter((broadcast) => {
+    if (selectedFolderId && broadcast.folder_id !== selectedFolderId) return false;
+    if (campaignStatus !== 'all' && broadcast.status !== campaignStatus) return false;
+    const query = campaignQuery.trim().toLocaleLowerCase();
+    return !query || broadcast.name.toLocaleLowerCase().includes(query) || broadcast.subject.toLocaleLowerCase().includes(query);
+  }).map((broadcast) => ({
+    id: broadcast.id,
+    name: broadcast.name,
+    subject: broadcast.subject,
+    status: broadcast.status,
+    folderId: broadcast.folder_id ?? null,
+    statusAt: broadcast.scheduled_at && broadcast.status === 'scheduled' ? broadcast.scheduled_at : broadcast.updated_at || broadcast.created_at,
+  })), [broadcasts, selectedFolderId, campaignQuery, campaignStatus]);
+  async function createFolder(name: string) {
+    const result = await api<{ data: { id: string; name: string; broadcast_count: number } }>('/api/broadcast-folders', { method: 'POST', body: JSON.stringify({ name }) });
+    await load();
+    return { id: result.data.id, name: result.data.name, campaignCount: result.data.broadcast_count };
+  }
+  async function renameFolder(id: string, name: string) {
+    await api('/api/broadcast-folders/' + encodeURIComponent(id), { method: 'PATCH', body: JSON.stringify({ name }) });
+    await load();
+  }
+  async function moveCampaign(id: string, folderId: string | null) {
+    await api('/api/broadcasts/' + encodeURIComponent(id) + '/folder', { method: 'PATCH', body: JSON.stringify({ folder_id: folderId }) });
+    await load();
+  }
+  async function removeFolder(id: string) {
+    await api('/api/broadcast-folders/' + encodeURIComponent(id), { method: 'DELETE' });
+    await load();
+  }
 
   return <>
     {editorOpen && draft.design && broadcastEditorModel && <div className="templateEditorOverlay" role="dialog" aria-modal="true" aria-label="Visual email editor"><TemplatesEditor key="broadcast-editor" templateName={draft.name || 'Broadcast draft'} accountName="Website Thanks" lastSavedWords={editingId ? 'Draft saved' : 'Draft not saved yet'} initialBlocks={broadcastEditorModel.blocks} initialTheme={broadcastEditorModel.theme} onSave={saveVisualBroadcast} onClose={() => setEditorOpen(false)} saveError={error} /></div>}
@@ -796,14 +843,26 @@ export function BroadcastsWorkspace({ apiKeys, domains, canQueue }: { apiKeys: B
         {!canQueue && <p className="keyMissing">Queueing needs SMTP, the scheduled worker and signed preference links to be configured.</p>}
       </div>
     </form>
-    <section className="panel resourceList broadcastList"><div className="panelHeader"><div><h2>Broadcast history</h2><p>Message handoff status is not recipient delivery confirmation.</p></div></div>
-      {broadcasts.length ? broadcasts.map((broadcast) => <article className="resourceRow broadcastRow" key={broadcast.id}>
-        <div className="resourceMain"><strong>{broadcast.name}</strong><span>{broadcast.subject}</span><small>{broadcast.audience_type === 'segment' ? segments.find((segment) => segment.id === broadcast.audience_id)?.name ?? 'Saved segment' : topics.find((topic) => topic.id === broadcast.audience_id)?.name ?? 'Topic'} · {broadcast.recipient_count} queued · {broadcast.sent_count} accepted · {broadcast.failed_count} failed · {broadcast.suppressed_count} suppressed · {broadcast.pending_count} pending</small></div>
-        <div className="resourceMeta"><span className={`plainStatus ${broadcast.status === 'sent' ? 'verified' : broadcast.status === 'canceled' ? 'failed' : ''}`}>{broadcast.status === 'queued' ? 'Queued' : broadcast.status === 'sending' ? 'Sending' : broadcast.status === 'sent' ? 'Complete' : broadcast.status === 'scheduled' ? 'Scheduled' : shortLabel(broadcast.status)}</span>{broadcast.scheduled_at && <small>{localTime(broadcast.scheduled_at)}</small>}</div>
-        {broadcast.status === 'draft' && <div className="broadcastRowActions"><button className="textButton" onClick={() => editBroadcast(broadcast)} disabled={busy}>Edit</button><button className="dangerButton" onClick={() => void deleteDraft(broadcast.id)} disabled={busy}>Delete</button></div>}
-        {['queued', 'scheduled', 'sending'].includes(broadcast.status) && <button className="dangerButton" onClick={() => void cancelBroadcast(broadcast.id)} disabled={busy}>Cancel</button>}
-      </article>) : <div className="emptyPanel">No broadcasts yet. Save a draft or queue one for an opted-in audience.</div>}
-    </section>
+    <BroadcastFoldersWorkspace
+      folders={folders}
+      campaigns={visibleCampaigns}
+      totalCampaigns={broadcasts.length}
+      selectedFolderId={selectedFolderId}
+      query={campaignQuery}
+      statusFilter={campaignStatus}
+      listStatus={listStatus}
+      listError={listError}
+      onSelectFolder={setSelectedFolderId}
+      onSearch={({ query, status }) => { setCampaignQuery(query); setCampaignStatus(status); }}
+      onRetry={() => void load()}
+      onCreateFolder={createFolder}
+      onRenameFolder={renameFolder}
+      onMoveCampaign={moveCampaign}
+      onDeleteFolder={removeFolder}
+      onEditCampaign={(id) => { const broadcast = broadcasts.find((item) => item.id === id); if (broadcast) editBroadcast(broadcast); }}
+      onDeleteCampaign={(id) => void deleteDraft(id)}
+      onCancelCampaign={(id) => void cancelBroadcast(id)}
+    />
   </>;
 }
 
