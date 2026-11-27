@@ -77,3 +77,22 @@ export async function POST(request: Request) {
   }
   return NextResponse.json({ id, email: validated.value.email, name: validated.value.name, properties: JSON.parse(validated.value.propertiesJson), tags: JSON.parse(validated.value.tagsJson), unsubscribed_at: null, consent_status: validated.value.consentStatus, consent_source: validated.value.consentSource, consented_at: validated.value.consentStatus === 'opted_in' ? timestamp : null, created_at: timestamp, updated_at: timestamp }, { status: 201 });
 }
+
+export async function DELETE(request: Request) {
+  if (!hasTrustedBrowserOrigin(request)) return NextResponse.json({ error: 'Request origin is not allowed.' }, { status: 403 });
+  if (!await isAdminSession()) return NextResponse.json({ error: 'Sign in required.' }, { status: 401 });
+  const parsed = await readJsonLimited(request, 32_000);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: parsed.status });
+  if (!parsed.value || typeof parsed.value !== 'object' || Array.isArray(parsed.value)) return NextResponse.json({ error: 'Request body must be a JSON object.' }, { status: 400 });
+
+  const body = parsed.value as { ids?: unknown; confirmation?: unknown };
+  if (!Array.isArray(body.ids) || body.ids.length < 1 || body.ids.length > 120 || !body.ids.every((id) => typeof id === 'string' && id.length > 0 && id.length <= 100)) {
+    return NextResponse.json({ error: 'ids must contain between 1 and 120 contact IDs.' }, { status: 400 });
+  }
+  if (body.confirmation !== 'DELETE CONTACTS') return NextResponse.json({ error: 'Type DELETE CONTACTS to confirm this permanent deletion.' }, { status: 400 });
+
+  const ids = [...new Set(body.ids as string[])];
+  const placeholders = ids.map(() => '?').join(',');
+  const deleted = await execute(`DELETE FROM contacts WHERE id IN (${placeholders})`, ids);
+  return NextResponse.json({ object: 'list', deleted, requested: ids.length });
+}

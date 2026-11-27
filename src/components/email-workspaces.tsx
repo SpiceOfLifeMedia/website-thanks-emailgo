@@ -331,6 +331,9 @@ export function ContactsWorkspace({ preferencesConfigured }: { preferencesConfig
   const [notice, setNotice] = useState('');
   const [preferenceLinks, setPreferenceLinks] = useState<Record<string, string>>({});
   const [preferenceLoading, setPreferenceLoading] = useState('');
+  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
+  const [deleteContactsOpen, setDeleteContactsOpen] = useState(false);
+  const [deleteContactsConfirmation, setDeleteContactsConfirmation] = useState('');
 
   const load = useCallback(async () => {
     try { const result = await api<{ data: Contact[] }>('/api/contacts'); setContacts(result.data); setError(''); }
@@ -347,6 +350,8 @@ export function ContactsWorkspace({ preferencesConfigured }: { preferencesConfig
 
 
   const filteredContacts = useMemo(() => contacts.filter((contact) => `${contact.email} ${contact.name ?? ''} ${contact.tags.join(' ')}`.toLowerCase().includes(search.toLowerCase())), [contacts, search]);
+  const contactSelectionTargets = filteredContacts.slice(0, 120);
+  const allFilteredContactsSelected = contactSelectionTargets.length > 0 && contactSelectionTargets.every((contact) => selectedContactIds.includes(contact.id));
 
   async function loadActivity(contactId: string, after: string | null = null) {
     setContactActivity((current) => {
@@ -391,6 +396,53 @@ export function ContactsWorkspace({ preferencesConfigured }: { preferencesConfig
     setBusy(true); setError(''); setNotice('');
     try { await api(`/api/contacts/${encodeURIComponent(id)}/unsubscribe`, { method: 'POST', body: '{}' }); await load(); setNotice('Contact unsubscribed from future broadcasts.'); }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not unsubscribe contact.'); }
+    finally { setBusy(false); }
+  }
+
+  function updateContactSearch(value: string) {
+    setSearch(value);
+    setSelectedContactIds([]);
+    setDeleteContactsOpen(false);
+    setDeleteContactsConfirmation('');
+  }
+
+  function toggleContactSelection(id: string) {
+    if (selectedContactIds.includes(id)) {
+      setSelectedContactIds((current) => current.filter((selectedId) => selectedId !== id));
+      setError('');
+      return;
+    }
+    if (selectedContactIds.length >= 120) {
+      setError('Bulk delete is limited to 120 contacts at a time.');
+      return;
+    }
+    setSelectedContactIds((current) => [...current, id]);
+    setError('');
+  }
+
+  function toggleVisibleContactSelection() {
+    if (allFilteredContactsSelected) {
+      setSelectedContactIds((current) => current.filter((id) => !contactSelectionTargets.some((contact) => contact.id === id)));
+      return;
+    }
+    setSelectedContactIds(contactSelectionTargets.map((contact) => contact.id));
+    setError('');
+  }
+
+  async function deleteSelectedContacts() {
+    if (deleteContactsConfirmation !== 'DELETE CONTACTS' || selectedContactIds.length === 0) return;
+    setBusy(true); setError(''); setNotice('');
+    try {
+      const result = await api<{ deleted: number }>('/api/contacts', {
+        method: 'DELETE',
+        body: JSON.stringify({ ids: selectedContactIds, confirmation: 'DELETE CONTACTS' }),
+      });
+      setSelectedContactIds([]);
+      setDeleteContactsOpen(false);
+      setDeleteContactsConfirmation('');
+      await load();
+      setNotice(`${result.deleted} contact${result.deleted === 1 ? '' : 's'} deleted permanently.`);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not delete selected contacts.'); }
     finally { setBusy(false); }
   }
 
@@ -451,8 +503,19 @@ export function ContactsWorkspace({ preferencesConfigured }: { preferencesConfig
       {importResult && <p className="importResult" role="status">{importResult}</p>}
     </section>
     <section className="panel resourceList">
-      <div className="tableToolbar"><label className="searchBox"><span aria-hidden="true">⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search contacts" /></label><span className="recordCount">{filteredContacts.length} contacts</span></div>
+      <div className="tableToolbar"><label className="searchBox"><span aria-hidden="true">⌕</span><input value={search} onChange={(event) => updateContactSearch(event.target.value)} placeholder="Search contacts" /></label><span className="recordCount">{filteredContacts.length} contacts</span></div>
+      <div className="contactBulkToolbar">
+        <label><input type="checkbox" checked={allFilteredContactsSelected} onChange={toggleVisibleContactSelection} disabled={!filteredContacts.length || busy} />{filteredContacts.length > 120 ? `Select first 120 of ${filteredContacts.length} matching` : `Select all ${filteredContacts.length} matching`}</label>
+        <span className="recordCount" role="status" aria-live="polite">{selectedContactIds.length} selected</span>
+        {selectedContactIds.length > 0 && <><button type="button" className="textButton" onClick={() => { setSelectedContactIds([]); setDeleteContactsOpen(false); setDeleteContactsConfirmation(''); }} disabled={busy}>Clear selection</button><button type="button" className="dangerButton" onClick={() => setDeleteContactsOpen(true)} disabled={busy}>Delete selected</button></>}
+      </div>
+      {deleteContactsOpen && <div className="contactDeleteConfirm" role="group" aria-labelledby="delete-contacts-title">
+        <div><strong id="delete-contacts-title">Permanently delete {selectedContactIds.length} contact{selectedContactIds.length === 1 ? '' : 's'}?</strong><p>This cannot be undone. Type DELETE CONTACTS to confirm.</p></div>
+        <label>Confirmation phrase<input value={deleteContactsConfirmation} onChange={(event) => setDeleteContactsConfirmation(event.target.value)} autoComplete="off" spellCheck={false} /></label>
+        <div className="contactDeleteActions"><button type="button" className="dangerButton" onClick={() => void deleteSelectedContacts()} disabled={busy || deleteContactsConfirmation !== 'DELETE CONTACTS'}>{busy ? 'Deleting…' : 'Permanently delete'}</button><button type="button" className="textButton" onClick={() => { setDeleteContactsOpen(false); setDeleteContactsConfirmation(''); }} disabled={busy}>Cancel</button></div>
+      </div>}
       {filteredContacts.length ? filteredContacts.map((contact) => <article className="resourceRow contactRow" key={contact.id}>
+        <label className="contactSelectBox"><input type="checkbox" checked={selectedContactIds.includes(contact.id)} onChange={() => toggleContactSelection(contact.id)} disabled={busy} aria-label={`Select ${contact.email}`} /></label>
         <div className="resourceMain"><strong>{contact.email}</strong><span>{contact.name || 'No name'}{contact.tags.length ? ` · ${contact.tags.join(', ')}` : ''}</span></div>
         <div className="resourceMeta"><span className={`plainStatus ${contact.unsubscribed_at ? 'failed' : contact.consent_status === 'opted_in' ? 'verified' : ''}`}>{contact.unsubscribed_at ? 'Unsubscribed' : contact.consent_status === 'opted_in' ? 'Opted in' : 'Consent unknown'}</span>{contact.consent_source && <small>Source: {contact.consent_source}</small>}{contact.consented_at && <small>Recorded {localTime(contact.consented_at)}</small>}</div>
         {preferencesConfigured && <div className="contactPreferenceAction">{preferenceLinks[contact.id] ? <a className="textButton" href={preferenceLinks[contact.id]} target="_blank" rel="noreferrer">Open preference center ↗</a> : <button className="textButton" onClick={() => void loadPreferenceLink(contact.id)} disabled={preferenceLoading === contact.id}>{preferenceLoading === contact.id ? 'Creating link…' : 'Preference link'}</button>}</div>}

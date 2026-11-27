@@ -69,4 +69,18 @@
 .contactActivityToggle:hover,.contactActivityToggle.selected{background:#f4eee3}
 .contactActivityToggle:focus-visible{outline:3px solid #1c1916;outline-offset:2px;box-shadow:0 0 0 6px #f7d56e}
 @media(max-width:680px){.contactRow .contactActivityToggle{order:2;flex:1}.contactRow .contactPreferenceAction{order:3;width:100%}.contactRow .dangerButton{order:4;flex:1;min-height:44px}}
+
+.contactBulkToolbar{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:8px 19px;border-bottom:1px solid #fbf9f5}
+.contactBulkToolbar>label{display:flex;align-items:center;gap:8px;min-height:44px;color:#3d3832;font-size:11px;cursor:pointer}
+.contactBulkToolbar input[type=checkbox],.contactSelectBox input{width:18px;height:18px;margin:0;accent-color:var(--ink)}
+.contactBulkToolbar .recordCount{margin-right:auto}
+.contactSelectBox{display:flex;align-items:center;justify-content:center;flex:none;width:24px;min-height:44px;cursor:pointer}
+.contactDeleteConfirm{display:grid;grid-template-columns:minmax(0,1fr) minmax(180px,260px) auto;align-items:center;gap:12px;padding:14px 19px;background:var(--rust-pale);border-bottom:1px solid var(--line)}
+.contactDeleteConfirm strong{font-size:12px;color:var(--ink)}
+.contactDeleteConfirm p{margin-top:3px;color:#3d3832;font-size:11px}
+.contactDeleteConfirm label{display:grid;gap:5px;color:#3d3832;font-size:10px;font-weight:600}
+.contactDeleteConfirm input{width:100%;min-height:42px;padding:0 10px;border:1px solid var(--line);border-radius:4px;background:var(--white);color:var(--ink)}
+.contactDeleteActions{display:flex;align-items:center;gap:4px}
+.contactDeleteActions .dangerButton,.contactDeleteActions .textButton{min-height:42px}
+@media(max-width:680px){.contactBulkToolbar{padding:8px 12px;gap:6px}.contactBulkToolbar>label{flex-basis:100%}.contactBulkToolbar .recordCount{margin-right:auto}.contactDeleteConfirm{grid-template-columns:1fr;padding:13px;gap:10px}.contactDeleteActions{flex-wrap:wrap}.contactDeleteActions .dangerButton{margin-left:0;flex:1}.contactRow .contactSelectBox{order:0;width:auto;min-width:26px}.contactRow .resourceMain{order:1;flex:1 1 calc(100% - 34px);min-width:0}}
 .broadcastFields .broadcastMetadata{grid-column:1/-1}
