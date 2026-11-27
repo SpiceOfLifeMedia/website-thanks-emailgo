@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { authorizeBroadcastRequest, parseBroadcastInput, parseBroadcastDesign, validateBroadcastInput } from '@/lib/broadcasts';
+import { parseBroadcastCreateOptions } from '@/lib/broadcast-options';
 import { execute, nowIso, query } from '@/lib/database';
 import { readJsonLimited } from '@/lib/request-json';
 import { randomId } from '@/lib/database';
+import { POST as queueBroadcast } from '@/app/api/broadcasts/[id]/send/route';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -29,6 +31,8 @@ export async function POST(request: Request) {
   if (!authorization.ok) return NextResponse.json({ error: authorization.error }, { status: authorization.status, headers: privateHeaders });
   const parsed = await readJsonLimited(request, 1_050_000);
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: parsed.status });
+  const createOptions = parseBroadcastCreateOptions(parsed.value);
+  if (!createOptions.ok) return NextResponse.json({ error: createOptions.error }, { status: 400, headers: privateHeaders });
   const input = parseBroadcastInput(parsed.value);
   if (!input.ok) return NextResponse.json({ error: input.error }, { status: 400 });
   const validated = await validateBroadcastInput(input.value);
@@ -37,5 +41,19 @@ export async function POST(request: Request) {
   const id = randomId('bc');
   await execute(`INSERT INTO broadcasts(id,name,api_key_id,from_address,subject,text_body,html_body,editor_json,audience_type,audience_id,status,created_at,updated_at)
     VALUES(?,?,?,?,?,?,?,?,?,?,'draft',?,?)`, [id, input.value.name, input.value.apiKeyId, input.value.from, input.value.subject, input.value.text, input.value.html, input.value.design ? JSON.stringify(input.value.design) : null, input.value.audienceType, input.value.audienceId, timestamp, timestamp]);
+  if (createOptions.options.send) {
+    const headers = new Headers(request.headers);
+    headers.delete('content-length');
+    headers.set('content-type', 'application/json');
+    const queueRequest = new Request(request.url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(createOptions.options.scheduledAt ? { scheduled_at: createOptions.options.scheduledAt } : {}),
+    });
+    const queued = await queueBroadcast(queueRequest, { params: Promise.resolve({ id }) });
+    const queueBody = await queued.json().catch(() => ({ error: { message: 'The campaign draft was saved but could not be queued.' } }));
+    if (!queued.ok) return NextResponse.json({ ...queueBody, broadcast_id: id }, { status: queued.status, headers: privateHeaders });
+    return NextResponse.json({ ...queueBody, created_at: timestamp }, { status: queued.status, headers: privateHeaders });
+  }
   return NextResponse.json({ id, name: input.value.name, status: 'draft', recipient_count: 0, created_at: timestamp, updated_at: timestamp }, { status: 201, headers: privateHeaders });
 }

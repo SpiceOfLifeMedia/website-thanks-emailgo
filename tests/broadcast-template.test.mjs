@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { broadcastContactVariables, renderBroadcastContent } from '../src/lib/broadcast-template.ts';
+import { parseBroadcastCreateOptions } from '../src/lib/broadcast-options.ts';
 import { checkEmailLinks } from '../src/lib/email-link-checker.ts';
 
 test('broadcast variables expose contact names and email fields plus neutral preference links', () => {
@@ -55,4 +56,23 @@ test('rendered broadcast URL fallbacks pass link checks and unsafe schemes are r
 test('subject and text fallbacks render and absent optional sources remain null', () => {
   assert.equal(renderBroadcastContent('Hello {{FIRST_NAME|friend}}', {}, false), 'Hello friend');
   assert.equal(renderBroadcastContent(null, {}, false), null);
+});
+
+test('broadcast create options preserve draft mode and support a scheduled one-request queue', () => {
+  const now = Date.parse('2026-11-27T00:00:00.000Z');
+  assert.deepEqual(parseBroadcastCreateOptions({}, now), { ok: true, options: { send: false } });
+  assert.deepEqual(parseBroadcastCreateOptions({ send: true }, now), { ok: true, options: { send: true } });
+  assert.deepEqual(parseBroadcastCreateOptions({ send: true, scheduledAt: '2026-11-28T01:00:00+01:00' }, now), {
+    ok: true, options: { send: true, scheduledAt: '2026-11-28T00:00:00.000Z' },
+  });
+});
+
+test('broadcast create options reject ambiguous or unsafe schedule requests', () => {
+  const now = Date.parse('2026-11-27T00:00:00.000Z');
+  assert.equal(parseBroadcastCreateOptions({ send: 'true' }, now).ok, false);
+  assert.equal(parseBroadcastCreateOptions({ send: false, scheduled_at: '2026-11-28T00:00:00Z' }, now).ok, false);
+  assert.equal(parseBroadcastCreateOptions({ send: true, scheduled_at: '2026-11-26T00:00:00Z' }, now).ok, false);
+  assert.equal(parseBroadcastCreateOptions({ send: true, scheduled_at: 'not-a-date' }, now).ok, false);
+  assert.equal(parseBroadcastCreateOptions({ send: true, scheduled_at: '2026-12-28T00:00:00Z' }, now).ok, false);
+  assert.equal(parseBroadcastCreateOptions({ send: true, scheduled_at: '2026-11-28T00:00:00Z', scheduledAt: '2026-11-29T00:00:00Z' }, now).ok, false);
 });
