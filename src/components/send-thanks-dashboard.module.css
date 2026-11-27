@@ -140,6 +140,13 @@
 .confirm { padding: 14px; border: 2px solid var(--ink); border-radius: 12px; background: var(--tomato-tint); display: flex; flex-direction: column; gap: 12px; font-size: 15px; line-height: 1.4; }
 .confirm.soft { background: var(--honey-tint); }
 .confirmActions { display: flex; gap: 8px; flex-wrap: wrap; }
+.bulkToolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px 20px; border-bottom: 1px solid var(--line); color: var(--graphite); font-size: 13px; }
+.bulkToolbar > span { margin-right: auto; }
+.selectKey { display: inline-flex; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; flex: 0 0 44px; }
+.selectKey input { width: 20px; height: 20px; accent-color: var(--tomato); }
+.confirmLabel { display: flex; flex-direction: column; gap: 6px; font-weight: 700; }
+.confirmLabel input { width: min(100%, 340px); min-height: 44px; padding: 8px 10px; border: 2px solid var(--ink); border-radius: 9px; background: var(--chalk); font: inherit; }
+.srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .dns { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 12px; background: var(--paper); border: 1px solid var(--line); }
 .record { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 12px; background: var(--chalk); border-radius: 10px; border: 1px solid var(--line); }
 .recordType { font-family: var(--mono); font-size: 12px; padding: 2px 8px; border: 2px solid var(--ink); border-radius: 6px; }

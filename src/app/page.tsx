@@ -338,11 +338,13 @@ export default function Home() {
       apiKeys={apiKeys}
       blockList={blockList}
       pageContent={pageContent}
+      isBusy={busy}
       onNavigate={navigateTo}
       onAddDomain={async (domain) => { await runAction(() => api('/api/domains', { method: 'POST', body: JSON.stringify({ domain }) })); }}
       onVerifyDomain={async (id) => { await runAction(() => api(`/api/domains/${encodeURIComponent(id)}/verify`, { method: 'POST' })); }}
       onCreateApiKey={createApiKey}
       onRevokeApiKey={async (id) => { await runAction(() => api(`/api/keys/${encodeURIComponent(id)}`, { method: 'DELETE' })); }}
+      onRevokeApiKeys={async (ids) => { await runAction(() => api('/api/keys', { method: 'DELETE', body: JSON.stringify({ ids, confirmation: 'REVOKE API KEYS' }) })); }}
       onAddBlockedAddress={async (address) => { await runAction(() => api('/api/block-list', { method: 'POST', body: JSON.stringify({ address }) })); }}
       onRemoveBlockedAddress={async (address) => { await runAction(() => api(`/api/block-list/${encodeURIComponent(address)}`, { method: 'DELETE' })); }}
       onSignOut={signOut}

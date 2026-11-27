@@ -5,7 +5,7 @@ Send, thanks is an independent email delivery API and workspace for Website Than
 ## What works
 
 - Admin password sign in with signed, HTTP only sessions.
-- Create and revoke Send, thanks API keys. Only key hashes are stored, and a new secret is shown once. Keys support full access or sending-only access restricted to a verified sender domain. Full-access keys can also list, create, inspect, rename and revoke keys through `/api/v1/api-keys`.
+- Create and revoke Send, thanks API keys. The dashboard supports selecting and revoking up to 120 active keys after typed confirmation. Only key hashes are stored, and a new secret is shown once. Keys support full access or sending-only access restricted to a verified sender domain. Full-access keys can also list, create, inspect, rename and revoke keys through `/api/v1/api-keys`.
 - Add sender domains, verify ownership through a DNS TXT record, and inspect SPF, DMARC and MX records. DKIM is provided by the selected SMTP relay.
 - Send transactional emails through the Send, thanks API using a configured SMTP relay.
 - Persist message metadata and text or HTML bodies in PostgreSQL in production and SQLite during local development. Encoded attachment bytes are removed after scheduled sends complete and are not retained for immediate sends. Retention windows and self-service message deletion are not implemented yet.

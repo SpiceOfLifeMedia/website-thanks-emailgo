@@ -7,6 +7,25 @@ import { DEFAULT_WORKSPACE_ID } from '@/lib/workspaces';
 
 export const runtime = 'nodejs';
 
+export async function DELETE(request: Request) {
+  if (!hasTrustedBrowserOrigin(request)) return NextResponse.json({ error: 'Request origin is not allowed.' }, { status: 403 });
+  if (!await isAdminSession()) return NextResponse.json({ error: 'Sign in required.' }, { status: 401 });
+  const parsed = await readJsonLimited(request, 24_000);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: parsed.status });
+  if (!parsed.value || typeof parsed.value !== 'object' || Array.isArray(parsed.value)) return NextResponse.json({ error: 'Request body must be a JSON object.' }, { status: 400 });
+
+  const body = parsed.value as { ids?: unknown; confirmation?: unknown };
+  if (!Array.isArray(body.ids) || body.ids.length < 1 || body.ids.length > 120 || !body.ids.every((id) => typeof id === 'string' && /^key_[a-f0-9]{24}$/.test(id))) {
+    return NextResponse.json({ error: 'ids must contain between 1 and 120 valid API key IDs.' }, { status: 400 });
+  }
+  if (body.confirmation !== 'REVOKE API KEYS') return NextResponse.json({ error: 'Type REVOKE API KEYS to confirm this action.' }, { status: 400 });
+
+  const ids = [...new Set(body.ids as string[])];
+  const placeholders = ids.map(() => '?').join(',');
+  const revoked = await execute(`UPDATE api_keys SET revoked_at=? WHERE workspace_id=? AND revoked_at IS NULL AND id IN (${placeholders})`, [nowIso(), DEFAULT_WORKSPACE_ID, ...ids]);
+  return NextResponse.json({ object: 'list', revoked, requested: ids.length }, { headers: { 'Cache-Control': 'private, no-store' } });
+}
+
 export async function POST(request: Request) {
   if (!hasTrustedBrowserOrigin(request)) return NextResponse.json({ error: 'Request origin is not allowed.' }, { status: 403 });
   if (!await isAdminSession()) return NextResponse.json({ error: 'Sign in required.' }, { status: 401 });

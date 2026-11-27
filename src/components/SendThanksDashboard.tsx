@@ -8,6 +8,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CommaIcon, SendThanksLogo } from './SendThanksLogo';
+import SendThanksApiKeyBulkRevocation from './SendThanksApiKeyBulkRevocation';
 import s from './send-thanks-dashboard.module.css';
 
 export type View = 'overview' | 'emails' | 'domains' | 'block' | 'keys' | 'logs' | 'suppressions' | 'receiving' | 'broadcasts' | 'automations' | 'templates' | 'contacts' | 'segments' | 'topics' | 'webhooks' | 'quickstart' | 'settings' | 'detail';
@@ -32,12 +33,14 @@ export interface DashboardProps {
   blockList: BlockRow[];
   hrefs?: Partial<Record<View, string>>;
   isDemo?: boolean;
+  isBusy?: boolean;
   pageContent?: ReactNode;
   onNavigate?: (view: View) => void;
   onAddDomain?: (domain: string) => void | Promise<void>;
   onVerifyDomain?: (id: string) => void | Promise<void>;
   onCreateApiKey?: (name: string) => string | void | Promise<string | void>;
   onRevokeApiKey?: (id: string) => void | Promise<void>;
+  onRevokeApiKeys?: (ids: string[]) => void | Promise<void>;
   onAddBlockedAddress?: (address: string) => void | Promise<void>;
   onRemoveBlockedAddress?: (address: string) => void | Promise<void>;
   onSignOut?: () => void | Promise<void>;
@@ -168,6 +171,10 @@ export default function SendThanksDashboard(props: DashboardProps) {
   const [draft, setDraft] = useState('');
   const [createdKey, setCreatedKey] = useState('');
   const [copiedKey, setCopiedKey] = useState(false);
+  const [selectedApiKeyIds, setSelectedApiKeyIds] = useState<string[]>([]);
+  const [apiKeyRevokeStep, setApiKeyRevokeStep] = useState<'select' | 'confirm'>('select');
+  const [apiKeyConfirmPhrase, setApiKeyConfirmPhrase] = useState('');
+  const [pendingSingleApiKeyId, setPendingSingleApiKeyId] = useState<string | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [mobile, setMobile] = useState(false);
 
@@ -326,32 +333,31 @@ export default function SendThanksDashboard(props: DashboardProps) {
                   </Card>
                 )}
                 {show.keys && (
-                  <Card className={s.orderKeys} title="API keys" meta={`${props.apiKeys.filter(k => !k.revoked).length} ACTIVE`} action={seeAll('keys', 'Manage keys')}>
-                    {props.apiKeys.map(k => (
-                      <div key={k.id} className={s.row}>
-                        <div className={s.rowMain}>
-                          <div className={s.rowText}>
-                            <span className={s.rowTitle}>{k.name}</span>
-                            <span className={s.keyPrefix}>{k.prefix}</span>
-                            <span className={s.rowMeta}>{k.permission} · Last used {k.lastUsed}</span>
-                          </div>
-                          {k.revoked && <StatusBadge label="Revoked" />}
-                          {!ov && !k.revoked && props.onRevokeApiKey && confirm !== `k:${k.id}` && (
-                            <button type="button" className={`${s.secondary} ${s.danger}`} onClick={() => setConfirm(`k:${k.id}`)}>Revoke</button>
-                          )}
-                        </div>
-                        {confirm === `k:${k.id}` && (
-                          <div role="alertdialog" aria-label="Confirm revoke" className={s.confirm}>
-                            <div><strong>Revoke “{k.name}”?</strong> Anything using this key will stop sending straight away. This can't be undone.</div>
-                            <div className={s.confirmActions}>
-                              <button type="button" className={s.inkBtn} onClick={async () => { try { await props.onRevokeApiKey?.(k.id); setConfirm(null); } catch { /* The page shell announces action errors. */ } }}>Yes, revoke it</button>
-                              <button type="button" className={s.plainBtn} onClick={() => setConfirm(null)}>Keep it</button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </Card>
+                  <SendThanksApiKeyBulkRevocation
+                    className={s.orderKeys}
+                    title={ov ? 'API keys' : 'Your keys'}
+                    headerAction={seeAll('keys', 'Manage keys')}
+                    keys={props.apiKeys}
+                    selectedIds={selectedApiKeyIds}
+                    onSelectedIdsChange={setSelectedApiKeyIds}
+                    step={apiKeyRevokeStep}
+                    onStepChange={setApiKeyRevokeStep}
+                    confirmPhrase={apiKeyConfirmPhrase}
+                    onConfirmPhraseChange={setApiKeyConfirmPhrase}
+                    pendingSingleId={pendingSingleApiKeyId}
+                    onPendingSingleIdChange={setPendingSingleApiKeyId}
+                    onRevokeKey={!ov && props.onRevokeApiKey ? async id => {
+                      await props.onRevokeApiKey?.(id);
+                      setPendingSingleApiKeyId(null);
+                    } : undefined}
+                    onRevokeKeys={!ov && props.onRevokeApiKeys ? async ids => {
+                      await props.onRevokeApiKeys?.(ids);
+                      setSelectedApiKeyIds([]);
+                      setApiKeyConfirmPhrase('');
+                      setApiKeyRevokeStep('select');
+                    } : undefined}
+                    busy={props.isBusy}
+                  />
                 )}
               </div>
             )}
