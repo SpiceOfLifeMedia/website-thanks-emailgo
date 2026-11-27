@@ -152,6 +152,7 @@ const postgresSchema = [
   )`,
   'CREATE INDEX IF NOT EXISTS email_share_links_owner_email ON email_share_links(api_key_id,email_type,email_id,created_at DESC)',
   'CREATE INDEX IF NOT EXISTS emails_created_at ON emails(created_at DESC)',
+  'CREATE INDEX IF NOT EXISTS emails_status_created_at ON emails(status,created_at DESC)',
   'CREATE INDEX IF NOT EXISTS emails_relay_message_id ON emails(relay_message_id)',
   'CREATE INDEX IF NOT EXISTS emails_api_key_created_at ON emails(api_key_id,created_at DESC,id DESC)',
   'CREATE INDEX IF NOT EXISTS emails_scheduled_queue ON emails(status,scheduled_at,next_attempt_at)',
@@ -295,9 +296,11 @@ const postgresSchema = [
     UNIQUE(sns_message_id,recipient), FOREIGN KEY(email_id) REFERENCES emails(id)
   )`,
   'CREATE INDEX IF NOT EXISTS delivery_events_email ON delivery_events(email_id)',
+  'CREATE INDEX IF NOT EXISTS delivery_events_recipient_type_created ON delivery_events(LOWER(recipient),event_type,created_at DESC)',
   'ALTER TABLE email_events ADD COLUMN IF NOT EXISTS target_url TEXT',
   'CREATE INDEX IF NOT EXISTS email_events_email ON email_events(email_id,created_at DESC)',
   'CREATE INDEX IF NOT EXISTS email_events_email_type_created ON email_events(email_id,type,created_at,id)',
+  'CREATE INDEX IF NOT EXISTS email_events_type_created_email ON email_events(type,created_at DESC,email_id)',
   'CREATE INDEX IF NOT EXISTS contacts_created_at ON contacts(created_at DESC)',
   'CREATE INDEX IF NOT EXISTS contacts_updated_at ON contacts(updated_at DESC)',
   `CREATE TABLE IF NOT EXISTS segments (
@@ -457,6 +460,7 @@ function getSqlite() {
     );
     CREATE INDEX IF NOT EXISTS email_share_links_owner_email ON email_share_links(api_key_id,email_type,email_id,created_at DESC);
     CREATE INDEX IF NOT EXISTS emails_created_at ON emails(created_at DESC);
+    CREATE INDEX IF NOT EXISTS emails_status_created_at ON emails(status,created_at DESC);
     CREATE INDEX IF NOT EXISTS emails_api_key_created_at ON emails(api_key_id,created_at DESC,id DESC);
     CREATE TABLE IF NOT EXISTS idempotency_keys (
       api_key_id TEXT NOT NULL, idempotency_key TEXT NOT NULL, request_hash TEXT NOT NULL,
@@ -570,8 +574,10 @@ function getSqlite() {
       UNIQUE(sns_message_id,recipient), FOREIGN KEY(email_id) REFERENCES emails(id)
     );
     CREATE INDEX IF NOT EXISTS delivery_events_email ON delivery_events(email_id);
+    CREATE INDEX IF NOT EXISTS delivery_events_recipient_type_created ON delivery_events(LOWER(recipient),event_type,created_at DESC);
     CREATE INDEX IF NOT EXISTS email_events_email ON email_events(email_id,created_at DESC);
     CREATE INDEX IF NOT EXISTS email_events_email_type_created ON email_events(email_id,type,created_at,id);
+    CREATE INDEX IF NOT EXISTS email_events_type_created_email ON email_events(type,created_at DESC,email_id);
     CREATE INDEX IF NOT EXISTS contacts_created_at ON contacts(created_at DESC);
     CREATE INDEX IF NOT EXISTS contacts_updated_at ON contacts(updated_at DESC);
     CREATE TABLE IF NOT EXISTS segments (
