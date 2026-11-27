@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#E9E1D3;font-family:'Schibsted Grotesk',sans-serif;color:#1C1916;-webkit-font-smoothing:antialiased}button,input,select,textarea{font:inherit;color:inherit}:focus{outline:none}:focus-visible{outline:3px solid #1C1916;outline-offset:2px;box-shadow:0 0 0 6px #F7D56E}[data-scroll]::-webkit-scrollbar{display:none}a{color:#1C1916}a:hover{color:#3D3832}@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}</style>
+</helmet>
+<div style="padding:56px 64px 64px;display:flex;flex-direction:column;gap:28px">
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:.08em;color:#6B6359">CAMPAIGN COMPOSER · REPLY-TO + PREVIEW TEXT · LIVE · ILLUSTRATIVE VALUES</div>
+    <div style="font-size:34px;font-weight:800;letter-spacing:-.03em">Optional details, after Subject</div>
+    <div style="font-size:15px;color:#3D3832;max-width:860px">Type in either field, then move focus away to see validation. Line breaks pasted into Preview text are flagged. The fields map to <span style="font-family:'IBM Plex Mono',monospace">reply_to</span> and <span style="font-family:'IBM Plex Mono',monospace">preview_text</span>.</div>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start">
+    <sc-for list="{{ boards }}" as="b" hint-placeholder-count="4">
+      <div id="{{ b.id }}" style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:center;gap:10px"><span style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:500;background:#1C1916;color:#FBF9F5;padding:4px 10px;border-radius:6px">{{ b.id }}</span><span style="font-size:17px;font-weight:700">{{ b.caption }}</span></div>
+        <div data-screen-label="{{ b.caption }}" style="width:{{ b.w }};height:{{ b.h }};border:2px solid #1C1916;border-radius:{{ b.frameRad }};overflow:hidden;background:#F4EEE3;box-shadow:{{ b.frameShadow }};display:flex;flex-direction:column">
+          <div style="flex-shrink:0;height:56px;padding:0 {{ b.sidePad }};background:#FBF9F5;border-bottom:2px solid #1C1916;display:flex;align-items:center;justify-content:space-between;gap:12px">
+            <div style="display:flex;align-items:center;gap:8px" role="img" aria-label="Send, thanks"><svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true"><rect x="1.5" y="1.5" width="61" height="61" rx="16" style="fill:#FF5A36;stroke:#1C1916;stroke-width:3"></rect><circle cx="32" cy="23" r="9" style="fill:#FBF9F5"></circle><path d="M41 35.5C41 43 34 49 21 52C27 48 31 43.5 32.5 38.5Z" style="fill:#FBF9F5"></path></svg><span aria-hidden="true" style="font-size:18px;font-weight:800;letter-spacing:-.035em;white-space:nowrap">Send<span style="color:#FF5A36">,</span> thanks</span></div>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#6B6359">CAMPAIGNS / NEW</span>
+          </div>
+          <div data-scroll="1" style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;padding:{{ b.pad }}">
+            <form onSubmit="{{ b.submit }}" aria-labelledby="{{ b.titleId }}" noValidate="{{ true }}" style="max-width:960px;margin:0 auto;display:flex;flex-direction:column;gap:{{ b.gap }}">
+              <h1 id="{{ b.titleId }}" style="margin:0;font-size:{{ b.h1 }};font-weight:800;letter-spacing:-.035em;line-height:1.05">New campaign</h1>
+              <div style="background:#FBF9F5;border:2px solid #1C1916;border-radius:18px;box-shadow:0 3px 0 #1C1916;padding:{{ b.cardPad }};display:flex;flex-direction:column;gap:18px">
+                <div style="display:grid;grid-template-columns:{{ b.twoCols }};gap:16px">
+                  <label style="display:flex;flex-direction:column;gap:6px;min-width:0"><span style="font-size:15px;font-weight:700">Campaign name</span><input value="Spring sale: last call" readonly="{{ true }}" style="height:{{ b.ctl }};padding:0 12px;border:2px solid #1C1916;border-radius:12px;background:#FFFFFF;font-size:16px;box-sizing:border-box;width:100%;min-width:0"></label>
+                  <label style="display:flex;flex-direction:column;gap:6px;min-width:0"><span style="font-size:15px;font-weight:700">From</span><input value="Good Yarn Co. <hello@goodyarn.example>" readonly="{{ true }}" style="height:{{ b.ctl }};padding:0 12px;border:2px solid #1C1916;border-radius:12px;background:#FFFFFF;font-size:16px;box-sizing:border-box;width:100%;min-width:0;text-overflow:ellipsis"></label>
+                </div>
+                <label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:15px;font-weight:700">Subject</span><input value="The spring yarn sale ends Sunday" readonly="{{ true }}" style="height:{{ b.ctl }};padding:0 12px;border:2px solid #1C1916;border-radius:12px;background:#FFFFFF;font-size:16px;box-sizing:border-box;width:100%;min-width:0"></label>
+
+                <fieldset style="margin:0;padding:{{ b.setPad }};border:2px solid #E3DCD0;border-radius:14px;background:#F4EEE3;min-width:0;display:flex;flex-direction:column;gap:12px">
+                  <legend style="padding:0 6px;font-size:15px;font-weight:800">Optional details</legend>
+                  <div style="display:grid;grid-template-columns:{{ b.twoCols }};gap:16px;align-items:start">
+                    <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+                      <label for="{{ b.replyId }}" style="font-size:15px;font-weight:700">Reply-to <span style="font-weight:500;color:#3D3832">(optional)</span></label>
+                      <input id="{{ b.replyId }}" type="text" inputMode="email" autoComplete="off" spellCheck="false" value="{{ b.reply }}" onChange="{{ b.onReply }}" onBlur="{{ b.blurReply }}" aria-invalid="{{ b.replyInvalid }}" aria-describedby="{{ b.replyDesc }}" placeholder="Help desk &lt;help@yourdomain.example&gt;" style="height:{{ b.ctl }};padding:0 12px;border:2px {{ b.replyLine }} #1C1916;border-radius:12px;background:{{ b.replyBg }};font-size:16px;box-sizing:border-box;width:100%;min-width:0">
+                      <span id="{{ b.replyHintId }}" style="font-size:13px;line-height:1.45;color:#3D3832;text-wrap:pretty">Where replies go. Leave empty to use the From address. One address, with or without a name.</span>
+                      <sc-if value="{{ b.hasReplyErr }}" hint-placeholder-val="{{ false }}"><span id="{{ b.replyErrId }}" role="alert" style="display:flex;gap:8px;align-items:flex-start;padding:8px 10px;border:2px solid #1C1916;border-radius:10px;background:#FFD6C9;font-size:14px;font-weight:700;line-height:1.4">{{ b.replyErr }}</span></sc-if>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+                      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px"><label for="{{ b.prevId }}" style="font-size:15px;font-weight:700">Preview text <span style="font-weight:500;color:#3D3832">(optional)</span></label><span id="{{ b.countId }}" aria-live="polite" style="flex-shrink:0;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:{{ b.countWeight }};color:{{ b.countColor }}">{{ b.count }}</span></div>
+                      <textarea id="{{ b.prevId }}" rows="2" value="{{ b.prev }}" onChange="{{ b.onPrev }}" onBlur="{{ b.blurPrev }}" onKeyDown="{{ b.prevKey }}" aria-invalid="{{ b.prevInvalid }}" aria-describedby="{{ b.prevDesc }}" placeholder="A short line shown after the subject in the inbox" style="min-height:{{ b.areaH }};padding:10px 12px;border:2px {{ b.prevLine }} #1C1916;border-radius:12px;background:{{ b.prevBg }};font-size:16px;line-height:1.4;box-sizing:border-box;width:100%;min-width:0;resize:none"></textarea>
+                      <span id="{{ b.prevHintId }}" style="font-size:13px;line-height:1.45;color:#3D3832;text-wrap:pretty">One line, up to 500 characters. Many inboxes show only the start.</span>
+                      <sc-if value="{{ b.hasPrevErr }}" hint-placeholder-val="{{ false }}"><span id="{{ b.prevErrId }}" role="alert" style="padding:8px 10px;border:2px solid #1C1916;border-radius:10px;background:#FFD6C9;font-size:14px;font-weight:700;line-height:1.4">{{ b.prevErr }}</span></sc-if>
+                    </div>
+                  </div>
+                </fieldset>
+
+                <label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:15px;font-weight:700">Audience</span><input value="Customers · 1,204 contacts" readonly="{{ true }}" style="height:{{ b.ctl }};padding:0 12px;border:2px solid #1C1916;border-radius:12px;background:#FFFFFF;font-size:16px;box-sizing:border-box;width:100%;min-width:0"></label>
+                <div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:15px;font-weight:700">Email content</span><div style="height:{{ b.contentH }};border:2px dashed #1C1916;border-radius:12px;background:#FFFFFF;display:flex;align-items:center;justify-content:center;padding:12px;font-size:14px;color:#3D3832;text-align:center">Existing content editor, unchanged</div></div>
+              </div>
+              <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+                <button type="submit" style="height:{{ b.ctl }};padding:0 18px;border-radius:12px;border:2px solid #1C1916;background:#FF5A36;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 3px 0 #1C1916;flex:{{ b.btnFlex }}">Save draft</button>
+              </div>
+              <sc-if value="{{ b.hasSaved }}" hint-placeholder-val="{{ false }}"><div role="status" style="padding:8px 12px;border:2px dashed #1C1916;border-radius:12px;background:#FBF9F5;font-size:14px;overflow-wrap:anywhere">{{ b.saved }}</div></sc-if>
+            </form>
+          </div>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const MAX = 500;
+const ADDR = '[^\\s@<>",;]+@[^\\s@<>",;]+\\.[^\\s@<>",;]+';
+const RE_PLAIN = new RegExp('^' + ADDR + '$');
+const RE_NAMED = new RegExp('^(?:"[^"\\r\\n]*"|[^"<>\\r\\n,;@]+)\\s*<' + ADDR + '>$');
+const replyError = v => { const t = v.trim(); if (!t) return ''; if (/[\r\n]/.test(t)) return 'Use one line for the reply-to address.';
+  if (/[,;]/.test(t)) return 'Use one reply-to address only.';
+  return RE_PLAIN.test(t) || RE_NAMED.test(t) ? '' : 'Enter an email address like help@yourdomain.example, or a name and address like Help desk <help@yourdomain.example>.'; };
+const previewError = v => /[\r\n]/.test(v) ? 'Remove the line breaks. Preview text is one line.' : v.length > MAX ? `Shorten to ${MAX} characters or fewer.` : '';
+const BOARDS = [
+  { id: 'm1a', caption: 'Desktop 1440 × 1000 · empty', layout: 'desktop', reply: '', prev: '', touched: {} },
+  { id: 'm1b', caption: 'Desktop 1440 × 1000 · malformed reply address', layout: 'desktop', reply: 'help@goodyarn', prev: 'Last chance: 20% off all 8-ply ends Sunday at midnight.', touched: { reply: true } },
+  { id: 'm2a', caption: 'Phone 390 × 844 · empty', layout: 'mobile', reply: '', prev: '', touched: {} },
+  { id: 'm2b', caption: 'Phone 390 × 844 · malformed reply address', layout: 'mobile', reply: 'Help desk <help@goodyarn', prev: 'Last chance: 20% off all 8-ply ends Sunday at midnight.', touched: { reply: true } }
+];
+
+class Component extends DCLogic {
+  state = { forms: Object.fromEntries(BOARDS.map(b => [b.id, { reply: b.reply, prev: b.prev, touched: { ...b.touched }, saved: '' }])) };
+  upd(id, patch) { this.setState(s => ({ forms: { ...s.forms, [id]: { ...s.forms[id], ...patch } } })); }
+  renderVals() {
+    const boards = BOARDS.map(b => {
+      const f = this.state.forms[b.id], d = b.layout === 'desktop';
+      const rErr = f.touched.reply ? replyError(f.reply) : '', pErr = f.touched.prev ? previewError(f.prev) : '';
+      const ids = k => `${b.id}-${k}`;
+      return {
+        id: b.id, caption: b.caption, w: d ? '1440px' : '390px', h: d ? '1000px' : '844px', frameRad: d ? '20px' : '36px', frameShadow: d ? 'none' : '0 4px 0 #1C1916',
+        sidePad: d ? '32px' : '16px', pad: d ? '36px 40px 48px' : '18px 14px 28px', gap: d ? '20px' : '16px', h1: d ? '36px' : '28px', cardPad: d ? '24px' : '16px',
+        setPad: d ? '14px 16px 16px' : '12px 12px 14px', twoCols: d ? 'minmax(0,1fr) minmax(0,1fr)' : 'minmax(0,1fr)', ctl: d ? '44px' : '52px', areaH: d ? '72px' : '88px',
+        contentH: d ? '200px' : '160px', btnFlex: d ? '0 0 auto' : '1 1 100%', titleId: ids('title'),
+        replyId: ids('reply'), replyHintId: ids('reply-hint'), replyErrId: ids('reply-err'), replyDesc: rErr ? `${ids('reply-hint')} ${ids('reply-err')}` : ids('reply-hint'),
+        reply: f.reply, onReply: e => this.upd(b.id, { reply: e.target.value }), blurReply: () => this.upd(b.id, { touched: { ...f.touched, reply: true } }),
+        replyInvalid: String(!!rErr), hasReplyErr: !!rErr, replyErr: rErr, replyLine: rErr ? 'dashed' : 'solid', replyBg: rErr ? '#FFF6F2' : '#FFFFFF',
+        prevId: ids('prev'), prevHintId: ids('prev-hint'), prevErrId: ids('prev-err'), countId: ids('count'),
+        prevDesc: `${ids('prev-hint')} ${ids('count')}${pErr ? ' ' + ids('prev-err') : ''}`,
+        prev: f.prev, onPrev: e => this.upd(b.id, { prev: e.target.value }), blurPrev: () => this.upd(b.id, { touched: { ...f.touched, prev: true } }),
+        prevKey: e => { if (e.key === 'Enter') e.preventDefault(); },
+        prevInvalid: String(!!pErr), hasPrevErr: !!pErr, prevErr: pErr, prevLine: pErr ? 'dashed' : 'solid', prevBg: pErr ? '#FFF6F2' : '#FFFFFF',
+        count: `${f.prev.length} / ${MAX}`, countColor: f.prev.length > MAX ? '#1C1916' : '#3D3832', countWeight: f.prev.length > MAX ? 800 : 500,
+        hasSaved: !!f.saved, saved: f.saved,
+        submit: e => { e.preventDefault(); const r = replyError(f.reply), p = previewError(f.prev);
+          if (r || p) { this.upd(b.id, { touched: { reply: true, prev: true }, saved: '' }); const el = document.getElementById(r ? ids('reply') : ids('prev')); el && el.focus(); return; }
+          this.upd(b.id, { saved: `Draft saved with reply_to: ${JSON.stringify(f.reply.trim() || null)} and preview_text: ${JSON.stringify(f.prev || null)}.` }); }
+      };
+    });
+    return { boards };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,50 @@
+/* Send, thanks: campaign composer, optional details (reply_to + preview_text). Website, thanks palette. */
+.set {
+  --paper: #F4EEE3; --chalk: #FBF9F5; --ink: #1C1916; --graphite: #3D3832; --line: #E3DCD0;
+  --honey: #F7D56E; --danger-pale: #FFD6C9; --danger-wash: #FFF6F2;
+  --ctl: 44px;
+  container-type: inline-size;
+  margin: 0; padding: 14px 16px 16px; min-width: 0;
+  border: 2px solid var(--line); border-radius: 14px; background: var(--paper);
+  font-family: 'Schibsted Grotesk', system-ui, sans-serif; color: var(--ink);
+}
+.set:disabled { opacity: .6; }
+.legend { padding: 0 6px; font-size: 15px; font-weight: 800; }
+
+/* Stacked by default; side by side when the fieldset is at least 640px wide */
+.grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+@container (min-width: 640px) { .grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.labelRow { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.label { font-size: 15px; font-weight: 700; }
+.optional { font-weight: 500; color: var(--graphite); }
+.hint { font-size: 13px; line-height: 1.45; color: var(--graphite); text-wrap: pretty; }
+.count { flex-shrink: 0; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; font-weight: 500; color: var(--graphite); }
+.countOver { font-weight: 800; color: var(--ink); }
+
+.control {
+  width: 100%; min-width: 0; box-sizing: border-box; height: var(--ctl); padding: 0 12px;
+  border: 2px solid var(--ink); border-radius: 12px; background: #FFFFFF;
+  font: inherit; font-size: 16px; color: var(--ink);
+}
+.area { height: auto; min-height: 72px; padding: 10px 12px; line-height: 1.4; resize: none; }
+.control::placeholder { color: #8A8178; }
+.control:focus { outline: none; }
+.control:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; box-shadow: 0 0 0 6px var(--honey); }
+.invalid { border-style: dashed; background: var(--danger-wash); }
+.error { padding: 8px 10px; border: 2px solid var(--ink); border-radius: 10px; background: var(--danger-pale); font-size: 14px; font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
+
+/* Narrow screens: larger touch targets */
+@media (max-width: 599px) {
+  .set { --ctl: 52px; padding: 12px 12px 14px; }
+  .area { min-height: 88px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .set * { transition: none !important; animation: none !important; }
+}
+/* Keep the supplied controls above the broadcast composer global input rules. */
+.set .control { box-sizing: border-box; height: var(--ctl); border: 2px solid var(--ink); border-radius: 12px; padding: 0 12px; background: #FFFFFF; font: inherit; font-size: 16px; color: var(--ink); }
+.set .area { height: auto; min-height: 72px; padding: 10px 12px; line-height: 1.4; resize: none; }
+.set .control.invalid { border-style: dashed; background: var(--danger-wash); }

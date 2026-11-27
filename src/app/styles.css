@@ -69,3 +69,4 @@
 .contactActivityToggle:hover,.contactActivityToggle.selected{background:#f4eee3}
 .contactActivityToggle:focus-visible{outline:3px solid #1c1916;outline-offset:2px;box-shadow:0 0 0 6px #f7d56e}
 @media(max-width:680px){.contactRow .contactActivityToggle{order:2;flex:1}.contactRow .contactPreferenceAction{order:3;width:100%}.contactRow .dangerButton{order:4;flex:1;min-height:44px}}
+.broadcastFields .broadcastMetadata{grid-column:1/-1}

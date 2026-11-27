@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { renderEmailDesign, type EmailDesign } from '@/lib/email-design';
+import { BroadcastMetadataFields, validatePreviewText, validateReplyTo, type BroadcastMetadataField } from '@/components/BroadcastMetadataFields';
 import { ContactActivityPanel, type ContactActivityItem } from '@/components/contact-activity-panel';
 import { EmailCompatibilityPanel } from '@/components/EmailCompatibilityPanel';
 import { TemplateFolderControls, type SavedTemplate } from '@/components/TemplateFolderControls';
@@ -25,6 +26,8 @@ type BroadcastKey = { id: string; name: string; permission: 'full_access' | 'sen
 type BroadcastDomain = { id: string; domain: string; verified_at: string | null };
 type Broadcast = { id: string; name: string; api_key_id: string; from_address: string; subject: string; reply_to: string | null; preview_text: string | null; text_body: string | null; html_body: string | null; design: EmailDesign | null; audience_type: 'segment' | 'topic'; audience_id: string; status: string; scheduled_at: string | null; recipient_count: number; sent_count: number; failed_count: number; suppressed_count: number; pending_count: number; folder_id?: string | null; created_at: string; updated_at: string };
 type BroadcastDraft = { name: string; api_key_id: string; from: string; subject: string; reply_to: string; preview_text: string; text: string; html: string; design: EmailDesign | null; audience_type: 'segment' | 'topic'; audience_id: string };
+
+const BROADCAST_METADATA_VALIDATION_ERROR = 'Check the highlighted optional details before saving.';
 
 function toContactActivityItem(row: ContactActivityRow): ContactActivityItem | null {
   const email = row.email_id ? { id: row.email_id, subject: row.subject } : null;
@@ -675,6 +678,8 @@ export function BroadcastsWorkspace({ apiKeys, domains, canQueue }: { apiKeys: B
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [metadataValidationAttempted, setMetadataValidationAttempted] = useState(false);
+  const [metadataErrors, setMetadataErrors] = useState<Partial<Record<BroadcastMetadataField, string>>>({});
 
   const load = useCallback(async () => {
     setListStatus('loading');
@@ -709,16 +714,48 @@ export function BroadcastsWorkspace({ apiKeys, domains, canQueue }: { apiKeys: B
   const eligibleKeys = apiKeys.filter((key) => key.permission === 'full_access' || key.domain_id === keyDomain?.id);
 
   function update<K extends keyof BroadcastDraft>(key: K, value: BroadcastDraft[K]) { setDraft((current) => ({ ...current, [key]: value })); }
+  function metadataErrorsFor(value: BroadcastDraft = draft) {
+    return { replyTo: validateReplyTo(value.reply_to), previewText: validatePreviewText(value.preview_text) };
+  }
+  function updateMetadata(field: BroadcastMetadataField, value: string) {
+    const key = field === 'replyTo' ? 'reply_to' : 'preview_text';
+    const nextDraft = { ...draft, [key]: value };
+    update(key, value);
+    if (!metadataValidationAttempted) return;
+    const nextErrors = metadataErrorsFor(nextDraft);
+    setMetadataErrors(nextErrors);
+    if (!nextErrors.replyTo && !nextErrors.previewText) {
+      setError((current) => current === BROADCAST_METADATA_VALIDATION_ERROR ? '' : current);
+    }
+  }
+  function validateDraftMetadata() {
+    setMetadataValidationAttempted(true);
+    const nextErrors = metadataErrorsFor();
+    setMetadataErrors(nextErrors);
+    if (nextErrors.replyTo || nextErrors.previewText) {
+      setError(BROADCAST_METADATA_VALIDATION_ERROR);
+      if (!editorOpen) {
+        const selector = nextErrors.replyTo ? '[name="reply_to"]' : '[name="preview_text"]';
+        window.requestAnimationFrame(() => document.querySelector<HTMLElement>(`.broadcastMetadata ${selector}`)?.focus());
+      }
+      return false;
+    }
+    setError((current) => current === BROADCAST_METADATA_VALIDATION_ERROR ? '' : current);
+    return true;
+  }
   function resetForm() {
     setEditingId('');
     setEditorMode('html');
     setScheduleLocal('');
+    setMetadataValidationAttempted(false);
+    setMetadataErrors({});
     setDraft({ name: '', api_key_id: apiKeys[0]?.id ?? '', from: domains[0]?.domain ? `hello@${domains[0].domain}` : '', subject: '', reply_to: '', preview_text: '', text: '', html: '', design: null, audience_type: 'segment', audience_id: '' });
   }
   function inputPayload(value: BroadcastDraft = draft) {
     return { name: value.name, api_key_id: value.api_key_id, from: value.from, subject: value.subject, reply_to: value.reply_to || null, preview_text: value.preview_text || null, ...(value.text ? { text: value.text } : {}), ...(value.html ? { html: value.html } : {}), design: value.design, audience_type: value.audience_type, audience_id: value.audience_id };
   }
   async function saveVisualBroadcast(blocks: Block[], theme: EmailTheme) {
+    if (!validateDraftMetadata()) throw new Error(BROADCAST_METADATA_VALIDATION_ERROR);
     const nextDesign = editorToDesign(blocks, theme, draft.design ?? createClaudeStarterDesign());
     const nextDraft = { ...draft, design: nextDesign };
     setDraft(nextDraft);
@@ -737,6 +774,7 @@ export function BroadcastsWorkspace({ apiKeys, domains, canQueue }: { apiKeys: B
     } finally { setBusy(false); }
   }
   async function saveDraft() {
+    if (!validateDraftMetadata()) return;
     setBusy(true); setError(''); setNotice('');
     try {
       const saved = editingId
@@ -749,6 +787,7 @@ export function BroadcastsWorkspace({ apiKeys, domains, canQueue }: { apiKeys: B
     finally { setBusy(false); }
   }
   async function queueBroadcast(schedule = false) {
+    if (!validateDraftMetadata()) return;
     setBusy(true); setError(''); setNotice('');
     try {
       const saved = editingId
@@ -767,6 +806,8 @@ export function BroadcastsWorkspace({ apiKeys, domains, canQueue }: { apiKeys: B
     setEditingId(broadcast.id);
     setEditorMode(broadcast.design ? 'visual' : 'html');
     setScheduleLocal('');
+    setMetadataValidationAttempted(false);
+    setMetadataErrors({});
     setDraft({ name: broadcast.name, api_key_id: broadcast.api_key_id, from: broadcast.from_address, subject: broadcast.subject, reply_to: broadcast.reply_to ?? '', preview_text: broadcast.preview_text ?? '', text: broadcast.text_body ?? '', html: broadcast.html_body ?? '', design: broadcast.design ?? null, audience_type: broadcast.audience_type, audience_id: broadcast.audience_id });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -824,9 +865,18 @@ export function BroadcastsWorkspace({ apiKeys, domains, canQueue }: { apiKeys: B
         <label>Broadcast name<input value={draft.name} onChange={(event) => update('name', event.target.value)} maxLength={120} placeholder="November product update" required /></label>
         <label>Sender<input value={draft.from} onChange={(event) => update('from', event.target.value)} placeholder="hello@example.com" required /></label>
         <label>API key<select value={draft.api_key_id} onChange={(event) => update('api_key_id', event.target.value)} required><option value="">Choose an active key</option>{eligibleKeys.map((key) => <option key={key.id} value={key.id}>{key.name}</option>)}</select></label>
+        <label className="broadcastSubject">Subject<input value={draft.subject} onChange={(event) => update('subject', event.target.value)} maxLength={998} required /></label>
+        <BroadcastMetadataFields
+          replyTo={draft.reply_to}
+          previewText={draft.preview_text}
+          onReplyToChange={(value) => updateMetadata('replyTo', value)}
+          onPreviewTextChange={(value) => updateMetadata('previewText', value)}
+          errors={metadataValidationAttempted ? metadataErrors : undefined}
+          disabled={busy}
+          className="broadcastMetadata"
+        />
         <label>Audience type<select value={draft.audience_type} onChange={(event) => { const type = event.target.value as 'segment' | 'topic'; update('audience_type', type); update('audience_id', ''); }}><option value="segment">Saved segment</option><option value="topic">Subscribed topic</option></select></label>
         <label>{draft.audience_type === 'segment' ? 'Saved segment' : 'Subscribed topic'}<select value={draft.audience_id} onChange={(event) => update('audience_id', event.target.value)} required><option value="">Choose an audience</option>{audienceOptions.map((audience) => <option key={audience.id} value={audience.id}>{audience.name}</option>)}</select></label>
-        <label className="broadcastSubject">Subject<input value={draft.subject} onChange={(event) => update('subject', event.target.value)} maxLength={998} required /></label>
         <label>Text body<textarea value={draft.text} onChange={(event) => update('text', event.target.value)} maxLength={500000} rows={7} placeholder="Plain text content. {{FIRST_NAME|there}}, {{LAST_NAME}}, {{EMAIL}} and {{name}} are available." /></label>
         <div className="broadcastEditorField">
           <div className="templateEditorMode" role="group" aria-label="Email editor mode">
