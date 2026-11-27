@@ -5,6 +5,7 @@ import { execute, queryOne } from '@/lib/database';
 import { readJsonLimited } from '@/lib/request-json';
 import { sanitizeCustomerCopy } from '@/lib/customer-copy';
 import { normalizeScheduledAt } from '@/lib/scheduled-time';
+import { emitWebhookEvent } from '@/lib/webhooks';
 export const runtime = 'nodejs';
 const privateHeaders = { 'Cache-Control': 'private, no-store' };
 
@@ -66,7 +67,11 @@ async function __emailgo_PATCH_handler(request: Request, context: { params: Prom
   }
   const row = await queryOne<StoredEmail>(`SELECT id,from_address,to_json,cc_json,bcc_json,reply_to,headers_json,tags_json,attachments_json,subject,status,error_message,provider_id,message_id,scheduled_at,created_at
     FROM emails WHERE id=? AND api_key_id=?`, [id, apiKey.id]);
-  return row ? NextResponse.json({ id: row.id, object: 'email', status: row.status, scheduled_at: row.scheduled_at }) : NextResponse.json({ error: { message: 'Updated email could not be read.' } }, { status: 500 });
+  if (!row) return NextResponse.json({ error: { message: 'Updated email could not be read.' } }, { status: 500 });
+  await emitWebhookEvent(apiKey.id, 'email.scheduled', {
+    email_id: row.id, from: row.from_address, to: jsonValue<string[]>(row.to_json, []), subject: row.subject, scheduled_at: row.scheduled_at,
+  });
+  return NextResponse.json({ id: row.id, object: 'email', status: row.status, scheduled_at: row.scheduled_at });
 }
 
 export const GET = withApiRequestLog(__emailgo_GET_handler);

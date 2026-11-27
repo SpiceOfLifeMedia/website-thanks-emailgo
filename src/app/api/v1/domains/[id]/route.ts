@@ -4,6 +4,8 @@ import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { execute, queryOne } from '@/lib/database';
 import { readJsonLimited } from '@/lib/request-json';
 import { publicVerificationToken } from '@/lib/domain-verification';
+import { domainWebhookData } from '@/lib/domain-webhook';
+import { emitWebhookEventToAllSubscribers } from '@/lib/webhooks';
 
 export const runtime = 'nodejs';
 const privateHeaders = { 'Cache-Control': 'private, no-store' };
@@ -41,11 +43,15 @@ async function __emailgo_PATCH_handler(request: Request, context: DomainContext)
   const body = parsed.value as Record<string, unknown>;
   if (!Object.keys(body).length || Object.keys(body).some((name) => !['open_tracking', 'click_tracking'].includes(name))) return apiError('Only open_tracking and click_tracking can be updated.', 400);
   if (Object.values(body).some((value) => typeof value !== 'boolean')) return apiError('Tracking settings must be booleans.', 400);
-  const openTracking = body.open_tracking === undefined ? Boolean(domain.open_tracking) : body.open_tracking;
-  const clickTracking = body.click_tracking === undefined ? Boolean(domain.click_tracking) : body.click_tracking;
+  const openTracking = body.open_tracking === undefined ? Boolean(domain.open_tracking) : Boolean(body.open_tracking);
+  const clickTracking = body.click_tracking === undefined ? Boolean(domain.click_tracking) : Boolean(body.click_tracking);
   if ((openTracking || clickTracking) && !domain.verified_at) return apiError('Verify this sender domain before enabling tracking.', 409);
   if ((openTracking || clickTracking) && (!process.env.EMAILGO_PUBLIC_URL || !process.env.EMAILGO_TRACKING_SECRET)) return apiError('Tracking requires EMAILGO_PUBLIC_URL and EMAILGO_TRACKING_SECRET on this deployment.', 503);
   await execute('UPDATE domains SET open_tracking=?,click_tracking=? WHERE id=?', [openTracking ? 1 : 0, clickTracking ? 1 : 0, id]);
+  const updatedAt = new Date().toISOString();
+  await emitWebhookEventToAllSubscribers('domain.updated', domainWebhookData({
+    ...domain, open_tracking: openTracking, click_tracking: clickTracking,
+  }), `domain.updated:${id}:${updatedAt}`);
   return NextResponse.json({ id, domain: domain.domain, open_tracking: openTracking, click_tracking: clickTracking }, { headers: privateHeaders });
 }
 
@@ -53,11 +59,12 @@ async function __emailgo_DELETE_handler(request: Request, context: DomainContext
   const auth = await authorize(request);
   if (auth.error) return auth.error;
   const { id } = await context.params;
-  const existing = await queryOne<{ id: string }>('SELECT id FROM domains WHERE id=?', [id]);
+  const existing = await queryOne<DomainRow>('SELECT id,domain,verification_token,created_at,verified_at,open_tracking,click_tracking FROM domains WHERE id=?', [id]);
   if (!existing) return apiError('Sender domain not found.', 404);
   const keys = await queryOne<{ count: number }>('SELECT CAST(COUNT(*) AS INTEGER) AS count FROM api_keys WHERE domain_id=? AND revoked_at IS NULL', [id]);
   if ((keys?.count ?? 0) > 0) return apiError('Revoke or remove domain-restricted API keys before deleting this sender domain.', 409);
   await execute('DELETE FROM domains WHERE id=?', [id]);
+  await emitWebhookEventToAllSubscribers('domain.deleted', domainWebhookData(existing), `domain.deleted:${id}`);
   return NextResponse.json({ id, deleted: true }, { headers: privateHeaders });
 }
 

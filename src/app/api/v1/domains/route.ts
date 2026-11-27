@@ -5,6 +5,8 @@ import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { execute, nowIso, query, randomId } from '@/lib/database';
 import { readJsonLimited } from '@/lib/request-json';
 import { publicVerificationToken } from '@/lib/domain-verification';
+import { domainWebhookData } from '@/lib/domain-webhook';
+import { emitWebhookEventToAllSubscribers } from '@/lib/webhooks';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -47,6 +49,7 @@ async function __emailgo_POST_handler(request: Request) {
   } catch {
     return apiError('That sender domain is already added.', 409);
   }
+  await emitWebhookEventToAllSubscribers('domain.created', domainWebhookData({ id, domain, created_at: createdAt, verified_at: null }), `domain.created:${id}`);
   return NextResponse.json({ id, domain, verification_token: verificationToken, created_at: createdAt, verified_at: null, open_tracking: false, click_tracking: false }, { status: 201, headers: privateHeaders });
 }
 

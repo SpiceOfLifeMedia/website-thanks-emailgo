@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
 import { execute, nowIso, query, queryOne, randomId } from '@/lib/database';
 import { readJsonLimited } from '@/lib/request-json';
-import { getWebhookSecret, validateWebhookEndpoint, validateWebhookEvents, webhookMasterSecret } from '@/lib/webhooks';
+import { getWebhookSecret, validateWebhookEndpoint, validateWebhookEvents, webhookMasterSecret, WEBHOOK_EVENT_TYPES } from '@/lib/webhooks';
 
 export const runtime = 'nodejs';
 
@@ -47,7 +47,7 @@ async function __emailgo_POST_handler(request: Request) {
   const endpoint = validateWebhookEndpoint(body.endpoint);
   const events = validateWebhookEvents(body.events);
   if (!endpoint) return error('endpoint must be an HTTPS URL without credentials or a fragment, using the default HTTPS port.', 400);
-  if (!events) return error(`events must contain unique supported event names: ${['email.sent','email.failed','email.suppressed','email.opened','email.clicked','email.received','contact.created','contact.updated','contact.deleted','contact.subscribed','contact.unsubscribed','suppression.added','suppression.removed'].join(', ')}.`, 400);
+  if (!events) return error(`events must contain unique supported event names: ${WEBHOOK_EVENT_TYPES.join(', ')}.`, 400);
   const count = await queryOne<{ count: number }>('SELECT COUNT(*) AS count FROM webhooks WHERE api_key_id=? AND disabled_at IS NULL', [apiKey.id]);
   if ((count?.count ?? 0) >= 50) return error('This API key has reached the 50 active webhook limit.', 409);
   const id = randomId('wh');

@@ -441,6 +441,9 @@ export async function sendEmailRequest(request: Request, options: { countRateLim
   if (scheduledAt) {
     const scheduledEmail = await getStoredEmail(id);
     if (!scheduledEmail) return responseError('The scheduled email could not be read.', 500);
+    await emitWebhookEvent(apiKey.id, 'email.scheduled', {
+      email_id: id, from, to, subject, scheduled_at: scheduledAt,
+    }, `email.scheduled:${id}`);
     return NextResponse.json(emailResponse(scheduledEmail), { status: 202 });
   }
 

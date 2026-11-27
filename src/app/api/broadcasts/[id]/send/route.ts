@@ -7,6 +7,7 @@ import { smtpConfigured } from '@/lib/smtp';
 import { checkEmailLinks, type EmailLinkIssue } from '@/lib/email-link-checker';
 import { broadcastContactVariables, renderBroadcastContent } from '@/lib/broadcast-template';
 import { normalizeScheduledAt } from '@/lib/scheduled-time';
+import { emitWebhookEvents, type WebhookEventInput } from '@/lib/webhooks';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -71,6 +72,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
     const propertyFallbacks = (await query<{ property_key: string; fallback_value_json: string | null }>('SELECT property_key,fallback_value_json FROM contact_properties WHERE fallback_value_json IS NOT NULL')).rows;
     const baseStatements: Array<{ sql: string; params: readonly unknown[] }> = [];
+    const scheduledEvents: WebhookEventInput[] = [];
     for (const recipient of recipients) {
       const emailId = randomId('em');
       const preferenceToken = createContactPreferenceToken({ contactId: recipient.id, email: recipient.email, emailId });
@@ -93,6 +95,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       const linkIssues = checkEmailLinks(htmlWithFooter, textWithFooter);
       if (linkIssues.length) throw new BroadcastLinkValidationError(linkIssues);
       const createdAt = nowIso();
+      if (Date.parse(scheduledAt) > Date.now()) {
+        scheduledEvents.push({
+          type: 'email.scheduled',
+          data: { email_id: emailId, from: campaign.from, to: [recipient.email], subject, scheduled_at: scheduledAt },
+          stableEventId: `email.scheduled:${emailId}`,
+        });
+      }
       baseStatements.push({
         sql: `INSERT INTO emails(id,api_key_id,from_address,to_json,subject,status,headers_json,text_body,html_body,scheduled_at,track_opens,track_clicks,broadcast_id,created_at)
           VALUES(?,?,?,?,?,'scheduled',?,?,?,?,?,?,?,?)`,
@@ -107,6 +116,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       params: [finalStatus, scheduledAt, recipients.length, nowIso(), id, 'queuing'],
     });
     await transaction(baseStatements);
+    await emitWebhookEvents(campaign.apiKeyId, scheduledEvents);
     return NextResponse.json({ id, status: finalStatus, recipient_count: recipients.length, scheduled_at: scheduledAt }, { status: 202, headers: privateHeaders });
   } catch (cause) {
     await execute("UPDATE broadcasts SET status='draft',updated_at=? WHERE id=? AND status='queuing'", [nowIso(), id]);

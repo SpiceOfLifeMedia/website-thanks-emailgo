@@ -1,19 +1,17 @@
-import { createHash, createHmac } from 'node:crypto';
+import { createHmac } from 'node:crypto';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { request as httpsRequest } from 'node:https';
-import { execute, nowIso, query, randomId } from '@/lib/database';
+import { execute, nowIso, query, randomId, transaction } from '@/lib/database';
+import type { WebhookEventType } from '@/lib/webhook-event-types';
+import { buildWebhookEventStatements, type WebhookDeliveryStatement, type WebhookEventInput, type WebhookSubscription } from '@/lib/webhook-event-queue';
 
-export const WEBHOOK_EVENT_TYPES = [
-  'email.sent', 'email.failed', 'email.suppressed', 'email.opened', 'email.clicked', 'email.received',
-  'email.delivered', 'email.delivery_delayed', 'email.bounced', 'email.complained',
-  'contact.created', 'contact.updated', 'contact.deleted', 'contact.subscribed', 'contact.unsubscribed',
-  'suppression.added', 'suppression.removed',
-] as const;
-export type WebhookEventType = typeof WEBHOOK_EVENT_TYPES[number];
+export { WEBHOOK_EVENT_TYPES, validateWebhookEvents } from '@/lib/webhook-event-types';
+export type { WebhookEventType } from '@/lib/webhook-event-types';
 
 type WebhookRow = { id: string; api_key_id: string; endpoint: string; events_json: string; secret_generation: number };
 type Address = { address: string; family: number };
+export type { WebhookEventInput } from '@/lib/webhook-event-queue';
 
 export function webhookMasterSecret() {
   const secret = process.env.EMAILGO_WEBHOOK_SECRET;
@@ -37,28 +35,37 @@ export function validateWebhookEndpoint(value: unknown) {
   } catch { return null; }
 }
 
-export function validateWebhookEvents(value: unknown): WebhookEventType[] | null {
-  if (!Array.isArray(value) || value.length < 1 || value.length > WEBHOOK_EVENT_TYPES.length) return null;
-  if (value.some((item) => typeof item !== 'string' || !WEBHOOK_EVENT_TYPES.includes(item as WebhookEventType))) return null;
-  const events = [...new Set(value as WebhookEventType[])];
-  return events.length === value.length ? events : null;
+export async function webhookEventStatements(apiKeyId: string, events: readonly WebhookEventInput[]) {
+  const rows = await query<WebhookRow>('SELECT id,api_key_id,endpoint,events_json,secret_generation FROM webhooks WHERE api_key_id=? AND disabled_at IS NULL', [apiKeyId]);
+  return buildWebhookEventStatements(rows.rows, events, nowIso());
+}
+
+async function commitWebhookEventStatements(statements: readonly WebhookDeliveryStatement[]) {
+  for (let index = 0; index < statements.length; index += 1000) await transaction(statements.slice(index, index + 1000));
+}
+
+export async function emitWebhookEvents(apiKeyId: string, events: readonly WebhookEventInput[]) {
+  if (!events.length) return true;
+  try {
+    await commitWebhookEventStatements(await webhookEventStatements(apiKeyId, events));
+    return true;
+  } catch {
+    console.error('Send, thanks could not queue webhook events.', { types: [...new Set(events.map(({ type }) => type))] });
+    return false;
+  }
 }
 
 export async function emitWebhookEvent(apiKeyId: string, type: WebhookEventType, data: Record<string, unknown>, stableEventId?: string) {
+  return emitWebhookEvents(apiKeyId, [{ type, data, stableEventId }]);
+}
+
+export async function emitWebhookEventToAllSubscribers(type: WebhookEventType, data: Record<string, unknown>, stableEventId?: string) {
   try {
-    const rows = await query<WebhookRow>('SELECT id,api_key_id,endpoint,events_json,secret_generation FROM webhooks WHERE api_key_id=? AND disabled_at IS NULL', [apiKeyId]);
-    const matched = rows.rows.filter((row) => {
-      try { return (JSON.parse(row.events_json) as string[]).includes(type); } catch { return false; }
-    });
-    if (!matched.length) return true;
-    const eventId = stableEventId ?? randomId('evt');
-    const createdAt = nowIso();
-    const payload = JSON.stringify({ type, created_at: createdAt, data: { ...data, event_id: eventId, created_at: createdAt } });
-    await Promise.all(matched.map((webhook) => execute(
-      `INSERT INTO webhook_deliveries(id,event_id,webhook_id,api_key_id,event_type,payload_json,status,created_at)
-       VALUES(?,?,?,?,?,?,'pending',?) ON CONFLICT(id) DO NOTHING`,
-      [stableEventId ? `whd_${createHash('sha256').update(`${webhook.id}\0${stableEventId}`).digest('hex').slice(0, 32)}` : randomId('whd'), eventId, webhook.id, apiKeyId, type, payload, createdAt],
-    )));
+    const rows = await query<WebhookRow>(`SELECT w.id,w.api_key_id,w.endpoint,w.events_json,w.secret_generation
+      FROM webhooks w JOIN api_keys k ON k.id=w.api_key_id
+      WHERE w.disabled_at IS NULL AND k.revoked_at IS NULL`);
+    const statements = buildWebhookEventStatements(rows.rows as WebhookSubscription[], [{ type, data, stableEventId }], nowIso());
+    await commitWebhookEventStatements(statements);
     return true;
   } catch {
     console.error('Send, thanks could not queue a webhook event.', { type });

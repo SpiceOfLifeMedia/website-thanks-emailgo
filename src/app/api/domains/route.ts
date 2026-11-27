@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { hasTrustedBrowserOrigin, isAdminSession } from '@/lib/auth';
 import { execute, nowIso, randomId } from '@/lib/database';
 import { randomBytes } from 'node:crypto';
+import { domainWebhookData } from '@/lib/domain-webhook';
+import { emitWebhookEventToAllSubscribers } from '@/lib/webhooks';
 export const runtime = 'nodejs';
 export async function POST(request: Request) {
   if (!hasTrustedBrowserOrigin(request)) return NextResponse.json({ error: 'Request origin is not allowed.' }, { status: 403 });
@@ -14,7 +16,9 @@ export async function POST(request: Request) {
   if (domain.length > 253 || !/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))+$/.test(domain)) return NextResponse.json({ error: 'Enter a valid domain name.' }, { status: 400 });
   const token = `send-thanks-verify=${randomBytes(24).toString('hex')}`;
   const id = randomId('dom');
-  try { await execute('INSERT INTO domains(id,domain,verification_token,created_at) VALUES(?,?,?,?)', [id, domain, token, nowIso()]); }
+  const createdAt = nowIso();
+  try { await execute('INSERT INTO domains(id,domain,verification_token,created_at) VALUES(?,?,?,?)', [id, domain, token, createdAt]); }
   catch { return NextResponse.json({ error: 'That sender domain is already added.' }, { status: 409 }); }
-  return NextResponse.json({ id, domain, verification_token: token, created_at: nowIso(), open_tracking: false, click_tracking: false }, { status: 201 });
+  await emitWebhookEventToAllSubscribers('domain.created', domainWebhookData({ id, domain, created_at: createdAt, verified_at: null }), `domain.created:${id}`);
+  return NextResponse.json({ id, domain, verification_token: token, created_at: createdAt, open_tracking: false, click_tracking: false }, { status: 201 });
 }

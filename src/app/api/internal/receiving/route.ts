@@ -1,8 +1,8 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
-import { execute, nowIso, queryOne, randomId, transaction } from '@/lib/database';
+import { execute, nowIso, query, queryOne, randomId, transaction } from '@/lib/database';
 import { readTextLimited } from '@/lib/request-json';
-import { emitWebhookEvent } from '@/lib/webhooks';
+import { webhookEventStatements } from '@/lib/webhooks';
 import { findReferencedThread, replyReferences } from '@/lib/inbox-threads';
 
 export const runtime = 'nodejs';
@@ -98,8 +98,36 @@ export async function POST(request: Request) {
   if (!receivingApiKeyId) return error('Set EMAILGO_RECEIVING_API_KEY_ID to an active full-access Send, thanks key ID.', 503);
   const ownerKey = await queryOne<{ id: string }>("SELECT id FROM api_keys WHERE id=? AND permission='full_access' AND revoked_at IS NULL", [receivingApiKeyId]);
   if (!ownerKey) return error('EMAILGO_RECEIVING_API_KEY_ID must reference an active full-access Send, thanks key.', 503);
-  const existing = await queryOne<{ id: string }>('SELECT id FROM received_emails WHERE provider_event_id=?', [eventId]);
-  if (existing) return NextResponse.json({ id: existing.id, object: 'received_email', duplicate: true }, { headers: privateHeaders });
+  const existing = await queryOne<{
+    id: string; api_key_id: string; from_address: string; to_json: string; cc_json: string | null; bcc_json: string | null;
+    subject: string; message_id: string | null;
+  }>('SELECT id,api_key_id,from_address,to_json,cc_json,bcc_json,subject,message_id FROM received_emails WHERE provider_event_id=?', [eventId]);
+  const stableEventId = `email.received:${createHash('sha256').update(eventId).digest('hex').slice(0, 32)}`;
+  if (existing) {
+    if (existing.api_key_id !== ownerKey.id) return NextResponse.json({ id: existing.id, object: 'received_email', duplicate: true }, { headers: privateHeaders });
+    try {
+      const storedAttachments = await query<{ id: string; filename: string; content_type: string; content_disposition: string | null; content_id: string | null; byte_length: number }>(
+        'SELECT id,filename,content_type,content_disposition,content_id,byte_length FROM received_email_attachments WHERE received_email_id=? ORDER BY id',
+        [existing.id],
+      );
+      const deliveryStatements = await webhookEventStatements(ownerKey.id, [{
+        type: 'email.received',
+        data: {
+          email_id: existing.id, from: existing.from_address,
+          to: JSON.parse(existing.to_json) as string[],
+          cc: existing.cc_json ? JSON.parse(existing.cc_json) as string[] : [],
+          bcc: existing.bcc_json ? JSON.parse(existing.bcc_json) as string[] : [],
+          subject: existing.subject, message_id: existing.message_id,
+          attachments: storedAttachments.rows.map(({ byte_length, ...attachment }) => ({ ...attachment, size: byte_length })),
+        },
+        stableEventId,
+      }]);
+      await transaction(deliveryStatements);
+    } catch {
+      return error('Could not recover the received email notification.', 500);
+    }
+    return NextResponse.json({ id: existing.id, object: 'received_email', duplicate: true }, { headers: privateHeaders });
+  }
   const id = randomId('rx');
   const timestampNow = nowIso();
   const receivedAt = typeof payload.created_at === 'string' && Number.isFinite(Date.parse(payload.created_at)) ? new Date(payload.created_at).toISOString() : timestampNow;
@@ -132,12 +160,22 @@ export async function POST(request: Request) {
     sql: 'INSERT INTO received_email_attachments(id,received_email_id,filename,content_type,content_disposition,content_id,byte_length,content_base64,created_at) VALUES(?,?,?,?,?,?,?,?,?)',
     params: [attachment.id, id, attachment.filename, attachment.contentType, attachment.contentDisposition, attachment.contentId, attachment.byteLength, attachment.contentBase64, timestampNow],
   });
-  try { await transaction(statements); }
+  try {
+    const deliveryStatements = await webhookEventStatements(ownerKey.id, [{
+      type: 'email.received',
+      data: {
+        email_id: id, from, to: to.values, cc: cc.values, bcc: bcc.values, subject, message_id: messageId,
+        attachments: attachments.map(({ id: attachmentId, filename, contentType: type, contentDisposition, contentId, byteLength }) => ({ id: attachmentId, filename, content_type: type, content_disposition: contentDisposition, content_id: contentId, size: byteLength })),
+      },
+      stableEventId,
+    }]);
+    await transaction([...statements, ...deliveryStatements]);
+  }
   catch {
-    const duplicate = await queryOne<{ id: string }>('SELECT id FROM received_emails WHERE provider_event_id=?', [eventId]);
-    if (duplicate) return NextResponse.json({ id: duplicate.id, object: 'received_email', duplicate: true }, { headers: privateHeaders });
+    const duplicate = await queryOne<{ id: string; api_key_id: string }>('SELECT id,api_key_id FROM received_emails WHERE provider_event_id=?', [eventId]);
+    if (duplicate?.api_key_id === ownerKey.id) return NextResponse.json({ id: duplicate.id, object: 'received_email', duplicate: true }, { headers: privateHeaders });
+    if (duplicate) return error('Provider event ID is already used.', 409);
     return error('Could not persist the received email.', 500);
   }
-  await emitWebhookEvent(ownerKey.id, 'email.received', { email_id: id, from, to: to.values, subject, message_id: messageId, attachments: attachments.map(({ id: attachmentId, filename, contentType: type, contentDisposition, contentId, byteLength }) => ({ id: attachmentId, filename, content_type: type, content_disposition: contentDisposition, content_id: contentId, size: byteLength })) });
   return NextResponse.json({ id, object: 'received_email', duplicate: false, thread_id: threadId, received_at: receivedAt }, { status: 201, headers: privateHeaders });
 }
