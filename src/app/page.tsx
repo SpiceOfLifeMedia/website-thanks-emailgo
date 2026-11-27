@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import SendThanksDashboard, { type ApiKeyRow, type BlockRow, type DomainRow, type EmailRow, type View } from '@/components/SendThanksDashboard';
+import SendThanksOverview, { type EmailFilter } from '@/components/SendThanksOverview';
 import { SendThanksLogo } from '@/components/SendThanksLogo';
 import EmailDetail from '@/components/EmailDetail';
 import { BroadcastsWorkspace, ContactsWorkspace, SegmentsWorkspace, TemplatesWorkspace, TopicsWorkspace } from '@/components/email-workspaces';
@@ -79,6 +80,8 @@ export default function Home() {
   const [setupRequired, setSetupRequired] = useState(false);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [view, setView] = useState<View>('overview');
+  const [overviewFilter, setOverviewFilter] = useState<EmailFilter>('all');
+  const [mobileLayout, setMobileLayout] = useState(false);
   const [selectedEmailId, setSelectedEmailId] = useState('');
   const [emailDetail, setEmailDetail] = useState<EmailDetailResponse | null>(null);
   const [emailDetailLoading, setEmailDetailLoading] = useState(false);
@@ -86,6 +89,14 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [password, setPassword] = useState('');
+
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 760px)');
+    const update = () => setMobileLayout(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
 
   useEffect(() => {
     const readHash = () => {
@@ -219,6 +230,57 @@ export default function Home() {
     removable: entry.removable,
   }));
 
+  const navigateTo = (next: View) => {
+    const nextHash = `#${next}`;
+    if (window.location.hash === nextHash) setView(next);
+    else window.location.hash = next;
+  };
+
+  if (view === 'overview') {
+    return <SendThanksOverview
+      accountName="Website Thanks"
+      activeNav="overview"
+      usage={{ used: dashboard.metrics.monthToDate, limit: null }}
+      recentEmails={emails.map((email) => ({
+        id: email.id,
+        to: email.to,
+        subject: email.subject,
+        status: email.status.toLowerCase() as import('@/components/SendThanksOverview').EmailStatus,
+        sentAt: dashboard.emails.find((record) => record.id === email.id)?.created_at ?? new Date().toISOString(),
+      }))}
+      emailFilter={overviewFilter}
+      domains={dashboard.domains.map((domain) => ({ id: domain.id, name: domain.domain, status: domain.verified_at ? 'verified' : 'pending' }))}
+      apiKeys={dashboard.keys.map((key) => ({ id: key.id, name: key.name, maskedKey: 'Secret hidden', lastUsedAt: key.last_used_at }))}
+      blockList={dashboard.blockedAddresses.map((entry) => ({
+        id: entry.address,
+        address: entry.address,
+        reason: entry.reason === 'bounced' ? 'bounced' : entry.reason === 'complained' ? 'complained' : 'manual',
+        blockedAt: entry.added_at,
+        removable: entry.removable,
+      }))}
+      layout={mobileLayout ? 'mobile' : 'desktop'}
+      timeZone="Australia/Adelaide"
+      locale="en-AU"
+      notice={error || null}
+      onNavigate={navigateTo}
+      onEmailFilterChange={setOverviewFilter}
+      onOpenEmail={(id) => { window.location.hash = `emails/${encodeURIComponent(id)}`; }}
+      onViewAllEmails={() => navigateTo('emails')}
+      onAddDomain={() => navigateTo('domains')}
+      onOpenDomain={() => navigateTo('domains')}
+      onCreateApiKey={() => navigateTo('keys')}
+      onViewBlockList={() => navigateTo('block')}
+      onUnblock={async (id) => {
+        const entry = dashboard.blockedAddresses.find((item) => item.address === id);
+        if (!entry?.removable) return;
+        try { await runAction(() => api(`/api/block-list/${encodeURIComponent(entry.address)}`, { method: 'DELETE' })); }
+        catch { /* The overview notice reports the request error. */ }
+      }}
+      onDismissNotice={() => setError('')}
+      onSignOut={() => { void signOut(); }}
+    />;
+  }
+
   const pageContent = view === 'detail'
     ? emailDetailLoading ? <div className={styles.auxCard} role="status">Loading email…</div>
       : emailDetail ? <EmailDetail
@@ -275,7 +337,7 @@ export default function Home() {
       apiKeys={apiKeys}
       blockList={blockList}
       pageContent={pageContent}
-      onNavigate={setView}
+      onNavigate={navigateTo}
       onAddDomain={async (domain) => { await runAction(() => api('/api/domains', { method: 'POST', body: JSON.stringify({ domain }) })); }}
       onVerifyDomain={async (id) => { await runAction(() => api(`/api/domains/${encodeURIComponent(id)}/verify`, { method: 'POST' })); }}
       onCreateApiKey={createApiKey}

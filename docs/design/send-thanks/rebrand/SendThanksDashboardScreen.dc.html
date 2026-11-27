@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>html,body{margin:0;background:#F4EEE3}button{font:inherit;color:inherit}:focus{outline:none}:focus-visible{outline:3px solid #1C1916;outline-offset:2px;box-shadow:0 0 0 6px #F7D56E}[data-scroll]::-webkit-scrollbar{display:none}a{color:#1C1916}a:hover{color:#3D3832}@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}</style>
+</helmet>
+<div style="position:relative;font-family:'Schibsted Grotesk',sans-serif;color:#1C1916;background:#F4EEE3;display:flex;flex-direction:{{ rootDir }};height:{{ rootH }};width:100%;box-sizing:border-box;overflow:hidden;-webkit-font-smoothing:antialiased">
+
+<sc-if value="{{ desktop }}" hint-placeholder-val="{{ true }}">
+<aside style="width:248px;flex-shrink:0;border-right:2px solid #1C1916;background:#FBF9F5;padding:24px 16px;display:flex;flex-direction:column;gap:28px;box-sizing:border-box">
+  <div style="display:flex;align-items:center;gap:10px;padding:0 8px" aria-label="Send, thanks" role="img">
+    <svg width="32" height="32" viewBox="0 0 64 64" aria-hidden="true"><rect x="1.5" y="1.5" width="61" height="61" rx="16" style="fill:#FF5A36;stroke:#1C1916;stroke-width:3"></rect><circle cx="32" cy="23" r="9" style="fill:#FBF9F5"></circle><path d="M41 35.5C41 43 34 49 21 52C27 48 31 43.5 32.5 38.5Z" style="fill:#FBF9F5"></path></svg>
+    <div aria-hidden="true" style="font-size:21px;font-weight:800;letter-spacing:-.035em;line-height:1;white-space:nowrap">Send<span style="color:#FF5A36">,</span> thanks</div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:4px;padding:12px;border:2px solid #E3DCD0;border-radius:12px">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6B6359">ACCOUNT</div>
+    <div style="font-size:15px;font-weight:700">{{ account }}</div>
+  </div>
+  <nav aria-label="Dashboard" style="display:flex;flex-direction:column;gap:4px">
+    <sc-for list="{{ nav }}" as="n" hint-placeholder-count="5">
+      <button type="button" onClick="{{ n.go }}" aria-current="{{ n.current }}" style="display:flex;align-items:center;gap:12px;width:100%;height:44px;padding:0 12px;border-radius:12px;border:2px solid {{ n.border }};background:{{ n.bg }};font-size:15px;font-weight:{{ n.weight }};cursor:pointer;text-align:left">
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="{{ n.icon }}"></path></svg>
+        <span style="flex:1">{{ n.label }}</span>
+      </button>
+    </sc-for>
+  </nav>
+  <div style="margin-top:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.06em;color:#6B6359;padding:0 8px">ILLUSTRATIVE RECORDS</div>
+</aside>
+</sc-if>
+
+<div style="flex:1;min-width:0;min-height:0;display:flex;flex-direction:column">
+  <sc-if value="{{ mobile }}" hint-placeholder-val="{{ false }}">
+    <header style="flex-shrink:0;height:56px;padding:0 16px;background:#FBF9F5;border-bottom:2px solid #1C1916;display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <div style="display:flex;align-items:center;gap:8px" role="img" aria-label="Send, thanks">
+        <svg width="32" height="32" viewBox="0 0 64 64" aria-hidden="true"><rect x="1.5" y="1.5" width="61" height="61" rx="16" style="fill:#FF5A36;stroke:#1C1916;stroke-width:3"></rect><circle cx="32" cy="23" r="9" style="fill:#FBF9F5"></circle><path d="M41 35.5C41 43 34 49 21 52C27 48 31 43.5 32.5 38.5Z" style="fill:#FBF9F5"></path></svg>
+        <div aria-hidden="true" style="font-size:19px;font-weight:800;letter-spacing:-.035em;white-space:nowrap">Send<span style="color:#FF5A36">,</span> thanks</div>
+      </div>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#6B6359">ILLUSTRATIVE</span>
+    </header>
+  </sc-if>
+
+  <div data-scroll="1" style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;padding:{{ pad }};box-sizing:border-box">
+   <div style="display:flex;flex-direction:column;gap:{{ gap }};max-width:1160px">
+    <div style="display:flex;flex-direction:{{ hdrDir }};align-items:{{ hdrAlign }};justify-content:space-between;gap:12px">
+      <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+        <h1 style="margin:0;font-size:{{ h1Size }};font-weight:800;letter-spacing:-.035em;line-height:1.05">Overview</h1>
+        <p style="margin:0;font-size:15px;line-height:1.45;color:#3D3832">What’s been sent, where it went, and what needs a look.</p>
+      </div>
+      <sc-if value="{{ hasNote }}" hint-placeholder-val="{{ false }}">
+        <div role="status" style="display:flex;align-items:center;gap:10px;padding:6px 6px 6px 14px;border:2px dashed #1C1916;border-radius:12px;background:#FBF9F5;font-size:14px;min-width:0">
+          <span style="min-width:0;overflow-wrap:anywhere">{{ note }}</span>
+          <button type="button" onClick="{{ clearNote }}" style="flex-shrink:0;height:{{ ctl }};padding:0 12px;border-radius:10px;border:2px solid #1C1916;background:#FBF9F5;font-size:14px;font-weight:700;cursor:pointer">OK</button>
+        </div>
+      </sc-if>
+    </div>
+
+    <div style="display:grid;grid-template-columns:{{ topCols }};gap:20px;align-items:start">
+      <section aria-labelledby="st-recent" style="order:{{ recentOrder }};background:#FBF9F5;border:2px solid #1C1916;border-radius:18px;box-shadow:0 3px 0 #1C1916;overflow:hidden;min-width:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px 14px 20px;border-bottom:2px solid #1C1916;flex-wrap:wrap">
+          <div style="display:flex;align-items:baseline;gap:10px"><h2 id="st-recent" style="margin:0;font-size:19px;font-weight:800">Recent emails</h2><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#3D3832">{{ recentMeta }}</span></div>
+          <button type="button" onClick="{{ viewAll }}" style="height:{{ ctl }};padding:0 14px;border-radius:10px;border:2px solid #1C1916;background:#FBF9F5;font-size:14px;font-weight:700;cursor:pointer" style-hover="background:#F4EEE3">View all emails</button>
+        </div>
+        <div role="group" aria-label="Show emails" style="display:grid;grid-template-columns:{{ filterCols }};gap:6px;padding:12px 16px;border-bottom:1px solid #E3DCD0">
+          <sc-for list="{{ filters }}" as="x" hint-placeholder-count="4"><button type="button" onClick="{{ x.pick }}" aria-pressed="{{ x.pressed }}" style="height:{{ ctl }};min-width:0;padding:0 12px;border-radius:12px;border:2px solid {{ x.border }};background:{{ x.bg }};font-size:14px;font-weight:{{ x.weight }};cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap">{{ x.label }}<span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:500">{{ x.count }}</span></button></sc-for>
+        </div>
+        <sc-if value="{{ noEmails }}" hint-placeholder-val="{{ false }}"><div style="margin:16px;padding:16px;border:2px dashed #1C1916;border-radius:12px;font-size:15px;color:#3D3832">{{ noEmailsText }}</div></sc-if>
+        <sc-if value="{{ desktop }}" hint-placeholder-val="{{ true }}">
+          <div aria-hidden="true" style="display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.4fr) 136px 92px;gap:14px;padding:10px 20px;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;color:#3D3832;border-bottom:1px solid #E3DCD0"><div>TO</div><div>SUBJECT</div><div>STATUS</div><div>SENT</div></div>
+          <ul aria-label="Recent emails" style="list-style:none;margin:0;padding:0">
+            <sc-for list="{{ emails }}" as="e" hint-placeholder-count="6">
+              <li style="border-bottom:1px solid #E3DCD0"><button type="button" onClick="{{ e.open }}" aria-label="{{ e.aria }}" style="width:100%;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.4fr) 136px 92px;gap:14px;align-items:center;padding:10px 20px;min-height:52px;border:0;background:transparent;text-align:left;cursor:pointer" style-hover="background:#F4EEE3">
+                <span title="{{ e.to }}" style="font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ e.to }}</span>
+                <span title="{{ e.subject }}" style="font-size:14px;color:#3D3832;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ e.subject }}</span>
+                <span><span style="display:inline-flex;align-items:center;gap:6px;height:28px;box-sizing:border-box;line-height:1;padding:0 10px;border-radius:999px;border:2px {{ e.line }} #1C1916;background:{{ e.bg }};color:{{ e.fg }};font-size:13px;font-weight:700;white-space:nowrap"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round"><path d="{{ e.icon }}"></path></svg>{{ e.status }}</span></span>
+                <time datetime="{{ e.iso }}" title="{{ e.full }}" style="font-size:14px;color:#3D3832;white-space:nowrap">{{ e.when }}</time>
+              </button></li>
+            </sc-for>
+          </ul>
+        </sc-if>
+        <sc-if value="{{ mobile }}" hint-placeholder-val="{{ false }}">
+          <ul aria-label="Recent emails" style="list-style:none;margin:0;padding:0">
+            <sc-for list="{{ emails }}" as="e" hint-placeholder-count="4">
+              <li style="border-bottom:1px solid #E3DCD0"><button type="button" onClick="{{ e.open }}" aria-label="{{ e.aria }}" style="width:100%;display:flex;flex-direction:column;gap:6px;padding:12px 16px;min-height:52px;border:0;background:transparent;text-align:left;cursor:pointer">
+                <span style="display:flex;align-items:baseline;gap:10px;width:100%;min-width:0"><span style="flex:1;min-width:0;font-size:15px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ e.to }}</span><time datetime="{{ e.iso }}" style="flex-shrink:0;font-size:13px;color:#3D3832">{{ e.when }}</time></span>
+                <span style="width:100%;font-size:14px;color:#3D3832;overflow-wrap:anywhere">{{ e.subject }}</span>
+                <span style="display:inline-flex;align-items:center;gap:6px;height:28px;box-sizing:border-box;line-height:1;padding:0 10px;border-radius:999px;border:2px {{ e.line }} #1C1916;background:{{ e.bg }};color:{{ e.fg }};font-size:13px;font-weight:700"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round"><path d="{{ e.icon }}"></path></svg>{{ e.status }}</span>
+              </button></li>
+            </sc-for>
+          </ul>
+        </sc-if>
+      </section>
+
+      <div style="order:{{ sideOrder }};display:flex;flex-direction:column;gap:20px;min-width:0">
+        <section aria-labelledby="st-usage" style="background:#FBF9F5;border:2px solid #1C1916;border-radius:18px;box-shadow:0 3px 0 #1C1916;padding:16px 20px 18px;display:flex;flex-direction:column;gap:10px">
+          <h2 id="st-usage" style="margin:0;font-size:17px;font-weight:800">Usage this month</h2>
+          <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap"><span style="font-size:36px;font-weight:800;letter-spacing:-.03em;line-height:1">{{ usedText }}</span><span style="font-size:15px;color:#3D3832">of {{ limitText }} emails</span></div>
+          <div role="meter" aria-label="Emails sent this month" aria-valuemin="0" aria-valuemax="{{ limit }}" aria-valuenow="{{ used }}" aria-valuetext="{{ usageAria }}" style="height:18px;border:2px solid #1C1916;border-radius:999px;background:#FFFFFF;overflow:hidden;box-sizing:border-box">
+            <div style="height:100%;width:{{ usagePct }};background:#F7D56E;border-right:2px solid #1C1916;box-sizing:border-box"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;gap:10px;font-size:13px;color:#3D3832;flex-wrap:wrap"><span><span style="font-weight:800;color:#1C1916">{{ pctText }}</span> used</span><span>Resets {{ resetText }}</span></div>
+        </section>
+
+        <section aria-labelledby="st-domains" style="background:#FBF9F5;border:2px solid #1C1916;border-radius:18px;box-shadow:0 3px 0 #1C1916;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 12px 12px 20px;border-bottom:2px solid #1C1916">
+            <h2 id="st-domains" style="margin:0;font-size:17px;font-weight:800">Sending domains</h2>
+            <button type="button" onClick="{{ addDomain }}" style="height:{{ ctl }};padding:0 12px;border-radius:10px;border:2px solid #1C1916;background:#FF5A36;font-size:14px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round"><path d="M12 5v14M5 12h14"></path></svg>Add domain</button>
+          </div>
+          <ul aria-label="Sending domains" style="list-style:none;margin:0;padding:0">
+            <sc-for list="{{ domains }}" as="d" hint-placeholder-count="3">
+              <li style="border-bottom:1px solid #E3DCD0"><button type="button" onClick="{{ d.open }}" aria-label="{{ d.aria }}" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px 10px 20px;min-height:{{ rowH }};border:0;background:transparent;text-align:left;cursor:pointer" style-hover="background:#F4EEE3">
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:500;min-width:0;overflow-wrap:anywhere">{{ d.name }}</span>
+                <span style="flex-shrink:0;display:inline-flex;align-items:center;gap:6px;height:28px;box-sizing:border-box;padding:0 10px;border-radius:999px;border:2px {{ d.line }} #1C1916;background:{{ d.bg }};color:{{ d.fg }};font-size:13px;font-weight:700"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round"><path d="{{ d.icon }}"></path></svg>{{ d.status }}</span>
+              </button></li>
+            </sc-for>
+          </ul>
+        </section>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:{{ bottomCols }};gap:20px;align-items:start">
+      <section aria-labelledby="st-keys" style="background:#FBF9F5;border:2px solid #1C1916;border-radius:18px;box-shadow:0 3px 0 #1C1916;overflow:hidden;min-width:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 12px 12px 20px;border-bottom:2px solid #1C1916">
+          <h2 id="st-keys" style="margin:0;font-size:17px;font-weight:800">API keys</h2>
+          <button type="button" onClick="{{ createKey }}" style="height:{{ ctl }};padding:0 12px;border-radius:10px;border:2px solid #1C1916;background:#FBF9F5;font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px" style-hover="background:#F4EEE3"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round"><path d="M12 5v14M5 12h14"></path></svg>Create key</button>
+        </div>
+        <ul aria-label="API keys" style="list-style:none;margin:0;padding:0">
+          <sc-for list="{{ keys }}" as="k" hint-placeholder-count="3">
+            <li style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px 12px 20px;border-bottom:1px solid #E3DCD0;min-height:{{ rowH }};box-sizing:border-box">
+              <span style="display:flex;flex-direction:column;gap:2px;min-width:0"><span style="font-size:15px;font-weight:700;overflow-wrap:anywhere">{{ k.name }}</span><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#3D3832;overflow-wrap:anywhere">{{ k.prefix }}</span></span>
+              <span style="flex-shrink:0;font-size:13px;color:#3D3832;text-align:right">{{ k.used }}</span>
+            </li>
+          </sc-for>
+        </ul>
+      </section>
+
+      <section aria-labelledby="st-block" style="background:#FBF9F5;border:2px solid #1C1916;border-radius:18px;box-shadow:0 3px 0 #1C1916;overflow:hidden;min-width:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 12px 12px 20px;border-bottom:2px solid #1C1916">
+          <div style="display:flex;align-items:baseline;gap:10px"><h2 id="st-block" style="margin:0;font-size:17px;font-weight:800">Block list</h2><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#3D3832">{{ blockMeta }}</span></div>
+          <button type="button" onClick="{{ viewBlock }}" style="height:{{ ctl }};padding:0 12px;border-radius:10px;border:2px solid #1C1916;background:#FBF9F5;font-size:14px;font-weight:700;cursor:pointer" style-hover="background:#F4EEE3">View all</button>
+        </div>
+        <sc-if value="{{ noBlocked }}" hint-placeholder-val="{{ false }}"><div style="margin:16px;padding:14px;border:2px dashed #1C1916;border-radius:12px;font-size:15px;color:#3D3832">No blocked addresses. Addresses that bounce or complain show up here.</div></sc-if>
+        <ul aria-label="Blocked addresses" style="list-style:none;margin:0;padding:0">
+          <sc-for list="{{ blocked }}" as="b" hint-placeholder-count="3">
+            <li style="display:flex;align-items:center;gap:10px;padding:10px 12px 10px 20px;border-bottom:1px solid #E3DCD0;flex-wrap:{{ b.wrap }}">
+              <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px"><span style="font-size:14px;font-weight:700;overflow-wrap:anywhere">{{ b.address }}</span>
+                <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="display:inline-flex;align-items:center;gap:6px;height:26px;box-sizing:border-box;padding:0 9px;border-radius:999px;border:2px {{ b.line }} #1C1916;background:{{ b.bg }};color:{{ b.fg }};font-size:12px;font-weight:700"><svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round"><path d="{{ b.icon }}"></path></svg>{{ b.reason }}</span><span style="font-size:13px;color:#3D3832">{{ b.when }}</span></span></span>
+              <button type="button" onClick="{{ b.remove }}" aria-label="{{ b.rmAria }}" style="flex-shrink:0;height:{{ ctl }};padding:0 12px;border-radius:10px;border:2px solid #1C1916;background:#FBF9F5;font-size:14px;font-weight:700;cursor:pointer" style-hover="background:#FFD6C9">Unblock</button>
+            </li>
+          </sc-for>
+        </ul>
+      </section>
+    </div>
+   </div>
+  </div>
+
+  <sc-if value="{{ mobile }}" hint-placeholder-val="{{ false }}">
+    <nav aria-label="Dashboard" style="flex-shrink:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px;padding:6px 4px 10px;background:#FBF9F5;border-top:2px solid #1C1916">
+      <sc-for list="{{ nav }}" as="n" hint-placeholder-count="5">
+        <button type="button" onClick="{{ n.go }}" aria-current="{{ n.current }}" style="height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-radius:12px;border:2px solid {{ n.border }};background:{{ n.bg }};font-size:11px;font-weight:{{ n.weight }};cursor:pointer;padding:0;min-width:0;overflow:hidden;white-space:nowrap">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="{{ n.icon }}"></path></svg>{{ n.short }}
+        </button>
+      </sc-for>
+    </nav>
+  </sc-if>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:1000},&quot;mode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;desktop&quot;,&quot;mobile&quot;],&quot;default&quot;:&quot;desktop&quot;,&quot;tsType&quot;:&quot;'desktop'|'mobile'&quot;},&quot;filter&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;all&quot;,&quot;delivered&quot;,&quot;bounced&quot;,&quot;complained&quot;],&quot;default&quot;:&quot;all&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;height&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:null,&quot;tsType&quot;:&quot;number&quot;,&quot;unit&quot;:&quot;px&quot;}}">
+const NAV = [
+  { id: 'overview', label: 'Overview', short: 'Overview', icon: 'M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z' },
+  { id: 'emails', label: 'Emails', short: 'Emails', icon: 'M3 6h18v12H3zM3 7l9 6 9-6' },
+  { id: 'domains', label: 'Domains', short: 'Domains', icon: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18' },
+  { id: 'keys', label: 'API keys', short: 'Keys', icon: 'M15 3a6 6 0 1 1-5.2 9L3 18.8V21h3v-2h2v-2h2l1.8-1.8A6 6 0 0 1 15 3zM16.5 7.5h.01' },
+  { id: 'block', label: 'Block list', short: 'Blocked', icon: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM5.6 5.6l12.8 12.8' }
+];
+const EMAIL_STATUS = {
+  queued: { label: 'Queued', bg: '#F4EEE3', fg: '#1C1916', line: 'dashed', icon: 'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM12 7v5l3 2' },
+  sent: { label: 'Sent', bg: '#FBF9F5', fg: '#1C1916', line: 'solid', icon: 'M21 3L3 10.5l7 3 3 7zM10 13.5L21 3' },
+  delivered: { label: 'Delivered', bg: '#2E6B4B', fg: '#FBF9F5', line: 'solid', icon: 'M5 12.5l4.5 4.5L19 7.5' },
+  bounced: { label: 'Bounced', bg: '#FF5A36', fg: '#1C1916', line: 'solid', icon: 'M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3' },
+  complained: { label: 'Complained', bg: '#1C1916', fg: '#FBF9F5', line: 'solid', icon: 'M5 21V4M5 4h11l-2 4 2 4H5' },
+  failed: { label: 'Failed', bg: '#FFD6C9', fg: '#1C1916', line: 'dashed', icon: 'M6 6l12 12M18 6L6 18' }
+};
+const DOMAIN_STATUS = {
+  verified: { label: 'Verified', bg: '#2E6B4B', fg: '#FBF9F5', line: 'solid', icon: 'M5 12.5l4.5 4.5L19 7.5' },
+  pending: { label: 'Pending', bg: '#F7D56E', fg: '#1C1916', line: 'solid', icon: 'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM12 7v5l3 2' },
+  failed: { label: 'Failed', bg: '#FFD6C9', fg: '#1C1916', line: 'dashed', icon: 'M6 6l12 12M18 6L6 18' }
+};
+const BLOCK_REASON = {
+  bounced: { label: 'Bounced', bg: '#FF5A36', fg: '#1C1916', line: 'solid', icon: EMAIL_STATUS.bounced.icon },
+  complained: { label: 'Complained', bg: '#1C1916', fg: '#FBF9F5', line: 'solid', icon: EMAIL_STATUS.complained.icon },
+  manual: { label: 'Added by you', bg: '#FBF9F5', fg: '#1C1916', line: 'solid', icon: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM5.6 5.6l12.8 12.8' }
+};
+// Illustrative records (prototype only).
+const EMAILS = [
+  { id: 'em_7Kq2mX91', to: 'mia.thompson@example.com', subject: 'Your order is on its way', status: 'delivered', at: '2026-11-27T09:41:00+11:00' },
+  { id: 'em_9Dw3pL20', to: 'jack.wilson@example.net', subject: 'Reset your password', status: 'bounced', at: '2026-11-27T09:12:00+11:00' },
+  { id: 'em_2Hs6tN58', to: 'aisha.rahman@example.org', subject: 'Spring sale ends Sunday', status: 'complained', at: '2026-11-27T08:30:00+11:00' },
+  { id: 'em_Vb5kQ83z', to: 'leo.nguyen@example.com', subject: 'Welcome aboard', status: 'delivered', at: '2026-11-26T17:05:00+11:00' },
+  { id: 'em_Lm4cY70h', to: 'grace.obrien@example.com', subject: 'Your receipt #1042', status: 'sent', at: '2026-11-26T15:48:00+11:00' },
+  { id: 'em_R4t8gS66', to: 'ruby.patel@example.net', subject: 'See you Saturday at 10', status: 'delivered', at: '2026-11-26T11:20:00+11:00' }
+];
+const DOMAINS = [{ id: 'd1', name: 'goodyarn.example', status: 'verified' }, { id: 'd2', name: 'mail.goodyarn.example', status: 'verified' }, { id: 'd3', name: 'shop.goodyarn.example', status: 'pending' }];
+const KEYS = [
+  { id: 'k1', name: 'Order receipts', prefix: 'st_live_4f2a…91c0', usedAt: '2026-11-27T09:41:00+11:00' },
+  { id: 'k2', name: 'Website forms', prefix: 'st_live_b81e…07d3', usedAt: '2026-11-25T13:02:00+11:00' },
+  { id: 'k3', name: 'Staging', prefix: 'st_test_2c9d…e44a', usedAt: null }
+];
+const BLOCKED = [
+  { id: 'b1', address: 'jack.wilson@example.net', reason: 'bounced', at: '2026-11-27T09:12:00+11:00' },
+  { id: 'b2', address: 'aisha.rahman@example.org', reason: 'complained', at: '2026-11-27T08:30:00+11:00' },
+  { id: 'b3', address: 'old.orders@example.com', reason: 'manual', at: '2026-11-02T10:00:00+11:00' }
+];
+const TZ = 'Australia/Sydney', NOW = '2026-11-27T12:00:00+11:00';
+const fKey = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
+const fTime = new Intl.DateTimeFormat('en-AU', { timeZone: TZ, hour: 'numeric', minute: '2-digit', hour12: true });
+const fDay = new Intl.DateTimeFormat('en-AU', { timeZone: TZ, day: 'numeric', month: 'short' });
+const fFull = new Intl.DateTimeFormat('en-AU', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' });
+const today = fKey.format(new Date(NOW)), yday = fKey.format(new Date(new Date(NOW).getTime() - 864e5));
+const when = iso => { const d = new Date(iso), k = fKey.format(d); return k === today ? fTime.format(d) : k === yday ? 'Yesterday' : fDay.format(d); };
+const num = n => new Intl.NumberFormat('en-AU').format(n);
+
+class Component extends DCLogic {
+  state = { filter: this.props.filter || 'all', blocked: BLOCKED.slice(), note: '' };
+  renderVals() {
+    const s = this.state, mobile = this.props.mode === 'mobile', desktop = !mobile, set = p => this.setState(p), ctl = desktop ? '44px' : '52px';
+    const say = t => set({ note: t });
+    const counts = { all: EMAILS.length };
+    EMAILS.forEach(e => { counts[e.status] = (counts[e.status] || 0) + 1; });
+    const list = EMAILS.filter(e => s.filter === 'all' || e.status === s.filter);
+    const used = 1240, limit = 3000, pct = Math.round(used / limit * 100);
+    const tone = (m, k) => ({ bg: m[k].bg, fg: m[k].fg, line: m[k].line, icon: m[k].icon });
+    return {
+      desktop, mobile, ctl, rowH: ctl, account: 'Good Yarn Co.',
+      rootDir: desktop ? 'row' : 'column', rootH: (this.props.height ?? (mobile ? 844 : 1000)) + 'px',
+      pad: desktop ? '32px 32px 40px' : '18px 14px 24px', gap: desktop ? '20px' : '16px', hdrDir: desktop ? 'row' : 'column', hdrAlign: desktop ? 'flex-end' : 'stretch', h1Size: desktop ? '40px' : '30px',
+      topCols: desktop ? 'minmax(0,1fr) 360px' : 'minmax(0,1fr)', bottomCols: desktop ? 'minmax(0,1fr) minmax(0,1fr)' : 'minmax(0,1fr)',
+      recentOrder: desktop ? 0 : 2, sideOrder: desktop ? 0 : 1, filterCols: desktop ? 'repeat(4,max-content)' : 'repeat(2,minmax(0,1fr))',
+      nav: NAV.map(n => { const c = n.id === 'overview'; return { ...n, current: c ? 'page' : undefined, border: c ? '#1C1916' : 'transparent', bg: c ? '#F7D56E' : 'transparent', weight: c ? 800 : 600,
+        go: () => c ? null : say(`${n.label} opens its own screen. This prototype shows the Overview.`) }; }),
+      hasNote: !!s.note, note: s.note, clearNote: () => set({ note: '' }),
+      recentMeta: `${list.length} SHOWN`, viewAll: () => say('View all emails opens the Emails screen.'),
+      filters: [['all', 'All'], ['delivered', 'Delivered'], ['bounced', 'Bounced'], ['complained', 'Complained']].map(([id, label]) => { const c = s.filter === id;
+        return { label, count: counts[id] || 0, pressed: String(c), border: c ? '#1C1916' : '#E3DCD0', bg: c ? '#F7D56E' : '#FBF9F5', weight: c ? 800 : 600, pick: () => set({ filter: id }) }; }),
+      noEmails: list.length === 0, noEmailsText: 'No emails with this status in the recent list.',
+      emails: list.map(e => ({ ...e, ...tone(EMAIL_STATUS, e.status), status: EMAIL_STATUS[e.status].label, iso: e.at, when: when(e.at), full: fFull.format(new Date(e.at)),
+        aria: `${EMAIL_STATUS[e.status].label}. To ${e.to}. ${e.subject}. ${when(e.at)}`, open: () => say(`Opens email ${e.id}.`) })),
+      used, limit, usedText: num(used), limitText: num(limit), usagePct: pct + '%', pctText: pct + '%', resetText: '1 Dec', usageAria: `${num(used)} of ${num(limit)} emails, ${pct}%`,
+      addDomain: () => say('Add domain opens the domain setup.'),
+      domains: DOMAINS.map(d => ({ ...d, ...tone(DOMAIN_STATUS, d.status), status: DOMAIN_STATUS[d.status].label, aria: `${d.name}, ${DOMAIN_STATUS[d.status].label}`, open: () => say(`Opens ${d.name}.`) })),
+      createKey: () => say('Create key opens the new key form.'),
+      keys: KEYS.map(k => ({ ...k, used: k.usedAt ? `Used ${when(k.usedAt)}` : 'Never used' })),
+      blockMeta: `${s.blocked.length} ${s.blocked.length === 1 ? 'ADDRESS' : 'ADDRESSES'}`, viewBlock: () => say('View all opens the Block list.'), noBlocked: s.blocked.length === 0,
+      blocked: s.blocked.map(b => ({ ...b, ...tone(BLOCK_REASON, b.reason), reason: BLOCK_REASON[b.reason].label, when: `Blocked ${when(b.at)}`, wrap: 'nowrap', rmAria: `Unblock ${b.address}`,
+        remove: () => set({ blocked: s.blocked.filter(x => x.id !== b.id), note: `Unblocked ${b.address}.` }) }))
+    };
+  }
+}
+</script>
+</body>
+</html>
