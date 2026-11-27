@@ -6,6 +6,7 @@ import { parseCsv, stringifyCsv } from '@/lib/csv';
 import { readBytesLimited } from '@/lib/request-json';
 import { emitWebhookEvent } from '@/lib/webhooks';
 import { withApiRequestLog } from '@/lib/request-logs';
+import { planContactPropertyDefinitions } from '@/lib/contact-import-properties';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -137,6 +138,7 @@ async function __emailgo_POST_handler(request: Request) {
   if (firstNameColumn === -2 || lastNameColumn === -2) return errorResponse('Mapped name columns must exist in the CSV file.', 400);
   const properties = columnMap.properties === undefined ? {} : columnMap.properties;
   if (!properties || typeof properties !== 'object' || Array.isArray(properties)) return errorResponse('column_map.properties must be an object.', 400);
+  if (Object.keys(properties).length > 50) return errorResponse('column_map.properties may contain at most 50 custom properties.', 400);
   const propertyMaps: Array<{ key: string; column: number; type: 'string' | 'number' | 'boolean' }> = [];
   for (const [propertyKey, definition] of Object.entries(properties as Record<string, unknown>)) {
     if (!mappedPropertyKey.test(propertyKey) || !definition || typeof definition !== 'object' || Array.isArray(definition)) return errorResponse(`Invalid mapping for custom property "${propertyKey}".`, 400);
@@ -147,6 +149,11 @@ async function __emailgo_POST_handler(request: Request) {
     if (column < 0) return errorResponse(`Mapped column for custom property "${propertyKey}" does not exist in the CSV file.`, 400);
     propertyMaps.push({ key: propertyKey, column, type: type as 'string' | 'number' | 'boolean' });
   }
+  const existingProperties = propertyMaps.length
+    ? (await query<{ property_key: string; type: string }>(`SELECT property_key,type FROM contact_properties WHERE property_key IN (${propertyMaps.map(() => '?').join(',')})`, propertyMaps.map(({ key }) => key))).rows
+    : [];
+  const propertyPlan = planContactPropertyDefinitions(propertyMaps, existingProperties);
+  if (!propertyPlan.ok) return errorResponse(propertyPlan.error, 409);
 
   const mappedSegmentIds = parseFormJson(form.get('segments'), 'segments');
   if (mappedSegmentIds.error) return errorResponse(mappedSegmentIds.error, 400);
@@ -229,6 +236,12 @@ async function __emailgo_POST_handler(request: Request) {
       const emailPlaceholders = appliedEmails.map(() => '?').join(',');
       const statements: Array<{ sql: string; params: readonly unknown[] }> = [];
       const timestamp = nowIso();
+      for (const property of propertyPlan.create) {
+        statements.push({
+          sql: 'INSERT INTO contact_properties(property_key,type,fallback_value_json,created_at,updated_at) VALUES(?,?,NULL,?,?) ON CONFLICT(property_key) DO NOTHING',
+          params: [property.key, property.type, timestamp, timestamp],
+        });
+      }
       if (segmentIds.length) {
         const segmentPlaceholders = segmentIds.map(() => '?').join(',');
         statements.push({
