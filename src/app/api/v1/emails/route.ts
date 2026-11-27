@@ -2,7 +2,7 @@ import { withApiRequestLog } from '@/lib/request-logs';
 import { checkEmailLinks } from '@/lib/email-link-checker';
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
-import { consumeSendLimit, execute, hashSecret, nowIso, query, queryOne, randomId, transaction } from '@/lib/database';
+import { execute, hashSecret, nowIso, query, queryOne, randomId, transaction } from '@/lib/database';
 import { readJsonLimited } from '@/lib/request-json';
 import { sendThroughSmtp, type OutboundAttachment } from '@/lib/smtp';
 import { emitEmailSuppressed, findSuppressedAddresses } from '@/lib/suppressions';
@@ -14,7 +14,6 @@ import { normalizeScheduledAt } from '@/lib/scheduled-time';
 import { relayMessageIdFromResponse } from '@/lib/ses-events';
 import { recordEmailSentActivity } from '@/lib/email-activity';
 import { resolvePlainText } from '@/lib/plain-text';
-import { withSendRateLimitHeaders } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -256,14 +255,10 @@ async function __emailgo_GET_handler(request: Request) {
   return NextResponse.json({ object: 'list', data: data.map((row) => emailResponse(row)), has_more: hasMore, ...(hasMore ? { next_after: data[data.length - 1]?.id } : {}) }, { headers: { 'Cache-Control': 'private, no-store' } });
 }
 
-export async function sendEmailRequest(request: Request, options: { countRateLimit?: boolean; apiKey?: AuthorizedEmailApiKey } = {}) {
+export async function sendEmailRequest(request: Request, options: { apiKey?: AuthorizedEmailApiKey } = {}) {
   const apiKey = options.apiKey ?? await authorizeApiKey(request);
   if (!apiKey) return responseError('Invalid or revoked API key.', 401);
-  if (options.countRateLimit === false) return sendEmailRequestCore(request, apiKey);
-
-  const rateLimit = await consumeSendLimit(apiKey.id);
-  if (!rateLimit.allowed) return withSendRateLimitHeaders(responseError('Rate limit exceeded. Try again in the next minute.', 429), rateLimit);
-  return withSendRateLimitHeaders(await sendEmailRequestCore(request, apiKey), rateLimit);
+  return sendEmailRequestCore(request, apiKey);
 }
 
 async function sendEmailRequestCore(request: Request, apiKey: AuthorizedEmailApiKey) {

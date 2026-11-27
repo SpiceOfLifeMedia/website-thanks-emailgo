@@ -3,7 +3,7 @@
   "info": {
     "title": "Send, thanks API",
     "version": "0.2.0",
-    "description": "Send, thanks email sending, domains, API keys, contacts, audiences, broadcasts, automations, inbound receiving, webhooks, suppressions and usage. Send, thanks uses its configured SMTP relay."
+    "description": "Send, thanks email sending, domains, API keys, contacts, audiences, broadcasts, automations, inbound receiving, webhooks, suppressions and usage. Send, thanks uses its configured SMTP relay. Authenticated /api/v1 requests are limited to 60 per fixed minute per API key. Responses include ratelimit-limit, ratelimit-remaining and ratelimit-reset; rate-limit responses also include retry-after."
   },
   "servers": [{ "url": "https://send-thanks.example.com" }],
   "security": [{ "BearerAuth": [] }],

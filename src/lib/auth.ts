@@ -5,7 +5,9 @@ import { execute, hashSecret, nowIso, queryOne } from '@/lib/database';
 const SESSION_COOKIE = 'emailgo_session';
 const SESSION_HOURS = 8;
 type AuthorizedRequestKey = { id: string; name: string; prefix: string };
+type AuthorizedApiKey = { id: string; permission: 'sending_access' | 'full_access'; domainId: string | null };
 const authorizedRequestKeys = new WeakMap<Request, AuthorizedRequestKey>();
+const authorizedApiKeys = new WeakMap<Request, AuthorizedApiKey>();
 
 export function getAuthorizedRequestKeyId(request: Request) {
   return authorizedRequestKeys.get(request)?.id ?? null;
@@ -77,6 +79,8 @@ export function hasTrustedBrowserOrigin(request: Request) {
 }
 
 export async function authorizeApiKey(request: Request) {
+  const cached = authorizedApiKeys.get(request);
+  if (cached) return cached;
   const authorization = request.headers.get('authorization') ?? '';
   const match = /^Bearer ((?:eg|st)_live_[A-Za-z0-9_-]{40,})$/.exec(authorization);
   if (!match) return null;
@@ -89,7 +93,9 @@ export async function authorizeApiKey(request: Request) {
   if (supplied.length !== stored.length || !timingSafeEqual(supplied, stored)) return null;
   await execute('UPDATE api_keys SET last_used_at = ? WHERE id = ?', [nowIso(), row.id]);
   authorizedRequestKeys.set(request, { id: row.id, name: row.name, prefix: row.prefix });
-  return { id: row.id, permission: row.permission === 'sending_access' ? 'sending_access' as const : 'full_access' as const, domainId: row.domain_id };
+  const apiKey: AuthorizedApiKey = { id: row.id, permission: row.permission === 'sending_access' ? 'sending_access' : 'full_access', domainId: row.domain_id };
+  authorizedApiKeys.set(request, apiKey);
+  return apiKey;
 }
 
 export function hasFullApiAccess(apiKey: { permission: string }) {

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { hasTrustedBrowserOrigin, isAdminSession } from '@/lib/auth';
-import { consumeSendLimit, execute, nowIso, query, queryOne, randomId, transaction } from '@/lib/database';
+import { consumeApiRequestLimit, execute, nowIso, query, queryOne, randomId, transaction } from '@/lib/database';
 import { readJsonLimited } from '@/lib/request-json';
 import { findSuppressedAddresses } from '@/lib/suppressions';
 import { sendThroughSmtp } from '@/lib/smtp';
@@ -8,7 +8,7 @@ import { relayMessageIdFromResponse } from '@/lib/ses-events';
 import { emitWebhookEvent } from '@/lib/webhooks';
 import { recordEmailSentActivity } from '@/lib/email-activity';
 import { boundedMessageReferences, parseMessageIds, replyRequestHash } from '@/lib/inbox-threads';
-import { withSendRateLimitHeaders } from '@/lib/rate-limit';
+import { withApiRateLimitHeaders } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -116,9 +116,9 @@ export async function POST(request: Request, context: Context) {
     ...(inReplyTo ? { 'In-Reply-To': inReplyTo } : {}),
     ...(references ? { References: references } : {}),
   };
-  const rateLimit = await consumeSendLimit(thread.api_key_id);
-  const withRateLimit = (response: Response) => withSendRateLimitHeaders(response, rateLimit);
-  if (!rateLimit.allowed) return withRateLimit(error('The sending limit has been reached. Try again in a minute.', 429));
+  const rateLimit = await consumeApiRequestLimit(thread.api_key_id);
+  const withRateLimit = (response: Response) => withApiRateLimitHeaders(response, rateLimit);
+  if (!rateLimit.allowed) return withRateLimit(error('The sending limit has been reached. Retry after the period in the retry-after header.', 429));
 
   const emailId = randomId('em');
   const createdAt = nowIso();

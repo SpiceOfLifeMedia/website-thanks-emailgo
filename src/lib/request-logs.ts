@@ -1,5 +1,6 @@
-import { getAuthorizedRequestKey } from '@/lib/auth';
-import { execute, nowIso, query, queryOne, randomId } from '@/lib/database';
+import { authorizeApiKey, getAuthorizedRequestKey } from '@/lib/auth';
+import { consumeApiRequestLimit, execute, nowIso, query, queryOne, randomId } from '@/lib/database';
+import { withApiRateLimitHeaders } from '@/lib/rate-limit';
 import { sanitizeApiLogText, sanitizeApiLogValue } from '@/lib/request-log-sanitization';
 
 const BODY_LIMIT = 64 * 1024;
@@ -96,11 +97,16 @@ export function withApiRequestLog<Args extends unknown[]>(handler: (request: Req
     const id = randomId('log');
     const requestBody = await captureJsonBody(request);
     try {
-      const response = await handler(request, ...args);
+      const apiKey = await authorizeApiKey(request);
+      const rateLimit = apiKey ? await consumeApiRequestLimit(apiKey.id) : null;
+      const response = rateLimit && !rateLimit.allowed
+        ? Response.json({ error: { message: 'Rate limit exceeded. Retry after the period in the retry-after header.' } }, { status: 429, headers: { 'Cache-Control': 'private, no-store' } })
+        : await handler(request, ...args);
       const responseBody = await captureJsonBody(response);
+      const limitedResponse = rateLimit ? withApiRateLimitHeaders(response, rateLimit) : response;
       const authorized = getAuthorizedRequestKey(request);
       try { await recordLog(request, id, response.status, requestBody, responseBody); } catch { /* Logging must not change the API response. */ }
-      return authorized ? responseWithRequestId(response, id) : response;
+      return authorized ? responseWithRequestId(limitedResponse, id) : limitedResponse;
     } catch (error) {
       try { await recordLog(request, id, 500, requestBody, { json: null, bytes: null }); } catch { /* Logging must not change the API response. */ }
       throw error;

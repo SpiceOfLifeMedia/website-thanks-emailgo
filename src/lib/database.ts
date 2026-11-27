@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { neon, type NeonQueryFunction } from '@neondatabase/serverless';
 import { DatabaseSync } from 'node:sqlite';
-import { SEND_RATE_LIMIT_WINDOW_MS, sendRateLimitState } from './rate-limit.ts';
+import { API_RATE_LIMIT_WINDOW_MS, apiRateLimitState } from './rate-limit.ts';
 
 type PostgresSql = NeonQueryFunction<false, true>;
 type GlobalWithDatabases = typeof globalThis & {
@@ -771,13 +771,13 @@ async function consumeLimit(statement: string, key: string, perMinute: number) {
   return count <= perMinute;
 }
 
-export async function consumeSendLimit(apiKeyId: string, perMinute = 60, nowMs = Date.now()) {
-  const windowStarted = Math.floor(nowMs / SEND_RATE_LIMIT_WINDOW_MS);
+export async function consumeApiRequestLimit(apiKeyId: string, perMinute = 60, nowMs = Date.now()) {
+  const windowStarted = Math.floor(nowMs / API_RATE_LIMIT_WINDOW_MS);
   const result = await query<{ request_count: number }>(`INSERT INTO send_limits(api_key_id,window_started,request_count) VALUES(?,?,1)
     ON CONFLICT(api_key_id) DO UPDATE SET window_started=excluded.window_started,
     request_count=CASE WHEN send_limits.window_started=excluded.window_started THEN send_limits.request_count+1 ELSE 1 END
     RETURNING request_count`, [apiKeyId, windowStarted]);
-  return sendRateLimitState(Number(result.rows[0]?.request_count ?? 0), perMinute, windowStarted * SEND_RATE_LIMIT_WINDOW_MS);
+  return apiRateLimitState(Number(result.rows[0]?.request_count ?? 0), perMinute, windowStarted * API_RATE_LIMIT_WINDOW_MS);
 }
 
 export function consumeLoginAttempt(sourceHash: string, perMinute = 10) {
