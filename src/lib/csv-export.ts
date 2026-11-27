@@ -3,6 +3,7 @@ type ExportSpec = {
   table: string;
   cursorColumn: string;
   keyScoped?: boolean;
+  workspaceScoped?: boolean;
   fields: ExportField[];
   searchColumns: string[];
   statusColumn?: string;
@@ -56,7 +57,7 @@ const exportSpecs = {
     searchColumns: ['id', 'email', 'name'],
   },
   domains: {
-    table: 'domains', cursorColumn: 'created_at',
+    table: 'domains', cursorColumn: 'created_at', workspaceScoped: true,
     fields: [
       { key: 'id', select: 'id' }, { key: 'domain', select: 'domain' },
       { key: 'created_at', select: 'created_at' }, { key: 'verified_at', select: 'verified_at' },
@@ -76,7 +77,7 @@ const exportSpecs = {
     searchColumns: ['id', 'endpoint', 'method'], statusColumn: 'response_status', statusMode: 'http',
   },
   api_keys: {
-    table: 'api_keys', cursorColumn: 'created_at',
+    table: 'api_keys', cursorColumn: 'created_at', workspaceScoped: true,
     fields: [
       { key: 'id', select: 'id' }, { key: 'name', select: 'name' }, { key: 'prefix', select: 'prefix' },
       { key: 'permission', select: 'permission' }, { key: 'domain_id', select: 'domain_id' },
@@ -105,12 +106,14 @@ export function buildExportPageQuery(
   filter: { search?: string; status?: string },
   cursor: ExportCursor | null,
   limit: number,
+  workspaceId: string,
 ): ExportQuery | { error: string } {
   const spec: ExportSpec = exportSpecs[resource];
   const where: string[] = [];
   const params: Array<string | number> = [];
   if (!Number.isInteger(limit) || limit < 1 || limit > 1_000) return { error: 'Export page size is invalid.' };
   if (spec.keyScoped) { where.push('api_key_id=?'); params.push(apiKeyId); }
+  if (spec.workspaceScoped) { where.push('workspace_id=?'); params.push(workspaceId); }
 
   if (filter.search) {
     where.push(`(${spec.searchColumns.map((column) => `${column} LIKE ?`).join(' OR ')})`);

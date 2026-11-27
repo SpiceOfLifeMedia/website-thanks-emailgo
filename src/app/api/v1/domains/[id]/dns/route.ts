@@ -19,7 +19,7 @@ async function __emailgo_GET_handler(request: Request, context: { params: Promis
   if (!key) return NextResponse.json({ error: { message: 'Invalid or revoked API key.' } }, { status: 401, headers: privateHeaders });
   if (!hasFullApiAccess(key)) return NextResponse.json({ error: { message: 'This API key has sending-only access.' } }, { status: 403, headers: privateHeaders });
   const { id } = await context.params;
-  const domain = await queryOne<{ id: string; domain: string; verification_token: string }>('SELECT id,domain,verification_token FROM domains WHERE id=?', [id]);
+  const domain = await queryOne<{ id: string; domain: string; verification_token: string }>('SELECT id,domain,verification_token FROM domains WHERE id=? AND workspace_id=?', [id, key.workspaceId]);
   if (!domain) return NextResponse.json({ error: { message: 'Sender domain not found.' } }, { status: 404, headers: privateHeaders });
   const [rootTxt, dmarcTxt, mxRecords] = await Promise.all([
     txtRecords(domain.domain),

@@ -4,6 +4,7 @@ import { query } from '@/lib/database';
 import { smtpConfigured } from '@/lib/smtp';
 import { sanitizeCustomerCopy } from '@/lib/customer-copy';
 import { publicVerificationToken } from '@/lib/domain-verification';
+import { DEFAULT_WORKSPACE_ID } from '@/lib/workspaces';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,9 +22,9 @@ export async function GET() {
       CAST((SELECT COUNT(*) FROM email_events v WHERE v.email_id=e.id AND v.type='email.opened') AS INTEGER) AS open_count,
       CAST((SELECT COUNT(*) FROM email_events v WHERE v.email_id=e.id AND v.type='email.clicked') AS INTEGER) AS click_count
       FROM emails e ORDER BY e.created_at DESC LIMIT 50`),
-    query('SELECT id,name,prefix,permission,domain_id,created_at,last_used_at FROM api_keys WHERE revoked_at IS NULL ORDER BY created_at DESC'),
+    query('SELECT id,name,prefix,permission,domain_id,created_at,last_used_at FROM api_keys WHERE workspace_id=? AND revoked_at IS NULL ORDER BY created_at DESC', [DEFAULT_WORKSPACE_ID]),
     query<{ id: string; domain: string; verification_token: string; created_at: string; verified_at: string | null; open_tracking: number; click_tracking: number }>(
-      'SELECT id,domain,verification_token,created_at,verified_at,open_tracking,click_tracking FROM domains ORDER BY created_at DESC'),
+      'SELECT id,domain,verification_token,created_at,verified_at,open_tracking,click_tracking FROM domains WHERE workspace_id=? ORDER BY created_at DESC', [DEFAULT_WORKSPACE_ID]),
     query(`SELECT
       CAST(COUNT(*) AS INTEGER) AS total,
       CAST(COALESCE(SUM(CASE WHEN status IN ('sent','deferred','delivered','bounced','complained') THEN 1 ELSE 0 END),0) AS INTEGER) AS sent,

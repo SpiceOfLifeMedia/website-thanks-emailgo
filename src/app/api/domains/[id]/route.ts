@@ -4,6 +4,7 @@ import { execute, queryOne } from '@/lib/database';
 import { readJsonLimited } from '@/lib/request-json';
 import { domainWebhookData } from '@/lib/domain-webhook';
 import { emitWebhookEventToAllSubscribers } from '@/lib/webhooks';
+import { DEFAULT_WORKSPACE_ID } from '@/lib/workspaces';
 
 export const runtime = 'nodejs';
 
@@ -13,7 +14,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (!hasTrustedBrowserOrigin(request)) return NextResponse.json({ error: 'Request origin is not allowed.' }, { status: 403 });
   if (!await isAdminSession()) return NextResponse.json({ error: 'Sign in required.' }, { status: 401 });
   const { id } = await context.params;
-  const domain = await queryOne<Domain>('SELECT id,domain,created_at,verified_at,open_tracking,click_tracking FROM domains WHERE id=?', [id]);
+  const domain = await queryOne<Domain>('SELECT id,domain,created_at,verified_at,open_tracking,click_tracking FROM domains WHERE id=? AND workspace_id=?', [id, DEFAULT_WORKSPACE_ID]);
   if (!domain) return NextResponse.json({ error: 'Sender domain not found.' }, { status: 404 });
   const parsed = await readJsonLimited(request, 5_000);
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: parsed.status });
@@ -25,9 +26,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const clickTracking = body.click_tracking === undefined ? Boolean(domain.click_tracking) : Boolean(body.click_tracking);
   if ((openTracking || clickTracking) && !domain.verified_at) return NextResponse.json({ error: 'Verify this sender domain before enabling tracking.' }, { status: 409 });
   if ((openTracking || clickTracking) && (!process.env.EMAILGO_PUBLIC_URL || !process.env.EMAILGO_TRACKING_SECRET)) return NextResponse.json({ error: 'Tracking requires EMAILGO_PUBLIC_URL and EMAILGO_TRACKING_SECRET on this deployment.' }, { status: 503 });
-  await execute('UPDATE domains SET open_tracking=?,click_tracking=? WHERE id=?', [openTracking ? 1 : 0, clickTracking ? 1 : 0, id]);
+  await execute('UPDATE domains SET open_tracking=?,click_tracking=? WHERE id=? AND workspace_id=?', [openTracking ? 1 : 0, clickTracking ? 1 : 0, id, DEFAULT_WORKSPACE_ID]);
   const updatedAt = new Date().toISOString();
-  await emitWebhookEventToAllSubscribers('domain.updated', domainWebhookData({
+  await emitWebhookEventToAllSubscribers(DEFAULT_WORKSPACE_ID, 'domain.updated', domainWebhookData({
     ...domain, open_tracking: openTracking, click_tracking: clickTracking,
   }), `domain.updated:${id}:${updatedAt}`);
   return NextResponse.json({ id, domain: domain.domain, open_tracking: openTracking, click_tracking: clickTracking });

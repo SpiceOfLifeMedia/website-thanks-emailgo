@@ -27,7 +27,7 @@ async function __emailgo_GET_handler(request: Request, context: DomainContext) {
   const auth = await authorize(request);
   if (auth.error) return auth.error;
   const { id } = await context.params;
-  const domain = await queryOne<DomainRow>('SELECT id,domain,verification_token,created_at,verified_at,open_tracking,click_tracking FROM domains WHERE id=?', [id]);
+  const domain = await queryOne<DomainRow>('SELECT id,domain,verification_token,created_at,verified_at,open_tracking,click_tracking FROM domains WHERE id=? AND workspace_id=?', [id, auth.key.workspaceId]);
   return domain ? NextResponse.json({ ...domain, verification_token: publicVerificationToken(domain.verification_token) }, { headers: privateHeaders }) : apiError('Sender domain not found.', 404);
 }
 
@@ -35,7 +35,7 @@ async function __emailgo_PATCH_handler(request: Request, context: DomainContext)
   const auth = await authorize(request);
   if (auth.error) return auth.error;
   const { id } = await context.params;
-  const domain = await queryOne<DomainRow>('SELECT id,domain,verification_token,created_at,verified_at,open_tracking,click_tracking FROM domains WHERE id=?', [id]);
+  const domain = await queryOne<DomainRow>('SELECT id,domain,verification_token,created_at,verified_at,open_tracking,click_tracking FROM domains WHERE id=? AND workspace_id=?', [id, auth.key.workspaceId]);
   if (!domain) return apiError('Sender domain not found.', 404);
   const parsed = await readJsonLimited(request, 5_000);
   if (!parsed.ok) return apiError(parsed.error, parsed.status);
@@ -47,9 +47,9 @@ async function __emailgo_PATCH_handler(request: Request, context: DomainContext)
   const clickTracking = body.click_tracking === undefined ? Boolean(domain.click_tracking) : Boolean(body.click_tracking);
   if ((openTracking || clickTracking) && !domain.verified_at) return apiError('Verify this sender domain before enabling tracking.', 409);
   if ((openTracking || clickTracking) && (!process.env.EMAILGO_PUBLIC_URL || !process.env.EMAILGO_TRACKING_SECRET)) return apiError('Tracking requires EMAILGO_PUBLIC_URL and EMAILGO_TRACKING_SECRET on this deployment.', 503);
-  await execute('UPDATE domains SET open_tracking=?,click_tracking=? WHERE id=?', [openTracking ? 1 : 0, clickTracking ? 1 : 0, id]);
+  await execute('UPDATE domains SET open_tracking=?,click_tracking=? WHERE id=? AND workspace_id=?', [openTracking ? 1 : 0, clickTracking ? 1 : 0, id, auth.key.workspaceId]);
   const updatedAt = new Date().toISOString();
-  await emitWebhookEventToAllSubscribers('domain.updated', domainWebhookData({
+  await emitWebhookEventToAllSubscribers(auth.key.workspaceId, 'domain.updated', domainWebhookData({
     ...domain, open_tracking: openTracking, click_tracking: clickTracking,
   }), `domain.updated:${id}:${updatedAt}`);
   return NextResponse.json({ id, domain: domain.domain, open_tracking: openTracking, click_tracking: clickTracking }, { headers: privateHeaders });
@@ -59,12 +59,12 @@ async function __emailgo_DELETE_handler(request: Request, context: DomainContext
   const auth = await authorize(request);
   if (auth.error) return auth.error;
   const { id } = await context.params;
-  const existing = await queryOne<DomainRow>('SELECT id,domain,verification_token,created_at,verified_at,open_tracking,click_tracking FROM domains WHERE id=?', [id]);
+  const existing = await queryOne<DomainRow>('SELECT id,domain,verification_token,created_at,verified_at,open_tracking,click_tracking FROM domains WHERE id=? AND workspace_id=?', [id, auth.key.workspaceId]);
   if (!existing) return apiError('Sender domain not found.', 404);
-  const keys = await queryOne<{ count: number }>('SELECT CAST(COUNT(*) AS INTEGER) AS count FROM api_keys WHERE domain_id=? AND revoked_at IS NULL', [id]);
+  const keys = await queryOne<{ count: number }>('SELECT CAST(COUNT(*) AS INTEGER) AS count FROM api_keys WHERE domain_id=? AND workspace_id=? AND revoked_at IS NULL', [id, auth.key.workspaceId]);
   if ((keys?.count ?? 0) > 0) return apiError('Revoke or remove domain-restricted API keys before deleting this sender domain.', 409);
-  await execute('DELETE FROM domains WHERE id=?', [id]);
-  await emitWebhookEventToAllSubscribers('domain.deleted', domainWebhookData(existing), `domain.deleted:${id}`);
+  await execute('DELETE FROM domains WHERE id=? AND workspace_id=?', [id, auth.key.workspaceId]);
+  await emitWebhookEventToAllSubscribers(auth.key.workspaceId, 'domain.deleted', domainWebhookData(existing), `domain.deleted:${id}`);
   return NextResponse.json({ id, deleted: true }, { headers: privateHeaders });
 }
 

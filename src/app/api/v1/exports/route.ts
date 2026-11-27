@@ -32,7 +32,7 @@ async function __emailgo_GET_handler(request: Request) {
   const rawSearch = url.searchParams.get('search');
   if (rawSearch !== null && rawSearch.length > 100) return errorResponse('search must be no more than 100 characters.', 400);
   const filter = { search: rawSearch?.trim() ?? '', status: url.searchParams.get('status') ?? '' };
-  const validation = buildExportPageQuery(resourceValue, apiKey.id, filter, null, pageSize);
+  const validation = buildExportPageQuery(resourceValue, apiKey.id, filter, null, pageSize, apiKey.workspaceId);
   if ('error' in validation) return errorResponse(validation.error, 400);
 
   const fields = exportFields(resourceValue);
@@ -43,7 +43,7 @@ async function __emailgo_GET_handler(request: Request) {
       let cursor: ExportCursor | null = null;
       try {
         while (true) {
-          const page = buildExportPageQuery(resourceValue, apiKey.id, filter, cursor, pageSize);
+          const page = buildExportPageQuery(resourceValue, apiKey.id, filter, cursor, pageSize, apiKey.workspaceId);
           if ('error' in page) throw new Error('Export filters are invalid.');
           const rows = (await query<Record<string, unknown> & { id: string; export_cursor: string }>(page.sql, page.params)).rows;
           for (const row of rows) {

@@ -17,7 +17,7 @@ async function __emailgo_GET_handler(request: Request) {
   const key = await authorizeApiKey(request);
   if (!key) return apiError('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(key)) return apiError('This API key has sending-only access.', 403);
-  const result = await query(`SELECT id,name,prefix,permission,domain_id,created_at,last_used_at FROM api_keys WHERE revoked_at IS NULL ORDER BY created_at DESC,id DESC`);
+  const result = await query(`SELECT id,name,prefix,permission,domain_id,created_at,last_used_at FROM api_keys WHERE workspace_id=? AND revoked_at IS NULL ORDER BY created_at DESC,id DESC`, [key.workspaceId]);
   return NextResponse.json({ data: result.rows }, { headers: privateHeaders });
 }
 
@@ -39,14 +39,14 @@ async function __emailgo_POST_handler(request: Request) {
   if (permission === 'sending_access' && !domainId) return apiError('Sending-only API keys must be restricted to a verified sender domain.', 400);
   if (permission === 'full_access' && domainId) return apiError('domain_id can only be used with sending_access keys.', 400);
   if (domainId) {
-    const domain = await queryOne<{ id: string }>('SELECT id FROM domains WHERE id=? AND verified_at IS NOT NULL', [domainId]);
+    const domain = await queryOne<{ id: string }>('SELECT id FROM domains WHERE id=? AND workspace_id=? AND verified_at IS NOT NULL', [domainId, key.workspaceId]);
     if (!domain) return apiError('Choose an existing verified sender domain.', 400);
   }
   const secret = `st_live_${randomBytes(32).toString('base64url')}`;
   const id = randomId('key');
   const createdAt = nowIso();
   const prefix = secret.slice(0, 20);
-  await execute('INSERT INTO api_keys(id,name,prefix,secret_hash,created_at,permission,domain_id) VALUES(?,?,?,?,?,?,?)', [id, name, prefix, hashSecret(secret), createdAt, permission, domainId]);
+  await execute('INSERT INTO api_keys(id,name,prefix,secret_hash,created_at,permission,domain_id,workspace_id) VALUES(?,?,?,?,?,?,?,?)', [id, name, prefix, hashSecret(secret), createdAt, permission, domainId, key.workspaceId]);
   return NextResponse.json({ id, name, prefix, permission, domain_id: domainId, secret, created_at: createdAt }, { status: 201, headers: privateHeaders });
 }
 

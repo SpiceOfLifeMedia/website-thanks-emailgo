@@ -10,7 +10,7 @@ test('CSV export recognizes only the supported resource names', () => {
 });
 
 test('email exports are scoped to the authenticated key and bind all filter values', () => {
-  const result = buildExportPageQuery('emails', 'key-owned', { search: 'hello%', status: 'failed' }, { id: 'em_1', sortAt: '2026-11-27T12:00:00.000Z' }, 500);
+  const result = buildExportPageQuery('emails', 'key-owned', { search: 'hello%', status: 'failed' }, { id: 'em_1', sortAt: '2026-11-27T12:00:00.000Z' }, 500, 'default');
   assert.equal('error' in result, false);
   if ('error' in result) return;
   assert.match(result.sql, /FROM emails WHERE api_key_id=\?/);
@@ -27,16 +27,32 @@ test('email exports omit content, and key exports omit secret material', () => {
   assert.equal(exportFields('emails').includes('html_body'), false);
   assert.equal(exportFields('emails').includes('text_body'), false);
   assert.equal(exportFields('api_keys').includes('secret_hash'), false);
-  const keys = buildExportPageQuery('api_keys', 'key-owned', {}, null, 500);
+  const keys = buildExportPageQuery('api_keys', 'key-owned', {}, null, 500, 'workspace_a');
   assert.equal('error' in keys, false);
   if (!('error' in keys)) assert.doesNotMatch(keys.sql, /secret_hash|api_key_id/);
 });
 
+test('domain and API key metadata exports bind their workspace', () => {
+  const domains = buildExportPageQuery('domains', 'key-owned', {}, null, 500, 'workspace_a');
+  assert.equal('error' in domains, false);
+  if (!('error' in domains)) {
+    assert.match(domains.sql, /FROM domains WHERE workspace_id=\?/);
+    assert.deepEqual(domains.params, ['workspace_a', 500]);
+  }
+
+  const keys = buildExportPageQuery('api_keys', 'key-owned', {}, null, 500, 'workspace_a');
+  assert.equal('error' in keys, false);
+  if (!('error' in keys)) {
+    assert.match(keys.sql, /FROM api_keys WHERE workspace_id=\?/);
+    assert.deepEqual(keys.params, ['workspace_a', 500]);
+  }
+});
+
 test('log status filters accept error, success and bounded HTTP codes', () => {
-  assert.equal('error' in buildExportPageQuery('logs', 'key', { status: 'errors' }, null, 500), false);
-  assert.equal('error' in buildExportPageQuery('logs', 'key', { status: 'success' }, null, 500), false);
-  assert.equal('error' in buildExportPageQuery('logs', 'key', { status: '600' }, null, 500), true);
-  assert.equal('error' in buildExportPageQuery('contacts', 'key', { status: 'active' }, null, 500), true);
+  assert.equal('error' in buildExportPageQuery('logs', 'key', { status: 'errors' }, null, 500, 'default'), false);
+  assert.equal('error' in buildExportPageQuery('logs', 'key', { status: 'success' }, null, 500, 'default'), false);
+  assert.equal('error' in buildExportPageQuery('logs', 'key', { status: '600' }, null, 500, 'default'), true);
+  assert.equal('error' in buildExportPageQuery('contacts', 'key', { status: 'active' }, null, 500, 'default'), true);
 });
 
 test('CSV serialization quotes cells and prevents spreadsheet formula execution', () => {

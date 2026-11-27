@@ -18,12 +18,20 @@ type SqliteStatementResult<T> = T[];
 type SqliteValue = null | number | bigint | string | NodeJS.ArrayBufferView;
 
 const postgresSchema = [
+  `CREATE TABLE IF NOT EXISTS workspaces (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, created_at TEXT NOT NULL
+  )`,
+  `INSERT INTO workspaces(id,name,created_at) VALUES('default','Default workspace',CURRENT_TIMESTAMP)
+    ON CONFLICT(id) DO NOTHING`,
   `CREATE TABLE IF NOT EXISTS api_keys (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, prefix TEXT NOT NULL UNIQUE,
     secret_hash TEXT NOT NULL, created_at TEXT NOT NULL, last_used_at TEXT,
-    permission TEXT NOT NULL DEFAULT 'full_access', domain_id TEXT,
-    revoked_at TEXT
+    permission TEXT NOT NULL DEFAULT 'full_access', domain_id TEXT, revoked_at TEXT,
+    workspace_id TEXT NOT NULL DEFAULT 'default' REFERENCES workspaces(id)
   )`,
+  "ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS workspace_id TEXT NOT NULL DEFAULT 'default' REFERENCES workspaces(id)",
+  "UPDATE api_keys SET workspace_id='default' WHERE workspace_id IS NULL",
+  'ALTER TABLE api_keys ALTER COLUMN workspace_id SET NOT NULL',
   `CREATE TABLE IF NOT EXISTS api_request_logs (
     id TEXT PRIMARY KEY, api_key_id TEXT, api_key_name TEXT, api_key_prefix TEXT,
     endpoint TEXT NOT NULL, method TEXT NOT NULL, response_status INTEGER NOT NULL,
@@ -65,10 +73,16 @@ const postgresSchema = [
   )`,
   'CREATE INDEX IF NOT EXISTS webhook_delivery_attempts_delivery ON webhook_delivery_attempts(delivery_id,attempt_number DESC)',
   `CREATE TABLE IF NOT EXISTS domains (
-    id TEXT PRIMARY KEY, domain TEXT NOT NULL UNIQUE, verification_token TEXT NOT NULL,
+    id TEXT PRIMARY KEY, domain TEXT NOT NULL, verification_token TEXT NOT NULL,
     created_at TEXT NOT NULL, verified_at TEXT,
-    open_tracking INTEGER NOT NULL DEFAULT 0, click_tracking INTEGER NOT NULL DEFAULT 0
+    open_tracking INTEGER NOT NULL DEFAULT 0, click_tracking INTEGER NOT NULL DEFAULT 0,
+    workspace_id TEXT NOT NULL DEFAULT 'default' REFERENCES workspaces(id)
   )`,
+  "ALTER TABLE domains ADD COLUMN IF NOT EXISTS workspace_id TEXT NOT NULL DEFAULT 'default' REFERENCES workspaces(id)",
+  "UPDATE domains SET workspace_id='default' WHERE workspace_id IS NULL",
+  'ALTER TABLE domains ALTER COLUMN workspace_id SET NOT NULL',
+  'ALTER TABLE domains DROP CONSTRAINT IF EXISTS domains_domain_key',
+  'CREATE UNIQUE INDEX IF NOT EXISTS domains_workspace_domain_unique ON domains(workspace_id,domain)',
   'ALTER TABLE domains ADD COLUMN IF NOT EXISTS open_tracking INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE domains ADD COLUMN IF NOT EXISTS click_tracking INTEGER NOT NULL DEFAULT 0',
   `CREATE TABLE IF NOT EXISTS emails (
@@ -372,11 +386,14 @@ function getSqlite() {
   db.exec(`
     PRAGMA busy_timeout = 5000;
     PRAGMA foreign_keys = ON;
+    CREATE TABLE IF NOT EXISTS workspaces (
+      id TEXT PRIMARY KEY, name TEXT NOT NULL, created_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS api_keys (
       id TEXT PRIMARY KEY, name TEXT NOT NULL, prefix TEXT NOT NULL UNIQUE,
       secret_hash TEXT NOT NULL, created_at TEXT NOT NULL, last_used_at TEXT,
-      permission TEXT NOT NULL DEFAULT 'full_access', domain_id TEXT,
-      revoked_at TEXT
+      permission TEXT NOT NULL DEFAULT 'full_access', domain_id TEXT, revoked_at TEXT,
+      workspace_id TEXT NOT NULL DEFAULT 'default' REFERENCES workspaces(id)
     );
     CREATE TABLE IF NOT EXISTS api_request_logs (
       id TEXT PRIMARY KEY, api_key_id TEXT, api_key_name TEXT, api_key_prefix TEXT,
@@ -413,9 +430,10 @@ function getSqlite() {
     );
     CREATE INDEX IF NOT EXISTS webhook_delivery_attempts_delivery ON webhook_delivery_attempts(delivery_id,attempt_number DESC);
     CREATE TABLE IF NOT EXISTS domains (
-      id TEXT PRIMARY KEY, domain TEXT NOT NULL UNIQUE, verification_token TEXT NOT NULL,
+      id TEXT PRIMARY KEY, domain TEXT NOT NULL, verification_token TEXT NOT NULL,
       created_at TEXT NOT NULL, verified_at TEXT,
-      open_tracking INTEGER NOT NULL DEFAULT 0, click_tracking INTEGER NOT NULL DEFAULT 0
+      open_tracking INTEGER NOT NULL DEFAULT 0, click_tracking INTEGER NOT NULL DEFAULT 0,
+      workspace_id TEXT NOT NULL DEFAULT 'default' REFERENCES workspaces(id)
     );
     CREATE TABLE IF NOT EXISTS emails (
       id TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, from_address TEXT NOT NULL,
@@ -632,6 +650,33 @@ function getSqlite() {
     );
     CREATE INDEX IF NOT EXISTS contact_topics_topic ON contact_topics(topic_id,subscribed_at DESC);
   `);
+  db.prepare("INSERT OR IGNORE INTO workspaces(id,name,created_at) VALUES('default','Default workspace',?)").run(new Date().toISOString());
+  const apiKeyColumns = db.prepare('PRAGMA table_info(api_keys)').all() as Array<{ name: string }>;
+  if (!apiKeyColumns.some(({ name }) => name === 'workspace_id')) {
+    db.exec("ALTER TABLE api_keys ADD COLUMN workspace_id TEXT NOT NULL DEFAULT 'default'");
+  }
+  db.exec("UPDATE api_keys SET workspace_id='default' WHERE workspace_id IS NULL");
+  const domainColumnsBeforeMigration = db.prepare('PRAGMA table_info(domains)').all() as Array<{ name: string }>;
+  if (!domainColumnsBeforeMigration.some(({ name }) => name === 'workspace_id')) {
+    db.exec("ALTER TABLE domains ADD COLUMN workspace_id TEXT NOT NULL DEFAULT 'default'");
+  }
+  db.exec("UPDATE domains SET workspace_id='default' WHERE workspace_id IS NULL");
+  db.exec(`CREATE TRIGGER IF NOT EXISTS domains_workspace_insert
+    BEFORE INSERT ON domains
+    WHEN NOT EXISTS (SELECT 1 FROM workspaces WHERE id=NEW.workspace_id)
+    BEGIN SELECT RAISE(ABORT,'Domain workspace does not exist'); END`);
+  db.exec(`CREATE TRIGGER IF NOT EXISTS domains_workspace_update
+    BEFORE UPDATE OF workspace_id ON domains
+    WHEN NOT EXISTS (SELECT 1 FROM workspaces WHERE id=NEW.workspace_id)
+    BEGIN SELECT RAISE(ABORT,'Domain workspace does not exist'); END`);
+  db.exec(`CREATE TRIGGER IF NOT EXISTS api_keys_workspace_insert
+    BEFORE INSERT ON api_keys
+    WHEN NOT EXISTS (SELECT 1 FROM workspaces WHERE id=NEW.workspace_id)
+    BEGIN SELECT RAISE(ABORT,'API key workspace does not exist'); END`);
+  db.exec(`CREATE TRIGGER IF NOT EXISTS api_keys_workspace_update
+    BEFORE UPDATE OF workspace_id ON api_keys
+    WHEN NOT EXISTS (SELECT 1 FROM workspaces WHERE id=NEW.workspace_id)
+    BEGIN SELECT RAISE(ABORT,'API key workspace does not exist'); END`);
   const emailColumns = db.prepare('PRAGMA table_info(emails)').all() as Array<{ name: string }>;
   const existingEmailColumns = new Set(emailColumns.map(({ name }) => name));
   const emailMigrations: Array<[string, string]> = [
@@ -718,6 +763,33 @@ function getSqlite() {
   for (const [column, definition] of [['open_tracking', 'INTEGER NOT NULL DEFAULT 0'], ['click_tracking', 'INTEGER NOT NULL DEFAULT 0']] as const) {
     if (!existingDomainColumns.has(column)) db.exec(`ALTER TABLE domains ADD COLUMN ${column} ${definition}`);
   }
+  const domainIndexes = db.prepare("PRAGMA index_list('domains')").all() as Array<{ name: string; unique: number }>;
+  const hasGlobalDomainUnique = domainIndexes.some(({ name, unique }) => {
+    if (!unique) return false;
+    const escapedName = name.replaceAll('"', '""');
+    const columns = db.prepare(`PRAGMA index_info("${escapedName}")`).all() as Array<{ name: string }>;
+    return columns.length === 1 && columns[0]?.name === 'domain';
+  });
+  if (hasGlobalDomainUnique) {
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      db.exec(`CREATE TABLE domains_workspace_migration (
+        id TEXT PRIMARY KEY, domain TEXT NOT NULL, verification_token TEXT NOT NULL,
+        created_at TEXT NOT NULL, verified_at TEXT, open_tracking INTEGER NOT NULL DEFAULT 0,
+        click_tracking INTEGER NOT NULL DEFAULT 0, workspace_id TEXT NOT NULL DEFAULT 'default',
+        FOREIGN KEY(workspace_id) REFERENCES workspaces(id)
+      )`);
+      db.exec(`INSERT INTO domains_workspace_migration(id,domain,verification_token,created_at,verified_at,open_tracking,click_tracking,workspace_id)
+        SELECT id,domain,verification_token,created_at,verified_at,open_tracking,click_tracking,workspace_id FROM domains`);
+      db.exec('DROP TABLE domains');
+      db.exec('ALTER TABLE domains_workspace_migration RENAME TO domains');
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    }
+  }
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS domains_workspace_domain_unique ON domains(workspace_id,domain)');
   globalForDatabases.emailgoSqlite = db;
   return db;
 }

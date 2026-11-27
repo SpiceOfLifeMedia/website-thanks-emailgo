@@ -17,8 +17,8 @@ function period(window: 'daily' | 'monthly') {
   return { start: start.toISOString(), resets_at: reset.toISOString() };
 }
 
-async function count(table: 'contacts' | 'domains' | 'segments' | 'broadcasts', where = '') {
-  const result = await query<{ used: number }>(`SELECT CAST(COUNT(*) AS INTEGER) AS used FROM ${table} ${where}`);
+async function count(table: 'contacts' | 'domains' | 'segments' | 'broadcasts', where = '', params: readonly (string | number)[] = []) {
+  const result = await query<{ used: number }>(`SELECT CAST(COUNT(*) AS INTEGER) AS used FROM ${table} ${where}`, params);
   return Number(result.rows[0]?.used ?? 0);
 }
 
@@ -43,7 +43,7 @@ async function __emailgo_GET_handler(request: Request) {
     emailCounts(dailyWindow.start),
     emailCounts(monthlyWindow.start),
     count('contacts'),
-    count('domains'),
+    count('domains', 'WHERE workspace_id=?', [apiKey.workspaceId]),
     count('segments'),
     count('broadcasts'),
     query<{ used: number }>('SELECT CAST(COUNT(*) AS INTEGER) AS used FROM automation_runs WHERE started_at>=?', [monthlyWindow.start]),

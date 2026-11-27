@@ -59,11 +59,11 @@ export async function emitWebhookEvent(apiKeyId: string, type: WebhookEventType,
   return emitWebhookEvents(apiKeyId, [{ type, data, stableEventId }]);
 }
 
-export async function emitWebhookEventToAllSubscribers(type: WebhookEventType, data: Record<string, unknown>, stableEventId?: string) {
+export async function emitWebhookEventToAllSubscribers(workspaceId: string, type: WebhookEventType, data: Record<string, unknown>, stableEventId?: string) {
   try {
     const rows = await query<WebhookRow>(`SELECT w.id,w.api_key_id,w.endpoint,w.events_json,w.secret_generation
       FROM webhooks w JOIN api_keys k ON k.id=w.api_key_id
-      WHERE w.disabled_at IS NULL AND k.revoked_at IS NULL`);
+      WHERE w.disabled_at IS NULL AND k.revoked_at IS NULL AND k.workspace_id=?`, [workspaceId]);
     const statements = buildWebhookEventStatements(rows.rows as WebhookSubscription[], [{ type, data, stableEventId }], nowIso());
     await commitWebhookEventStatements(statements);
     return true;

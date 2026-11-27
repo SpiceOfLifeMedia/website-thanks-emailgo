@@ -2,6 +2,7 @@ import { resolveMx, resolveTxt } from 'node:dns/promises';
 import { NextResponse } from 'next/server';
 import { isAdminSession } from '@/lib/auth';
 import { queryOne } from '@/lib/database';
+import { DEFAULT_WORKSPACE_ID } from '@/lib/workspaces';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -14,7 +15,7 @@ async function txtRecords(host: string) {
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   if (!await isAdminSession()) return NextResponse.json({ error: 'Sign in required.' }, { status: 401 });
   const { id } = await context.params;
-  const domain = await queryOne<{ id: string; domain: string }>('SELECT id,domain FROM domains WHERE id=?', [id]);
+  const domain = await queryOne<{ id: string; domain: string }>('SELECT id,domain FROM domains WHERE id=? AND workspace_id=?', [id, DEFAULT_WORKSPACE_ID]);
   if (!domain) return NextResponse.json({ error: 'Sender domain not found.' }, { status: 404 });
 
   const [rootTxt, dmarcTxt, mxResult] = await Promise.all([

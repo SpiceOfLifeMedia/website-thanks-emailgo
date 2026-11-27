@@ -4,6 +4,7 @@ import { execute, nowIso, randomId } from '@/lib/database';
 import { randomBytes } from 'node:crypto';
 import { domainWebhookData } from '@/lib/domain-webhook';
 import { emitWebhookEventToAllSubscribers } from '@/lib/webhooks';
+import { DEFAULT_WORKSPACE_ID } from '@/lib/workspaces';
 export const runtime = 'nodejs';
 export async function POST(request: Request) {
   if (!hasTrustedBrowserOrigin(request)) return NextResponse.json({ error: 'Request origin is not allowed.' }, { status: 403 });
@@ -17,8 +18,8 @@ export async function POST(request: Request) {
   const token = `send-thanks-verify=${randomBytes(24).toString('hex')}`;
   const id = randomId('dom');
   const createdAt = nowIso();
-  try { await execute('INSERT INTO domains(id,domain,verification_token,created_at) VALUES(?,?,?,?)', [id, domain, token, createdAt]); }
+  try { await execute('INSERT INTO domains(id,domain,verification_token,created_at,workspace_id) VALUES(?,?,?,?,?)', [id, domain, token, createdAt, DEFAULT_WORKSPACE_ID]); }
   catch { return NextResponse.json({ error: 'That sender domain is already added.' }, { status: 409 }); }
-  await emitWebhookEventToAllSubscribers('domain.created', domainWebhookData({ id, domain, created_at: createdAt, verified_at: null }), `domain.created:${id}`);
+  await emitWebhookEventToAllSubscribers(DEFAULT_WORKSPACE_ID, 'domain.created', domainWebhookData({ id, domain, created_at: createdAt, verified_at: null }), `domain.created:${id}`);
   return NextResponse.json({ id, domain, verification_token: token, created_at: createdAt, open_tracking: false, click_tracking: false }, { status: 201 });
 }

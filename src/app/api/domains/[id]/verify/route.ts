@@ -4,6 +4,7 @@ import { hasTrustedBrowserOrigin, isAdminSession } from '@/lib/auth';
 import { execute, nowIso, queryOne } from '@/lib/database';
 import { domainWebhookData } from '@/lib/domain-webhook';
 import { emitWebhookEventToAllSubscribers } from '@/lib/webhooks';
+import { DEFAULT_WORKSPACE_ID } from '@/lib/workspaces';
 
 export const runtime = 'nodejs';
 
@@ -13,7 +14,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (!hasTrustedBrowserOrigin(request)) return NextResponse.json({ error: 'Request origin is not allowed.' }, { status: 403 });
   if (!await isAdminSession()) return NextResponse.json({ error: 'Sign in required.' }, { status: 401 });
   const { id } = await context.params;
-  const domain = await queryOne<StoredDomain>('SELECT id,domain,verification_token,created_at FROM domains WHERE id = ?', [id]);
+  const domain = await queryOne<StoredDomain>('SELECT id,domain,verification_token,created_at FROM domains WHERE id = ? AND workspace_id=?', [id, DEFAULT_WORKSPACE_ID]);
   if (!domain) return NextResponse.json({ error: 'Sender domain not found.' }, { status: 404 });
 
   const storedToken = domain.verification_token;
@@ -30,7 +31,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
   if (!found) return NextResponse.json({ verified: false, error: `Verification record not found at _send-thanks.${domain.domain}.` }, { status: 422 });
   const verifiedAt = nowIso();
-  await execute('UPDATE domains SET verified_at = ? WHERE id = ?', [verifiedAt, id]);
-  await emitWebhookEventToAllSubscribers('domain.updated', domainWebhookData({ ...domain, verified_at: verifiedAt }), `domain.updated:${id}:${verifiedAt}`);
+  await execute('UPDATE domains SET verified_at = ? WHERE id = ? AND workspace_id=?', [verifiedAt, id, DEFAULT_WORKSPACE_ID]);
+  await emitWebhookEventToAllSubscribers(DEFAULT_WORKSPACE_ID, 'domain.updated', domainWebhookData({ ...domain, verified_at: verifiedAt }), `domain.updated:${id}:${verifiedAt}`);
   return NextResponse.json({ verified: true });
 }

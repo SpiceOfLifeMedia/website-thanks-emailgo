@@ -27,7 +27,7 @@ async function authorize(request: Request) {
 async function __emailgo_GET_handler(request: Request) {
   const auth = await authorize(request);
   if (auth.error) return auth.error;
-  const result = await query<{ verification_token: string } & Record<string, unknown>>(`SELECT id,domain,verification_token,created_at,verified_at,open_tracking,click_tracking FROM domains ORDER BY created_at DESC,id DESC`);
+  const result = await query<{ verification_token: string } & Record<string, unknown>>(`SELECT id,domain,verification_token,created_at,verified_at,open_tracking,click_tracking FROM domains WHERE workspace_id=? ORDER BY created_at DESC,id DESC`, [auth.key.workspaceId]);
   return NextResponse.json({ data: result.rows.map((domain) => ({ ...domain, verification_token: publicVerificationToken(domain.verification_token) })) }, { headers: privateHeaders });
 }
 
@@ -45,11 +45,11 @@ async function __emailgo_POST_handler(request: Request) {
   const id = randomId('dom');
   const createdAt = nowIso();
   try {
-    await execute('INSERT INTO domains(id,domain,verification_token,created_at) VALUES(?,?,?,?)', [id, domain, verificationToken, createdAt]);
+    await execute('INSERT INTO domains(id,domain,verification_token,created_at,workspace_id) VALUES(?,?,?,?,?)', [id, domain, verificationToken, createdAt, auth.key.workspaceId]);
   } catch {
     return apiError('That sender domain is already added.', 409);
   }
-  await emitWebhookEventToAllSubscribers('domain.created', domainWebhookData({ id, domain, created_at: createdAt, verified_at: null }), `domain.created:${id}`);
+  await emitWebhookEventToAllSubscribers(auth.key.workspaceId, 'domain.created', domainWebhookData({ id, domain, created_at: createdAt, verified_at: null }), `domain.created:${id}`);
   return NextResponse.json({ id, domain, verification_token: verificationToken, created_at: createdAt, verified_at: null, open_tracking: false, click_tracking: false }, { status: 201, headers: privateHeaders });
 }
 
