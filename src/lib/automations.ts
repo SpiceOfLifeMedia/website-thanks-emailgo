@@ -509,7 +509,8 @@ async function sendAutomationEmail(run: RunRow, step: AutomationStep, context: R
   if (checkEmailLinks(html, text).length) throw new Error('The email template contains links that need attention before automation can send.');
   const id = randomId('eml');
   const createdAt = nowIso();
-  const suppression = (await findSuppressedAddresses([recipient]))[0];
+  const ownerKey = await queryOne<{ workspace_id: string }>('SELECT workspace_id FROM api_keys WHERE id=?', [run.api_key_id]);
+  const suppression = (await findSuppressedAddresses([recipient], ownerKey?.workspace_id ?? DEFAULT_WORKSPACE_ID))[0];
   if (suppression) {
     const message = 'Send, thanks skipped sending because the address is on the workspace suppression list.';
     await execute(`INSERT INTO emails(id,api_key_id,from_address,to_json,subject,status,error_message,created_at,text_body,html_body)

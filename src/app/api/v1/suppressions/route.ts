@@ -28,10 +28,10 @@ async function __emailgo_GET_handler(request: Request) {
   let cursor: SuppressionRow | undefined;
   if (after !== null) {
     if (!after) return error('after must be a non-empty suppression ID.', 400);
-    cursor = await queryOne<SuppressionRow>('SELECT id,email,normalized_email,origin,source_id,created_at FROM suppressions WHERE id=?', [after]);
+    cursor = await queryOne<SuppressionRow>('SELECT id,email,normalized_email,origin,source_id,created_at FROM suppressions WHERE id=? AND workspace_id=?', [after, auth.key.workspaceId]);
     if (!cursor) return error('after must be an existing suppression ID.', 400);
   }
-  const rows = await listSuppressions(limit + 1, cursor);
+  const rows = await listSuppressions(limit + 1, cursor, auth.key.workspaceId);
   const hasMore = rows.length > limit;
   const data = rows.slice(0, limit);
   return NextResponse.json({ object: 'list', data: data.map(suppressionResponse), has_more: hasMore, ...(hasMore ? { next_after: data.at(-1)?.id } : {}) }, { headers: privateHeaders });
@@ -45,7 +45,7 @@ async function __emailgo_POST_handler(request: Request) {
   if (!parsed.value || typeof parsed.value !== 'object' || Array.isArray(parsed.value)) return error('Request body must be a JSON object.', 400);
   const email = (parsed.value as Record<string, unknown>).email;
   if (!isValidSuppressionAddress(email)) return error('email must be a valid email address.', 400);
-  const row = await addSuppression(email);
+  const row = await addSuppression(email, 'manual', null, auth.key.workspaceId);
   if (!row) return error('The suppression could not be saved.', 500);
   return NextResponse.json({ object: 'suppression', id: row.id }, { status: 201, headers: privateHeaders });
 }

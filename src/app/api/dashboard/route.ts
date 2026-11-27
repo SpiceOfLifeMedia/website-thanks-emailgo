@@ -36,7 +36,7 @@ export async function GET() {
       CAST(COALESCE(SUM(CASE WHEN type='email.clicked' THEN 1 ELSE 0 END),0) AS INTEGER) AS clicks
       FROM email_events WHERE created_at>=?`, [dayStart]),
     query<{ month_to_date: number }>('SELECT CAST(COUNT(*) AS INTEGER) AS month_to_date FROM emails WHERE created_at>=?', [monthStart.toISOString()]),
-    query<{ email: string; origin: string; created_at: string }>('SELECT email,origin,created_at FROM suppressions ORDER BY created_at DESC'),
+    query<{ email: string; origin: string; created_at: string }>('SELECT email,origin,created_at FROM suppressions WHERE workspace_id=? ORDER BY created_at DESC', [DEFAULT_WORKSPACE_ID]),
   ]);
 
   const domains = domainResult.rows.map((domain) => ({

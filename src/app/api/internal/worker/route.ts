@@ -15,6 +15,7 @@ export const maxDuration = 60;
 type ScheduledEmail = {
   id: string;
   api_key_id: string;
+  workspace_id: string;
   from_address: string;
   to_json: string;
   cc_json: string | null;
@@ -54,12 +55,12 @@ export async function POST(request: Request) {
 
   const now = nowIso();
   const staleBefore = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-  const due = await query<ScheduledEmail>(`SELECT id,api_key_id,from_address,to_json,cc_json,bcc_json,reply_to,headers_json,subject,text_body,html_body,
-      attachment_payload_json,attempt_count,scheduled_at,track_opens,track_clicks
-    FROM emails
-    WHERE (status='scheduled' AND scheduled_at<=? AND (next_attempt_at IS NULL OR next_attempt_at<=?))
-       OR (status='processing' AND processing_started_at<=?)
-    ORDER BY scheduled_at ASC,id ASC LIMIT 10`, [now, now, staleBefore]);
+  const due = await query<ScheduledEmail>(`SELECT e.id,e.api_key_id,COALESCE(k.workspace_id,'default') AS workspace_id,e.from_address,e.to_json,e.cc_json,e.bcc_json,e.reply_to,e.headers_json,e.subject,e.text_body,e.html_body,
+      e.attachment_payload_json,e.attempt_count,e.scheduled_at,e.track_opens,e.track_clicks
+    FROM emails e LEFT JOIN api_keys k ON k.id=e.api_key_id
+    WHERE (e.status='scheduled' AND e.scheduled_at<=? AND (e.next_attempt_at IS NULL OR e.next_attempt_at<=?))
+       OR (e.status='processing' AND e.processing_started_at<=?)
+    ORDER BY e.scheduled_at ASC,e.id ASC LIMIT 10`, [now, now, staleBefore]);
 
   let nextIndex = 0;
   let sent = 0;
@@ -83,7 +84,7 @@ export async function POST(request: Request) {
         const requestedCc = jsonValue<string[]>(email.cc_json, []);
         const requestedBcc = jsonValue<string[]>(email.bcc_json, []);
         const allRequestedRecipients = [...requestedTo, ...requestedCc, ...requestedBcc];
-        const blocked = await findSuppressedAddresses(allRequestedRecipients);
+        const blocked = await findSuppressedAddresses(allRequestedRecipients, email.workspace_id);
         const blockedEmails = new Set(blocked.map((row) => row.normalized_email));
         const to = requestedTo.filter((address) => !blockedEmails.has(normalizeSuppressionAddress(address)));
         const cc = requestedCc.filter((address) => !blockedEmails.has(normalizeSuppressionAddress(address)));

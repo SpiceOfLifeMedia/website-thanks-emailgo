@@ -10,6 +10,7 @@ import { recordEmailSentActivity } from '@/lib/email-activity';
 import { boundedMessageReferences, composeRequestHash, composeSubject, extractMailboxAddress, parseInboxRecipientText, parseMessageIds, replyAllRecipients, replyRequestHash, type InboxComposeMode } from '@/lib/inbox-thread-utils';
 import { withApiRateLimitHeaders } from '@/lib/rate-limit';
 import { resolvePlainText } from '@/lib/plain-text';
+import { DEFAULT_WORKSPACE_ID } from '@/lib/workspaces';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -130,7 +131,8 @@ export async function POST(request: Request, context: Context) {
   if (!emailPattern.test(fromAddress) || !verified.some((domain) => fromDomain === domain || fromDomain.endsWith(`.${domain}`))) {
     return error('Add and verify a sending domain that matches this receiving address before replying.', 409);
   }
-  const blocked = await findSuppressedAddresses(recipients);
+  const ownerKey = await queryOne<{ workspace_id: string }>('SELECT workspace_id FROM api_keys WHERE id=?', [thread.api_key_id]);
+  const blocked = await findSuppressedAddresses(recipients, ownerKey?.workspace_id ?? DEFAULT_WORKSPACE_ID);
   if (blocked.length) return error('This recipient is on the block list. Remove the block before replying.', 409);
 
   const subject = typeof body.subject === 'string' && body.subject.trim() ? body.subject.trim() : composeSubject(mode, thread.subject);

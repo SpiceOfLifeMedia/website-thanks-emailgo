@@ -44,12 +44,12 @@ export async function POST(request: Request) {
   const events = parseSesNotification(envelope.Message);
   let recorded = 0;
   for (const event of events) {
-    const email = await queryOne<{ id: string; status: string; api_key_id: string; from_address: string; subject: string; message_id: string | null; broadcast_id: string | null }>(
-      'SELECT id,status,api_key_id,from_address,subject,message_id,broadcast_id FROM emails WHERE relay_message_id = ?', [event.relayMessageId],
+    const email = await queryOne<{ id: string; status: string; api_key_id: string; workspace_id: string | null; from_address: string; subject: string; message_id: string | null; broadcast_id: string | null }>(
+      'SELECT e.id,e.status,e.api_key_id,k.workspace_id,e.from_address,e.subject,e.message_id,e.broadcast_id FROM emails e LEFT JOIN api_keys k ON k.id=e.api_key_id WHERE e.relay_message_id = ?', [event.relayMessageId],
     );
     // Suppression and status writes are idempotent and run before the event is saved, so an SNS retry finishes a failed attempt.
-    if (event.suppress) {
-      await addSuppression(event.recipient, event.type === 'complained' ? 'complaint' : 'bounce', envelope.MessageId);
+    if (event.suppress && email?.workspace_id) {
+      await addSuppression(event.recipient, event.type === 'complained' ? 'complaint' : 'bounce', envelope.MessageId, email.workspace_id);
     }
     // Compare-and-set so an overlapping copy with a stale read can never downgrade the status.
     for (let current: { id: string; status: string } | undefined = email; current;) {

@@ -32,7 +32,7 @@ async function __emailgo_POST_handler(request: Request): Promise<Response> {
   if ('error' in auth) return auth.error;
   const input = await readEmails(request);
   if ('error' in input) return input.error;
-  const rows = await Promise.all(input.emails.map((email) => addSuppression(email)));
+  const rows = await Promise.all(input.emails.map((email) => addSuppression(email, 'manual', null, auth.key.workspaceId)));
   if (rows.some((row) => !row)) return error('One or more suppressions could not be saved.', 500);
   return NextResponse.json({ object: 'list', data: rows.map((row) => ({ id: row!.id, email: row!.email })) }, { status: 201, headers: privateHeaders });
 }
@@ -42,7 +42,7 @@ async function __emailgo_DELETE_handler(request: Request): Promise<Response> {
   if ('error' in auth) return auth.error;
   const input = await readEmails(request);
   if ('error' in input) return input.error;
-  const rows = await Promise.all(input.emails.map((email) => removeSuppression(email)));
+  const rows = await Promise.all(input.emails.map((email) => removeSuppression(email, auth.key.workspaceId)));
   return NextResponse.json({ object: 'list', data: rows.filter((row): row is NonNullable<typeof row> => Boolean(row)).map(suppressionResponse) }, { headers: privateHeaders });
 }
 

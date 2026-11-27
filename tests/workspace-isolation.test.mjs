@@ -72,6 +72,10 @@ test('SQLite backfills legacy keys, domains and contacts once and scopes unique 
       property_key TEXT PRIMARY KEY, type TEXT NOT NULL, fallback_value_json TEXT,
       created_at TEXT NOT NULL, updated_at TEXT NOT NULL
     );
+    CREATE TABLE suppressions (
+      id TEXT PRIMARY KEY, email TEXT NOT NULL, normalized_email TEXT NOT NULL UNIQUE,
+      origin TEXT NOT NULL DEFAULT 'manual', source_id TEXT, created_at TEXT NOT NULL
+    );
     CREATE TABLE segment_contacts (
       segment_id TEXT NOT NULL, contact_id TEXT NOT NULL, created_at TEXT NOT NULL,
       PRIMARY KEY(segment_id,contact_id),
@@ -93,6 +97,8 @@ test('SQLite backfills legacy keys, domains and contacts once and scopes unique 
       VALUES('legacy_contact','legacy_topic','2026-01-01T00:00:00.000Z','legacy import','2026-01-01T00:00:00.000Z');
     INSERT INTO contact_properties(property_key,type,fallback_value_json,created_at,updated_at)
       VALUES('legacy_profile','string','"legacy"','2026-01-01T00:00:00.000Z','2026-01-01T00:00:00.000Z');
+    INSERT INTO suppressions(id,email,normalized_email,origin,created_at)
+      VALUES('legacy_suppression','blocked@example.test','blocked@example.test','manual','2026-01-01T00:00:00.000Z');
   `);
   legacy.close();
 
@@ -105,6 +111,7 @@ test('SQLite backfills legacy keys, domains and contacts once and scopes unique 
   const legacyTopic = await database.queryOne('SELECT id,name,slug,workspace_id,disabled_at FROM topics WHERE id=?', ['legacy_topic']);
   const legacyTopicMembership = await database.queryOne('SELECT contact_id,topic_id,consent_source FROM contact_topics WHERE contact_id=? AND topic_id=?', ['legacy_contact', 'legacy_topic']);
   const legacyProperty = await database.queryOne('SELECT property_key,type,fallback_value_json,workspace_id FROM contact_properties WHERE property_key=?', ['legacy_profile']);
+  const legacySuppression = await database.queryOne('SELECT id,email,origin,workspace_id FROM suppressions WHERE id=?', ['legacy_suppression']);
   assert.equal(legacyKey?.id, 'legacy_key');
   assert.equal(legacyKey?.workspace_id, 'default');
   assert.equal(legacyDomain?.id, 'legacy_domain');
@@ -130,6 +137,10 @@ test('SQLite backfills legacy keys, domains and contacts once and scopes unique 
   assert.equal(legacyProperty?.type, 'string');
   assert.equal(legacyProperty?.fallback_value_json, '"legacy"');
   assert.equal(legacyProperty?.workspace_id, 'default');
+  assert.equal(legacySuppression?.id, 'legacy_suppression');
+  assert.equal(legacySuppression?.email, 'blocked@example.test');
+  assert.equal(legacySuppression?.origin, 'manual');
+  assert.equal(legacySuppression?.workspace_id, 'default');
 
   await database.execute("INSERT INTO workspaces(id,name,created_at) VALUES(?,?,?)", ['workspace_b', 'Workspace B', '2026-01-01T00:00:00.000Z']);
   await database.execute(`INSERT INTO domains(id,domain,verification_token,created_at,workspace_id)
@@ -142,6 +153,8 @@ test('SQLite backfills legacy keys, domains and contacts once and scopes unique 
     VALUES(?,?,?,?,?,?,?)`, ['workspace_b_topic', 'Legacy topic', 'legacy-topic', null, '2026-01-02T00:00:00.000Z', '2026-01-02T00:00:00.000Z', 'workspace_b']);
   await database.execute(`INSERT INTO contact_properties(property_key,type,fallback_value_json,created_at,updated_at,workspace_id)
     VALUES(?,?,?,?,?,?)`, ['legacy_profile', 'number', '42', '2026-01-02T00:00:00.000Z', '2026-01-02T00:00:00.000Z', 'workspace_b']);
+  await database.execute(`INSERT INTO suppressions(id,email,normalized_email,origin,created_at,workspace_id)
+    VALUES(?,?,?,?,?,?)`, ['workspace_b_suppression', 'blocked@example.test', 'blocked@example.test', 'manual', '2026-01-02T00:00:00.000Z', 'workspace_b']);
 
   const handle = globalThis.emailgoSqlite;
   handle.close();
@@ -164,19 +177,24 @@ test('SQLite backfills legacy keys, domains and contacts once and scopes unique 
     VALUES(?,?,?,?,?,?)`, ['duplicate_default_topic', 'Legacy topic', 'another-topic', '2026-01-03T00:00:00.000Z', '2026-01-03T00:00:00.000Z', 'default']));
   await assert.rejects(database.execute(`INSERT INTO contact_properties(property_key,type,created_at,updated_at,workspace_id)
     VALUES(?,?,?,?,?)`, ['legacy_profile', 'number', '2026-01-03T00:00:00.000Z', '2026-01-03T00:00:00.000Z', 'default']));
+  await assert.rejects(database.execute(`INSERT INTO suppressions(id,email,normalized_email,origin,created_at,workspace_id)
+    VALUES(?,?,?,?,?,?)`, ['duplicate_default_suppression', 'BLOCKED@example.test', 'blocked@example.test', 'manual', '2026-01-03T00:00:00.000Z', 'default']));
   assert.deepEqual(globalThis.emailgoSqlite.prepare('PRAGMA foreign_key_check').all(), []);
 });
 
 test('API key and domain routes isolate two workspaces', async (context) => {
   setupTemporaryDatabase(context, 'send-thanks-workspace-api-');
   const database = await import('../src/lib/database.ts');
-  const [domainCollection, domainItem, verifyDomain, inspectDns, keyCollection, keyItem] = await Promise.all([
+  const [domainCollection, domainItem, verifyDomain, inspectDns, keyCollection, keyItem, suppressionCollection, suppressionItem, suppressionLib] = await Promise.all([
     import('../src/app/api/v1/domains/route.ts'),
     import('../src/app/api/v1/domains/[id]/route.ts'),
     import('../src/app/api/v1/domains/[id]/verify/route.ts'),
     import('../src/app/api/v1/domains/[id]/dns/route.ts'),
     import('../src/app/api/v1/api-keys/route.ts'),
     import('../src/app/api/v1/api-keys/[id]/route.ts'),
+    import('../src/app/api/v1/suppressions/route.ts'),
+    import('../src/app/api/v1/suppressions/[suppression]/route.ts'),
+    import('../src/lib/suppressions.ts'),
   ]);
   const timestamp = '2026-01-01T00:00:00.000Z';
   await database.execute('INSERT INTO workspaces(id,name,created_at) VALUES(?,?,?)', ['workspace_a', 'Workspace A', timestamp]);
@@ -261,12 +279,30 @@ test('API key and domain routes isolate two workspaces', async (context) => {
   assert.equal(keyA?.revoked_at, null);
   assert.equal(domainB?.open_tracking, 0);
   assert.equal(domainB?.workspace_id, 'workspace_b');
+  const suppressionA = await request(suppressionCollection.POST, 'workspace_a', 'POST', 'http://send-thanks.test/api/v1/suppressions', { email: 'shared-block@example.test' });
+  const suppressionB = await request(suppressionCollection.POST, 'workspace_b', 'POST', 'http://send-thanks.test/api/v1/suppressions', { email: 'shared-block@example.test' });
+  assert.equal(suppressionA.status, 201);
+  assert.equal(suppressionB.status, 201);
+  const listA = await request(suppressionCollection.GET, 'workspace_a', 'GET', 'http://send-thanks.test/api/v1/suppressions');
+  const listB = await request(suppressionCollection.GET, 'workspace_b', 'GET', 'http://send-thanks.test/api/v1/suppressions');
+  const idA = (await suppressionA.json()).id;
+  const idB = (await suppressionB.json()).id;
+  assert.deepEqual((await listA.json()).data.map(({ id }) => id), [idA]);
+  assert.deepEqual((await listB.json()).data.map(({ id }) => id), [idB]);
+  const hiddenSuppression = await request(suppressionItem.GET, 'workspace_a', 'GET', `http://send-thanks.test/api/v1/suppressions/${idB}`, undefined, { params: Promise.resolve({ suppression: idB }) });
+  assert.equal(hiddenSuppression.status, 404);
+  assert.equal((await suppressionLib.findSuppressedAddresses(['shared-block@example.test'], 'workspace_a')).length, 1);
+  assert.equal((await suppressionLib.findSuppressedAddresses(['shared-block@example.test'], 'workspace_b')).length, 1);
+  const removeOnlyA = await request(suppressionItem.DELETE, 'workspace_a', 'DELETE', 'http://send-thanks.test/api/v1/suppressions/shared-block@example.test', undefined, { params: Promise.resolve({ suppression: 'shared-block@example.test' }) });
+  assert.equal(removeOnlyA.status, 200);
+  assert.equal((await suppressionLib.findSuppressedAddresses(['shared-block@example.test'], 'workspace_a')).length, 0);
+  assert.equal((await suppressionLib.findSuppressedAddresses(['shared-block@example.test'], 'workspace_b')).length, 1);
 });
 
 test('API contact collection and item routes isolate two workspaces', async (context) => {
   setupTemporaryDatabase(context, 'send-thanks-workspace-contacts-');
   const database = await import('../src/lib/database.ts');
-  const [contactCollection, contactItem, contactTopics, contactSegments, contactSegment, eventSend, segmentCollection, segmentItem, segmentContacts, segmentMetrics, topicCollection, topicItem, preferencesRoute, broadcasts, contactImports, propertyCollection, propertyItem] = await Promise.all([
+  const [contactCollection, contactItem, contactTopics, contactSegments, contactSegment, eventSend, segmentCollection, segmentItem, segmentContacts, segmentMetrics, topicCollection, topicItem, preferencesRoute, broadcasts, contactImports, propertyCollection, propertyItem, suppressionLib] = await Promise.all([
     import('../src/app/api/v1/contacts/route.ts'),
     import('../src/app/api/v1/contacts/[id]/route.ts'),
     import('../src/app/api/v1/contacts/[id]/topics/route.ts'),
@@ -284,6 +320,7 @@ test('API contact collection and item routes isolate two workspaces', async (con
     import('../src/app/api/v1/contacts/imports/route.ts'),
     import('../src/app/api/v1/contact-properties/route.ts'),
     import('../src/app/api/v1/contact-properties/[key]/route.ts'),
+    import('../src/lib/suppressions.ts'),
   ]);
   const originalPreferencesSecret = process.env.EMAILGO_PREFERENCES_SECRET;
   process.env.EMAILGO_PREFERENCES_SECRET = 'workspace-preferences-secret-at-least-32-chars';
@@ -313,7 +350,7 @@ test('API contact collection and item routes isolate two workspaces', async (con
   }
   await seedContact('contact_a_older', 'shared@example.test', 'workspace_a', '2026-01-02T00:00:00.000Z');
   await seedContact('contact_a_newer', 'a-newer@example.test', 'workspace_a', '2026-01-03T00:00:00.000Z');
-  await seedContact('contact_b', 'b-only@example.test', 'workspace_b', '2026-01-04T00:00:00.000Z');
+  await seedContact('contact_b', 'shared@example.test', 'workspace_b', '2026-01-04T00:00:00.000Z');
   for (const [id, workspaceId] of [['shared_segment_a', 'workspace_a'], ['shared_segment_b', 'workspace_b']]) {
     await database.execute('INSERT INTO segments(id,name,filters_json,created_at,updated_at,workspace_id) VALUES(?,?,?,?,?,?)', [id, 'Shared segment', '{"tags_all":["active"]}', timestamp, timestamp, workspaceId]);
   }
@@ -466,6 +503,12 @@ test('API contact collection and item routes isolate two workspaces', async (con
   assert.equal(propertyBAfterAttempt?.type, 'number');
   assert.equal(propertyBAfterAttempt?.fallback_value_json, '42');
   assert.equal((await database.queryOne('SELECT type,workspace_id FROM contact_properties WHERE property_key=? AND workspace_id=?', ['loyalty_band', 'workspace_b']))?.type, 'number');
+  await suppressionLib.addSuppression('shared@example.test', 'manual', null, 'workspace_a');
+  const afterWorkspaceASuppression = await broadcasts.eligibleBroadcastContacts({ apiKeyId: 'key_a', audienceType: 'topic', audienceId: 'shared_topic_a' });
+  const unaffectedWorkspaceB = await broadcasts.eligibleBroadcastContacts({ apiKeyId: 'key_b', audienceType: 'topic', audienceId: 'shared_topic_b' });
+  const importedTopicContact = await database.queryOne('SELECT id FROM contacts WHERE email=? AND workspace_id=?', ['topic-import@example.test', 'workspace_a']);
+  assert.deepEqual(afterWorkspaceASuppression.map(({ id }) => id), [importedTopicContact?.id]);
+  assert.deepEqual(unaffectedWorkspaceB.map(({ id }) => id), ['contact_b']);
   const sameNameTopicA = await request(topicCollection.POST, 'workspace_a', 'POST', 'http://send-thanks.test/api/v1/topics', { name: 'Separate topic', slug: 'separate-topic' });
   const sameNameTopicB = await request(topicCollection.POST, 'workspace_b', 'POST', 'http://send-thanks.test/api/v1/topics', { name: 'Separate topic', slug: 'separate-topic' });
   assert.equal(sameNameTopicA.status, 201);
@@ -506,12 +549,12 @@ test('API contact collection and item routes isolate two workspaces', async (con
   assert.equal(createdARow?.email, 'created-a@example.test');
   assert.equal(createdARow?.workspace_id, 'workspace_a');
 
-  const sameNormalizedEmailInB = await request(contactCollection.POST, 'workspace_b', 'POST', 'http://send-thanks.test/api/v1/contacts', { email: 'SHARED@example.test', name: 'Shared in B' });
+  const sameNormalizedEmailInB = await request(contactCollection.POST, 'workspace_b', 'POST', 'http://send-thanks.test/api/v1/contacts', { email: 'CREATED-A@example.test', name: 'Shared in B' });
   assert.equal(sameNormalizedEmailInB.status, 201);
   const createdB = await sameNormalizedEmailInB.json();
-  assert.equal(createdB.email, 'shared@example.test');
+  assert.equal(createdB.email, 'created-a@example.test');
   const createdBRow = await database.queryOne('SELECT email,workspace_id FROM contacts WHERE id=?', [createdB.id]);
-  assert.equal(createdBRow?.email, 'shared@example.test');
+  assert.equal(createdBRow?.email, 'created-a@example.test');
   assert.equal(createdBRow?.workspace_id, 'workspace_b');
 });
 

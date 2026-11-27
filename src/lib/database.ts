@@ -316,9 +316,15 @@ const postgresSchema = [
   'ALTER TABLE contact_properties DROP CONSTRAINT IF EXISTS contact_properties_pkey',
   'CREATE UNIQUE INDEX IF NOT EXISTS contact_properties_workspace_key_unique ON contact_properties(workspace_id,property_key)',
   `CREATE TABLE IF NOT EXISTS suppressions (
-    id TEXT PRIMARY KEY, email TEXT NOT NULL, normalized_email TEXT NOT NULL UNIQUE,
-    origin TEXT NOT NULL DEFAULT 'manual', source_id TEXT, created_at TEXT NOT NULL
+    id TEXT PRIMARY KEY, email TEXT NOT NULL, normalized_email TEXT NOT NULL,
+    origin TEXT NOT NULL DEFAULT 'manual', source_id TEXT, created_at TEXT NOT NULL,
+    workspace_id TEXT NOT NULL DEFAULT 'default' REFERENCES workspaces(id)
   )`,
+  "ALTER TABLE suppressions ADD COLUMN IF NOT EXISTS workspace_id TEXT NOT NULL DEFAULT 'default' REFERENCES workspaces(id)",
+  "UPDATE suppressions SET workspace_id='default' WHERE workspace_id IS NULL",
+  'ALTER TABLE suppressions ALTER COLUMN workspace_id SET NOT NULL',
+  'ALTER TABLE suppressions DROP CONSTRAINT IF EXISTS suppressions_normalized_email_key',
+  'CREATE UNIQUE INDEX IF NOT EXISTS suppressions_workspace_email_unique ON suppressions(workspace_id,normalized_email)',
   'CREATE INDEX IF NOT EXISTS suppressions_created_at ON suppressions(created_at DESC,id DESC)',
   'ALTER TABLE contacts ADD COLUMN IF NOT EXISTS consent_status TEXT NOT NULL DEFAULT \'unknown\'',
   'ALTER TABLE contacts ADD COLUMN IF NOT EXISTS consent_source TEXT',
@@ -626,8 +632,9 @@ function getSqlite() {
       workspace_id TEXT NOT NULL DEFAULT 'default' REFERENCES workspaces(id)
     );
     CREATE TABLE IF NOT EXISTS suppressions (
-      id TEXT PRIMARY KEY, email TEXT NOT NULL, normalized_email TEXT NOT NULL UNIQUE,
-      origin TEXT NOT NULL DEFAULT 'manual', source_id TEXT, created_at TEXT NOT NULL
+      id TEXT PRIMARY KEY, email TEXT NOT NULL, normalized_email TEXT NOT NULL,
+      origin TEXT NOT NULL DEFAULT 'manual', source_id TEXT, created_at TEXT NOT NULL,
+      workspace_id TEXT NOT NULL DEFAULT 'default' REFERENCES workspaces(id)
     );
     CREATE INDEX IF NOT EXISTS suppressions_created_at ON suppressions(created_at DESC,id DESC);
     CREATE TABLE IF NOT EXISTS email_events (
@@ -950,6 +957,47 @@ function getSqlite() {
     BEFORE UPDATE OF workspace_id ON contact_properties
     WHEN NOT EXISTS (SELECT 1 FROM workspaces WHERE id=NEW.workspace_id)
     BEGIN SELECT RAISE(ABORT,'Contact property workspace does not exist'); END`);
+  const suppressionColumns = db.prepare('PRAGMA table_info(suppressions)').all() as Array<{ name: string }>;
+  const suppressionColumnNames = new Set(suppressionColumns.map(({ name }) => name));
+  const suppressionIndexes = db.prepare("PRAGMA index_list('suppressions')").all() as Array<{ name: string; unique: number }>;
+  const hasGlobalSuppressionEmailUnique = suppressionIndexes.some(({ name, unique }) => {
+    if (!unique) return false;
+    const escapedName = name.replaceAll('"', '""');
+    const columns = db.prepare(`PRAGMA index_info("${escapedName}")`).all() as Array<{ name: string }>;
+    return columns.length === 1 && columns[0]?.name === 'normalized_email';
+  });
+  if (!suppressionColumnNames.has('workspace_id') || hasGlobalSuppressionEmailUnique) {
+    db.exec('PRAGMA foreign_keys = OFF');
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      const workspaceSelection = suppressionColumnNames.has('workspace_id') ? "COALESCE(workspace_id,'default')" : "'default'";
+      db.exec(`CREATE TABLE suppressions_workspace_migration (
+        id TEXT PRIMARY KEY, email TEXT NOT NULL, normalized_email TEXT NOT NULL,
+        origin TEXT NOT NULL DEFAULT 'manual', source_id TEXT, created_at TEXT NOT NULL,
+        workspace_id TEXT NOT NULL DEFAULT 'default' REFERENCES workspaces(id)
+      )`);
+      db.exec(`INSERT INTO suppressions_workspace_migration(id,email,normalized_email,origin,source_id,created_at,workspace_id)
+        SELECT id,email,normalized_email,origin,source_id,created_at,${workspaceSelection} FROM suppressions`);
+      db.exec('DROP TABLE suppressions');
+      db.exec('ALTER TABLE suppressions_workspace_migration RENAME TO suppressions');
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    } finally {
+      db.exec('PRAGMA foreign_keys = ON');
+    }
+  }
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS suppressions_workspace_email_unique ON suppressions(workspace_id,normalized_email)');
+  db.exec('CREATE INDEX IF NOT EXISTS suppressions_created_at ON suppressions(created_at DESC,id DESC)');
+  db.exec(`CREATE TRIGGER IF NOT EXISTS suppressions_workspace_insert
+    BEFORE INSERT ON suppressions
+    WHEN NOT EXISTS (SELECT 1 FROM workspaces WHERE id=NEW.workspace_id)
+    BEGIN SELECT RAISE(ABORT,'Suppression workspace does not exist'); END`);
+  db.exec(`CREATE TRIGGER IF NOT EXISTS suppressions_workspace_update
+    BEFORE UPDATE OF workspace_id ON suppressions
+    WHEN NOT EXISTS (SELECT 1 FROM workspaces WHERE id=NEW.workspace_id)
+    BEGIN SELECT RAISE(ABORT,'Suppression workspace does not exist'); END`);
   const automationEventColumns = db.prepare('PRAGMA table_info(automation_events)').all() as Array<{ name: string }>;
   if (!automationEventColumns.some(({ name }) => name === 'request_hash')) db.exec('ALTER TABLE automation_events ADD COLUMN request_hash TEXT');
   const emailEventColumns = db.prepare('PRAGMA table_info(email_events)').all() as Array<{ name: string }>;

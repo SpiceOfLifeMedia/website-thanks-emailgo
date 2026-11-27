@@ -3,6 +3,7 @@ import { hasTrustedBrowserOrigin, isAdminSession } from '@/lib/auth';
 import { queryOne } from '@/lib/database';
 import { readJsonLimited } from '@/lib/request-json';
 import { addSuppression, isValidSuppressionAddress, listSuppressions, suppressionResponse, type SuppressionRow } from '@/lib/suppressions';
+import { DEFAULT_WORKSPACE_ID } from '@/lib/workspaces';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
   let cursor: SuppressionRow | undefined;
   if (after !== null) {
     if (!after) return error('after must be a non-empty suppression ID.', 400);
-    cursor = await queryOne<SuppressionRow>('SELECT id,email,normalized_email,origin,source_id,created_at FROM suppressions WHERE id=?', [after]);
+    cursor = await queryOne<SuppressionRow>('SELECT id,email,normalized_email,origin,source_id,created_at FROM suppressions WHERE id=? AND workspace_id=?', [after, DEFAULT_WORKSPACE_ID]);
     if (!cursor) return error('after must be an existing suppression ID.', 400);
   }
   const rows = await listSuppressions(limit + 1, cursor);

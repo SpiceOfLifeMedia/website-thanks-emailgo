@@ -20,7 +20,7 @@ async function __emailgo_GET_handler(request: Request, context: Context) {
   const auth = await authorize(request);
   if (auth.error) return auth.error;
   const { suppression } = await context.params;
-  const row = await getSuppression(suppression);
+  const row = await getSuppression(suppression, auth.key.workspaceId);
   return row ? NextResponse.json(suppressionResponse(row), { headers: privateHeaders }) : error('Suppression not found.', 404);
 }
 
@@ -28,7 +28,7 @@ async function __emailgo_DELETE_handler(request: Request, context: Context) {
   const auth = await authorize(request);
   if (auth.error) return auth.error;
   const { suppression } = await context.params;
-  const row = await removeSuppression(suppression);
+  const row = await removeSuppression(suppression, auth.key.workspaceId);
   return row ? NextResponse.json({ object: 'suppression', id: row.id }, { headers: privateHeaders }) : error('Suppression not found.', 404);
 }
 

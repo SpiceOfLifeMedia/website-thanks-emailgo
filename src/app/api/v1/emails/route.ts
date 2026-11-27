@@ -383,7 +383,7 @@ async function sendEmailRequestCore(request: Request, apiKey: AuthorizedEmailApi
     }
   }
 
-  const suppressedRecipients = await findSuppressedAddresses(recipients);
+  const suppressedRecipients = await findSuppressedAddresses(recipients, apiKey.workspaceId);
   const suppressedEmails = new Set(suppressedRecipients.map((row) => row.normalized_email));
   to = to.filter((address) => !suppressedEmails.has(mailbox(address)));
   cc = cc.filter((address) => !suppressedEmails.has(mailbox(address)));
