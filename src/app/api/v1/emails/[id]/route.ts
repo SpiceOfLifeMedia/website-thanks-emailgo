@@ -6,6 +6,7 @@ import { readJsonLimited } from '@/lib/request-json';
 import { sanitizeCustomerCopy } from '@/lib/customer-copy';
 import { normalizeScheduledAt } from '@/lib/scheduled-time';
 import { emitWebhookEvent } from '@/lib/webhooks';
+import { resolvePlainText } from '@/lib/plain-text';
 export const runtime = 'nodejs';
 const privateHeaders = { 'Cache-Control': 'private, no-store' };
 
@@ -22,6 +23,7 @@ async function __emailgo_GET_handler(request: Request, context: { params: Promis
   const row = await queryOne<StoredEmail>(`SELECT id,from_address,to_json,cc_json,bcc_json,reply_to,headers_json,tags_json,attachments_json,text_body,html_body,subject,status,error_message,provider_id,message_id,scheduled_at,created_at
     FROM emails WHERE id = ? AND api_key_id = ?`, [id, apiKey.id]);
   if (!row) return NextResponse.json({ error: { message: 'Email not found.' } }, { status: 404, headers: privateHeaders });
+  const text = resolvePlainText(row.text_body, row.html_body);
   return NextResponse.json({
     id: row.id,
     object: 'email',
@@ -34,7 +36,7 @@ async function __emailgo_GET_handler(request: Request, context: { params: Promis
     ...(row.tags_json ? { tags: jsonValue<Array<{ name: string; value: string }>>(row.tags_json, []) } : {}),
     ...(row.attachments_json ? { attachments: jsonValue<Array<{ filename: string; contentType?: string; contentId?: string }>>(row.attachments_json, []) } : {}),
     subject: row.subject,
-    ...(row.text_body !== null ? { text: row.text_body } : {}),
+    ...(text !== null && text !== undefined ? { text } : {}),
     ...(row.html_body !== null ? { html: row.html_body } : {}),
     status: row.status,
     created_at: row.created_at,

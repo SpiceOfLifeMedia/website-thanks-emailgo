@@ -56,7 +56,7 @@ curl -X POST http://localhost:3000/api/v1/emails \
   -d '{"from":"hello@example.com","to":"person@example.net","subject":"Hello","text":"Sent with Send, thanks."}'
 ```
 
-The `from` domain must be verified. Provide either `text`, `html`, or both. An `Idempotency-Key` makes retries safe for 24 hours. Reusing it with different content returns 409. A `to` value can be one address or an array of up to 50 addresses. Invalid keys receive 401, unverified domains receive 403, and SMTP delivery errors receive 502.
+The `from` domain must be verified. Provide `text`, `html`, or both. If you provide HTML without `text`, Send, thanks generates a plain-text version; set `text` to an empty string to omit that version. An `Idempotency-Key` makes retries safe for 24 hours. Reusing it with different content returns 409. A `to` value can be one address or an array of up to 50 addresses. Invalid keys receive 401, unverified domains receive 403, and SMTP delivery errors receive 502.
 
 List the latest messages with optional pagination:
 

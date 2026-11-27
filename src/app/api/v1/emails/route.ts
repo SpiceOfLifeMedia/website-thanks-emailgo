@@ -13,6 +13,7 @@ import { sanitizeCustomerCopy } from '@/lib/customer-copy';
 import { normalizeScheduledAt } from '@/lib/scheduled-time';
 import { relayMessageIdFromResponse } from '@/lib/ses-events';
 import { recordEmailSentActivity } from '@/lib/email-activity';
+import { resolvePlainText } from '@/lib/plain-text';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -84,6 +85,7 @@ function jsonValue<T>(value: string | null | undefined, fallback: T): T {
 }
 
 function emailResponse(row: StoredEmail, includeContent = false) {
+  const text = includeContent ? resolvePlainText(row.text_body, row.html_body) : undefined;
   return {
     id: row.id,
     object: 'email',
@@ -96,7 +98,7 @@ function emailResponse(row: StoredEmail, includeContent = false) {
     ...(row.tags_json ? { tags: jsonValue<EmailTag[]>(row.tags_json, []) } : {}),
     ...(row.attachments_json ? { attachments: jsonValue<AttachmentMetadata[]>(row.attachments_json, []) } : {}),
     subject: row.subject,
-    ...(includeContent && row.text_body !== null ? { text: row.text_body } : {}),
+    ...(includeContent && text !== null && text !== undefined ? { text } : {}),
     ...(includeContent && row.html_body !== null ? { html: row.html_body } : {}),
     status: row.status,
     ...(row.status === 'suppressed' && row.error_message ? { error: sanitizeCustomerCopy(row.error_message) } : {}),
@@ -206,7 +208,7 @@ function escapeHtml(value: string) {
 }
 
 function renderTemplate(source: string | null, variables: Record<string, string | number | boolean>, escapeValues: boolean) {
-  if (!source) return undefined;
+  if (source === null) return undefined;
   return source.replace(/\{\{\{\s*([A-Za-z_][A-Za-z0-9_.-]{0,99})\s*\}\}\}|\{\{\s*([A-Za-z_][A-Za-z0-9_.-]{0,99})\s*\}\}/g, (_match, tripleName: string | undefined, doubleName: string | undefined) => {
     const name = tripleName ?? doubleName;
     if (!name) return '';
@@ -344,6 +346,7 @@ export async function sendEmailRequest(request: Request, options: { countRateLim
   const html = template ? renderTemplate(template.html, parsedVariables.variables, true) : rawHtml;
   if (text === undefined && html === undefined) return responseError('Provide text, html, or a template_id containing text or html.', 400);
   if ((text?.length ?? 0) > 500_000 || (html?.length ?? 0) > 500_000) return responseError('Email content exceeds the 500 KB limit.', 413);
+  const outboundText = resolvePlainText(text, html) ?? undefined;
   const linkIssues = checkEmailLinks(html, text);
   if (linkIssues.length) return NextResponse.json({ error: { message: 'Review the email links before sending.' }, link_issues: linkIssues }, { status: 422 });
 
@@ -406,7 +409,7 @@ export async function sendEmailRequest(request: Request, options: { countRateLim
     parsedAttachments.metadata.length ? metadata : null, subject,
     allRecipientsSuppressed ? 'suppressed' : scheduledAt ? 'scheduled' : 'queued',
     allRecipientsSuppressed ? 'Every recipient was skipped because the address is on the Send, thanks suppression list.' : null,
-    text ?? null, html ?? null,
+    outboundText ?? null, html ?? null,
     scheduledAt && parsedAttachments.attachments.length ? JSON.stringify(parsedAttachments.attachments) : null,
     allRecipientsSuppressed ? null : scheduledAt, tracking.openTracking ? 1 : 0, tracking.clickTracking ? 1 : 0, createdAt,
   ];
@@ -451,7 +454,7 @@ export async function sendEmailRequest(request: Request, options: { countRateLim
     const smtpResult = await sendThroughSmtp({
       from, to, cc, bcc, subject,
       ...(replyTo ? { replyTo } : {}),
-      ...(text !== undefined ? { text } : {}),
+      ...(outboundText !== undefined ? { text: outboundText } : {}),
       ...(trackedBody !== undefined ? { html: trackedBody } : {}),
       ...(Object.keys(parsedHeaders.headers).length ? { headers: parsedHeaders.headers } : {}),
       ...(parsedAttachments.attachments.length ? { attachments: parsedAttachments.attachments } : {}),

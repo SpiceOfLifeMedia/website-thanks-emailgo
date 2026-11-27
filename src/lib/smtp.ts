@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import { sanitizeCustomerCopy } from '@/lib/customer-copy';
+import { resolvePlainText } from '@/lib/plain-text';
 
 export function smtpConfigured() {
   return Boolean(process.env.EMAILGO_SMTP_HOST?.trim() && process.env.EMAILGO_SMTP_USER?.trim() && process.env.EMAILGO_SMTP_PASSWORD);
@@ -55,6 +56,7 @@ export async function verifySmtpConnection() {
 export async function sendThroughSmtp(message: OutboundMessage) {
   const transport = createTransport();
   try {
+    const text = resolvePlainText(message.text, message.html) ?? undefined;
     const result = await transport.sendMail({
       from: message.from,
       to: message.to,
@@ -62,7 +64,7 @@ export async function sendThroughSmtp(message: OutboundMessage) {
       ...(message.bcc?.length ? { bcc: message.bcc } : {}),
       ...(message.replyTo ? { replyTo: message.replyTo } : {}),
       subject: message.subject,
-      ...(message.text !== undefined ? { text: message.text } : {}),
+      ...(text !== undefined ? { text } : {}),
       ...(message.html !== undefined ? { html: message.html } : {}),
       ...(message.headers ? { headers: message.headers } : {}),
       ...(message.attachments?.length ? { attachments: message.attachments.map((attachment) => ({

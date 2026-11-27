@@ -6,6 +6,7 @@ import { findEmailTemplate, getPublishedTemplateContent } from '@/lib/email-temp
 import { relayMessageIdFromResponse } from '@/lib/ses-events';
 import { checkEmailLinks } from '@/lib/email-link-checker';
 import { recordEmailSentActivity } from '@/lib/email-activity';
+import { resolvePlainText } from '@/lib/plain-text';
 
 export type AutomationStep = { key: string; type: string; config: Record<string, unknown> };
 export type AutomationConnection = { from: string; to: string; condition?: 'true' | 'false' };
@@ -495,8 +496,9 @@ async function sendAutomationEmail(run: RunRow, step: AutomationStep, context: R
   const verified = await queryOne<{ id: string }>('SELECT id FROM domains WHERE lower(domain)=? AND verified_at IS NOT NULL', [domain]);
   if (!verified) throw new Error('Send email requires a verified Send, thanks sender domain.');
   const subject = renderVariables(published.subject, values, false);
-  const text = published.text === null ? null : renderVariables(published.text, values, false);
+  const renderedText = published.text === null ? null : renderVariables(published.text, values, false);
   const html = published.html === null ? null : renderVariables(published.html, values, true);
+  const text = resolvePlainText(renderedText, html) ?? null;
   if (!text && !html) throw new Error('The email template has no text or HTML body.');
   if (checkEmailLinks(html, text).length) throw new Error('The email template contains links that need attention before automation can send.');
   const id = randomId('eml');

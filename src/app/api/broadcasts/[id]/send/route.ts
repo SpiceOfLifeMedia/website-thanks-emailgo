@@ -8,6 +8,7 @@ import { checkEmailLinks, type EmailLinkIssue } from '@/lib/email-link-checker';
 import { addBroadcastPreheader, broadcastContactVariables, renderBroadcastContent } from '@/lib/broadcast-template';
 import { normalizeScheduledAt } from '@/lib/scheduled-time';
 import { emitWebhookEvents, type WebhookEventInput } from '@/lib/webhooks';
+import { resolvePlainText } from '@/lib/plain-text';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -94,7 +95,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       const textWithFooter = textBody === null ? null : `${textBody}\n\nManage preferences: ${preferencesUrl}\nUnsubscribe: ${unsubscribeUrl}`;
       const htmlWithPreheader = addBroadcastPreheader(htmlBody, previewText);
       const htmlWithFooter = htmlWithPreheader === null ? null : `${htmlWithPreheader}<div style="margin-top:24px;font-size:12px;color:#666"><a href="${htmlEscape(preferencesUrl)}">Manage preferences</a> · <a href="${htmlEscape(unsubscribeUrl)}">Unsubscribe</a></div>`;
-      const linkIssues = checkEmailLinks(htmlWithFooter, textWithFooter);
+      const resolvedText = resolvePlainText(textWithFooter, htmlWithFooter);
+      const linkIssues = checkEmailLinks(htmlWithFooter, resolvedText);
       if (linkIssues.length) throw new BroadcastLinkValidationError(linkIssues);
       const createdAt = nowIso();
       if (Date.parse(scheduledAt) > Date.now()) {
@@ -109,7 +111,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           VALUES(?,?,?,?,?,?,'scheduled',?,?,?,?,?,?,?,?)`,
         params: [emailId, campaign.apiKeyId, campaign.from, JSON.stringify([recipient.email]), campaign.replyTo, subject,
           JSON.stringify({ 'List-Unsubscribe': `<${unsubscribeUrl}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' }),
-          textWithFooter, htmlWithFooter, scheduledAt, tracking.open ? 1 : 0, tracking.click ? 1 : 0, id, createdAt],
+          resolvedText, htmlWithFooter, scheduledAt, tracking.open ? 1 : 0, tracking.click ? 1 : 0, id, createdAt],
       });
     }
     const finalStatus = Date.parse(scheduledAt) > Date.now() ? 'scheduled' : 'queued';
