@@ -1,100 +1,250 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  SharedInboxWorkspace,
+  type FolderId,
+  type InboxLabel,
+  type InboxOption,
+  type ThreadDetail,
+  type ThreadMessage,
+  type ThreadSummary,
+} from '@/components/shared-inbox-workspace';
 
-type ReceivedSummary = { id: string; from_address: string; to: string[]; subject: string; message_id: string | null; received_at: string };
-type ReceivedDetail = { id: string; from: string; to: string[]; cc?: string[]; bcc?: string[]; subject: string; message_id?: string; headers?: Record<string, string>; text?: string; html?: string; attachments: Array<{ id: string; filename: string; content_type: string; byte_length: number; download_url: string }>; received_at: string };
+type Mailbox = { name?: string; address: string };
+type InboxListRow = {
+  id: string; inbox_id: string; folder: FolderId; subject: string; counterpart: Mailbox; snippet: string;
+  latest_direction: 'inbound' | 'outbound'; updated_at: string; unread: boolean; message_count: number; labels: string[];
+};
+type InboxListResponse = {
+  data: InboxListRow[];
+  inboxes: InboxOption[];
+  folders: Array<{ id: FolderId; unreadCount: number }>;
+  labels: InboxLabel[];
+  has_more: boolean;
+  next_after?: string;
+};
+type InboxThreadResponse = {
+  id: string; inbox_id: string; folder: FolderId; subject: string; unread: boolean; labels: string[];
+  counterpart: Mailbox;
+  messages: Array<{
+    id: string; direction: 'inbound' | 'outbound'; from: Mailbox; to: Mailbox[]; cc?: Mailbox[]; bcc?: Mailbox[];
+    sent_at: string; text: string; html_preview?: string | null;
+    attachments?: Array<{ id: string; filename: string; content_type: string; byte_length: number; download_url: string }>;
+  }>;
+};
 
-async function api<T>(path: string): Promise<T> {
-  const response = await fetch(path, { headers: { Accept: 'application/json' }, cache: 'no-store' });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data?.error?.message ?? data?.error ?? `Request failed (${response.status})`);
+async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(path, {
+    ...init,
+    cache: 'no-store',
+    headers: { Accept: 'application/json', ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers },
+  });
+  const data = await response.json().catch(() => ({})) as { error?: { message?: unknown } | string };
+  if (!response.ok) {
+    const message = typeof data.error === 'string' ? data.error : data.error?.message;
+    throw new Error(typeof message === 'string' ? message : `Request failed (${response.status}).`);
+  }
   return data as T;
 }
 
-function date(value: string) {
-  return new Intl.DateTimeFormat('en-AU', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
+function mapMessage(message: InboxThreadResponse['messages'][number]): ThreadMessage {
+  return {
+    id: message.id,
+    direction: message.direction,
+    from: message.from,
+    to: message.to,
+    cc: message.cc,
+    bcc: message.bcc,
+    sentAt: message.sent_at,
+    text: message.text,
+    htmlPreview: message.html_preview,
+    attachments: message.attachments?.map(attachment => ({
+      id: attachment.id,
+      filename: attachment.filename,
+      contentType: attachment.content_type,
+      byteLength: attachment.byte_length,
+      downloadUrl: attachment.download_url,
+    })),
+  };
 }
 
-function previewDocument(html: string) {
-  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'"></head><body>${html}</body></html>`;
+function mapThread(value: InboxThreadResponse): ThreadDetail {
+  return {
+    id: value.id,
+    inboxId: value.inbox_id,
+    folder: value.folder,
+    subject: value.subject,
+    unread: value.unread,
+    labelIds: value.labels,
+    counterpart: value.counterpart,
+    messages: value.messages.map(mapMessage),
+  };
 }
 
 export function ReceivingWorkspace() {
-  const [rows, setRows] = useState<ReceivedSummary[]>([]);
-  const [total, setTotal] = useState(0);
-  const [nextAfter, setNextAfter] = useState('');
+  const [inboxes, setInboxes] = useState<InboxOption[]>([]);
+  const [folders, setFolders] = useState<Array<{ id: FolderId; unreadCount: number }>>([]);
+  const [labels, setLabels] = useState<InboxLabel[]>([]);
+  const [activeInboxId, setActiveInboxId] = useState<string | null>(null);
+  const [activeFolder, setActiveFolder] = useState<FolderId>('inbox');
+  const [query, setQuery] = useState('');
+  const [threads, setThreads] = useState<ThreadSummary[]>([]);
+  const [listStatus, setListStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [listError, setListError] = useState('');
   const [hasMore, setHasMore] = useState(false);
-  const [selectedId, setSelectedId] = useState('');
-  const [detail, setDetail] = useState<ReceivedDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const load = useCallback(async (append = false, after = '') => {
-    setLoading(true);
-    setError('');
-    try {
-      const params = new URLSearchParams({ limit: '30' });
-      if (append && after) params.set('after', after);
-      const result = await api<{ data: ReceivedSummary[]; total: number; has_more: boolean; next_after?: string }>(`/api/receiving?${params}`);
-      setRows((current) => append ? [...current, ...result.data] : result.data);
-      setTotal(result.total);
-      setHasMore(result.has_more);
-      setNextAfter(result.next_after ?? '');
-      if (!append) setSelectedId((current) => current && result.data.some((row) => row.id === current) ? current : result.data[0]?.id ?? '');
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not load received email.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { void load(); }, [load]);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextAfter, setNextAfter] = useState('');
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
+  const [thread, setThread] = useState<ThreadDetail | null>(null);
+  const [threadStatus, setThreadStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [threadError, setThreadError] = useState('');
+  const [threadRetry, setThreadRetry] = useState(0);
+  const [layout, setLayout] = useState<'desktop' | 'mobile'>('desktop');
+  const [now] = useState(() => new Date().toISOString());
+  const listRequest = useRef(0);
 
   useEffect(() => {
-    if (!selectedId) { setDetail(null); return; }
+    const media = window.matchMedia('(max-width: 759px)');
+    const update = () => setLayout(media.matches ? 'mobile' : 'desktop');
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+
+  const loadList = useCallback(async (append = false, after = '') => {
+    const requestId = ++listRequest.current;
+    if (append) setLoadingMore(true);
+    else { setListStatus('loading'); setListError(''); }
+    try {
+      const params = new URLSearchParams({ folder: activeFolder, limit: '30' });
+      if (query) params.set('search', query);
+      if (activeInboxId) params.set('inbox', activeInboxId);
+      if (append && after) params.set('after', after);
+      const result = await api<InboxListResponse>(`/api/receiving/threads?${params}`);
+      if (requestId !== listRequest.current) return;
+      const page = result.data.map(row => ({
+        id: row.id,
+        inboxId: row.inbox_id,
+        folder: row.folder,
+        subject: row.subject,
+        counterpart: row.counterpart,
+        snippet: row.snippet,
+        latestDirection: row.latest_direction,
+        lastMessageAt: row.updated_at,
+        unread: row.unread,
+        messageCount: row.message_count,
+        labelIds: row.labels,
+      } satisfies ThreadSummary));
+      setThreads(current => append ? [...current, ...page] : page);
+      setInboxes(result.inboxes);
+      setFolders(result.folders);
+      setLabels(result.labels);
+      setHasMore(result.has_more);
+      setNextAfter(result.next_after ?? '');
+      setListStatus('ready');
+      setListError('');
+    } catch (cause) {
+      if (requestId !== listRequest.current) return;
+      setListStatus('error');
+      setListError(cause instanceof Error ? cause.message : 'Something went wrong while fetching this folder.');
+    } finally {
+      if (requestId === listRequest.current) setLoadingMore(false);
+    }
+  }, [activeFolder, activeInboxId, query]);
+
+  useEffect(() => { void loadList(); }, [loadList]);
+
+  useEffect(() => {
+    if (!selectedThreadId) {
+      setThread(null);
+      setThreadStatus('idle');
+      setThreadError('');
+      return;
+    }
     let active = true;
-    setDetailLoading(true);
-    api<ReceivedDetail>(`/api/receiving/${encodeURIComponent(selectedId)}`)
-      .then((value) => { if (active) { setDetail(value); setError(''); } })
-      .catch((cause) => { if (active) setError(cause instanceof Error ? cause.message : 'Could not load received email details.'); })
-      .finally(() => { if (active) setDetailLoading(false); });
+    setThreadStatus('loading');
+    setThreadError('');
+    api(`/api/receiving/threads/${encodeURIComponent(selectedThreadId)}`, { method: 'PATCH', body: JSON.stringify({ is_read: true }) })
+      .then(() => api<InboxThreadResponse>(`/api/receiving/threads/${encodeURIComponent(selectedThreadId)}`))
+      .then(value => {
+        if (!active) return;
+        setThread(mapThread(value));
+        setThreadStatus('ready');
+        void loadList();
+      })
+      .catch(cause => {
+        if (!active) return;
+        setThreadStatus('error');
+        setThreadError(cause instanceof Error ? cause.message : 'Something went wrong while opening this conversation.');
+      });
     return () => { active = false; };
-  }, [selectedId]);
+  }, [selectedThreadId, threadRetry, loadList]);
 
-  return <>
-    <div className="pageHeading receivingHeading"><div><div className="eyebrow">INBOUND EMAIL</div><h1>Receiving</h1><p>Inspect email forwarded from your configured receiving provider.</p></div><button className="outlineButton" onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button></div>
-    <div className="receivingNotice"><strong>Provider connection required</strong><span>Send, thanks stores messages forwarded to its signed receiving endpoint. It does not host inbound SMTP or manage MX records.</span></div>
-    {error && <p className="inlineError receivingError" role="alert">{error}</p>}
-    <section className="receivingLayout" aria-label="Received email inbox">
-      <div className="panel receivingList">
-        <div className="panelHeader"><div><h2>Inbox</h2><p>{total} received {total === 1 ? 'message' : 'messages'}</p></div></div>
-        <div className="receivingRows" aria-live="polite">
-          {rows.map((row) => <button className={`receivedRow ${selectedId === row.id ? 'selected' : ''}`} key={row.id} onClick={() => setSelectedId(row.id)} aria-current={selectedId === row.id ? 'true' : undefined}>
-            <span className="receivedRowTop"><strong>{row.from_address}</strong><time dateTime={row.received_at}>{date(row.received_at)}</time></span>
-            <span className="receivedSubject">{row.subject || '(no subject)'}</span>
-            <span className="receivedRecipient">To {row.to.join(', ')}</span>
-          </button>)}
-          {!rows.length && <div className="emptyPanel">{loading ? 'Loading received messages…' : error ? 'The inbox is unavailable.' : 'No email has arrived yet.'}</div>}
-        </div>
-        {hasMore && <div className="receivingListFooter"><button className="outlineButton" onClick={() => void load(true, nextAfter)} disabled={loading}>{loading ? 'Loading…' : 'Load older messages'}</button></div>}
-      </div>
-      <article className="panel receivedDetail" aria-live="polite">
-        {detailLoading && <div className="emptyPanel">Loading message…</div>}
-        {!detailLoading && !detail && <div className="emptyPanel">Choose a message to view its contents.</div>}
-        {detail && <>
-          <header className="receivedDetailHeader"><div className="eyebrow">RECEIVED MESSAGE</div><h2>{detail.subject || '(no subject)'}</h2><time dateTime={detail.received_at}>{date(detail.received_at)}</time></header>
-          <dl className="emailDetailMeta"><div><dt>From</dt><dd>{detail.from}</dd></div><div><dt>To</dt><dd>{detail.to.join(', ')}</dd></div>{detail.cc?.length ? <div><dt>Cc</dt><dd>{detail.cc.join(', ')}</dd></div> : null}{detail.bcc?.length ? <div><dt>Bcc</dt><dd>{detail.bcc.join(', ')}</dd></div> : null}{detail.message_id && <div><dt>Message ID</dt><dd><code>{detail.message_id}</code></dd></div>}</dl>
-          {detail.text && <section className="emailDetailSection"><h3>Plain text</h3><pre>{detail.text}</pre></section>}
-          {detail.html && <section className="emailDetailSection"><h3>HTML preview</h3><iframe title="Received email HTML preview" sandbox="" srcDoc={previewDocument(detail.html)} /></section>}
-          {detail.attachments.length > 0 && <section className="emailDetailSection"><h3>Attachments</h3><ul className="receivedAttachments">{detail.attachments.map((attachment) => <li key={attachment.id}><span>{attachment.filename}<small>{attachment.content_type} · {formatBytes(attachment.byte_length)}</small></span><a className="outlineButton" href={attachment.download_url}>Download</a></li>)}</ul></section>}
-        </>}
-      </article>
-    </section>
-  </>;
-}
+  const refreshThread = useCallback(async (id: string) => {
+    const value = await api<InboxThreadResponse>(`/api/receiving/threads/${encodeURIComponent(id)}`);
+    const mapped = mapThread(value);
+    if (id === selectedThreadId) {
+      setThread(mapped);
+      setThreadStatus('ready');
+      setThreadError('');
+    }
+  }, [selectedThreadId]);
 
-function formatBytes(value: number) {
-  return value < 1024 ? `${value} B` : `${(value / 1024).toFixed(1)} KB`;
+  const updateThread = useCallback(async (id: string, body: Record<string, unknown>, readThread = true) => {
+    await api(`/api/receiving/threads/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(body) });
+    await loadList();
+    if (readThread) await refreshThread(id);
+    else if (thread?.id === id && typeof body.is_read === 'boolean') {
+      setThread(current => current?.id === id ? { ...current, unread: !body.is_read } : current);
+    }
+  }, [loadList, refreshThread, thread?.id]);
+
+  const selectThread = (id: string | null) => setSelectedThreadId(id);
+  const selectFolder = (id: FolderId) => { setSelectedThreadId(null); setActiveFolder(id); };
+  const selectInbox = (id: string | null) => { setSelectedThreadId(null); setActiveInboxId(id); };
+
+  return <SharedInboxWorkspace
+    inboxes={inboxes}
+    activeInboxId={activeInboxId}
+    folders={folders}
+    activeFolder={activeFolder}
+    labels={labels}
+    threads={threads}
+    listStatus={listStatus}
+    listError={listError}
+    hasMore={hasMore}
+    loadingMore={loadingMore}
+    query={query}
+    selectedThreadId={selectedThreadId}
+    thread={thread}
+    threadStatus={threadStatus}
+    threadError={threadError}
+    layout={layout}
+    now={now}
+    receivingNotice="New mail arrives here while your account’s receiving connection is active."
+    canMoveToInbox
+    onSelectInbox={selectInbox}
+    onSelectFolder={selectFolder}
+    onSearch={value => { setSelectedThreadId(null); setQuery(value); }}
+    onSelectThread={selectThread}
+    onLoadMore={() => loadList(true, nextAfter)}
+    onRetryList={() => { void loadList(); }}
+    onRetryThread={() => setThreadRetry(value => value + 1)}
+    onMarkRead={(id, read) => updateThread(id, { is_read: read }, false)}
+    onArchive={id => updateThread(id, { folder: 'archive' })}
+    onMoveToInbox={id => updateThread(id, { folder: 'inbox' })}
+    onSpam={id => updateThread(id, { folder: 'spam' })}
+    onTrash={id => updateThread(id, { folder: 'trash' })}
+    onSetLabels={(id, labelIds) => updateThread(id, { labels: labelIds })}
+    onReply={async ({ threadId, text }) => {
+      await api(`/api/receiving/threads/${encodeURIComponent(threadId)}/reply`, {
+        method: 'POST',
+        headers: { 'Idempotency-Key': window.crypto.randomUUID() },
+        body: JSON.stringify({ text }),
+      });
+      await loadList();
+      await refreshThread(threadId);
+    }}
+  />;
 }

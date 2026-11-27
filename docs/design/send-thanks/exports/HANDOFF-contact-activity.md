@@ -6,7 +6,7 @@ These are the Claude Design contact activity exports ported into the real contac
 
 - `ContactActivityPanel.tsx` renders the inline desktop timeline and full-screen phone sheet.
 - `contact-activity.module.css` contains the palette, timeline, icon tiles, state layouts, and responsive sheet styling.
-- The design source remains in the Claude Design project `Email, thanks brand design` as `SendThanksContactActivity.dc.html` and `Send, thanks Contact Activity.dc.html`.
+- The design source remains in the Claude Design canvas as `SendThanksContactActivity.dc.html` and `Send, thanks Contact Activity.dc.html`.
 
 ## Data and behavior
 

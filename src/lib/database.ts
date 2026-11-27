@@ -77,7 +77,7 @@ const postgresSchema = [
     cc_json TEXT, bcc_json TEXT, reply_to TEXT, headers_json TEXT, tags_json TEXT, attachments_json TEXT,
     text_body TEXT, html_body TEXT, attachment_payload_json TEXT, scheduled_at TEXT,
     attempt_count INTEGER NOT NULL DEFAULT 0, next_attempt_at TEXT, processing_started_at TEXT,
-    track_opens INTEGER NOT NULL DEFAULT 0, track_clicks INTEGER NOT NULL DEFAULT 0, broadcast_id TEXT,
+    track_opens INTEGER NOT NULL DEFAULT 0, track_clicks INTEGER NOT NULL DEFAULT 0, broadcast_id TEXT, thread_id TEXT,
     FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
   )`,
   'ALTER TABLE emails ADD COLUMN IF NOT EXISTS relay_message_id TEXT',
@@ -97,6 +97,7 @@ const postgresSchema = [
   'ALTER TABLE emails ADD COLUMN IF NOT EXISTS track_opens INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE emails ADD COLUMN IF NOT EXISTS track_clicks INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE emails ADD COLUMN IF NOT EXISTS broadcast_id TEXT',
+  'ALTER TABLE emails ADD COLUMN IF NOT EXISTS thread_id TEXT',
   `CREATE TABLE IF NOT EXISTS broadcasts (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, api_key_id TEXT NOT NULL, from_address TEXT NOT NULL,
     subject TEXT NOT NULL, text_body TEXT, html_body TEXT, editor_json TEXT,
@@ -110,11 +111,23 @@ const postgresSchema = [
   `CREATE TABLE IF NOT EXISTS received_emails (
     id TEXT PRIMARY KEY, provider_event_id TEXT NOT NULL UNIQUE, api_key_id TEXT NOT NULL,
     message_id TEXT, from_address TEXT NOT NULL, to_json TEXT NOT NULL, cc_json TEXT, bcc_json TEXT,
-    subject TEXT NOT NULL, headers_json TEXT, text_body TEXT, html_body TEXT,
+    subject TEXT NOT NULL, headers_json TEXT, text_body TEXT, html_body TEXT, thread_id TEXT,
     received_at TEXT NOT NULL, created_at TEXT NOT NULL,
     FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
   )`,
   'CREATE INDEX IF NOT EXISTS received_emails_api_key ON received_emails(api_key_id,received_at DESC,id DESC)',
+  'ALTER TABLE received_emails ADD COLUMN IF NOT EXISTS thread_id TEXT',
+  `CREATE TABLE IF NOT EXISTS inbox_threads (
+    id TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, subject TEXT NOT NULL,
+    inbox_address TEXT,
+    folder TEXT NOT NULL DEFAULT 'inbox', is_read INTEGER NOT NULL DEFAULT 0,
+    labels_json TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
+  )`,
+  'ALTER TABLE inbox_threads ADD COLUMN IF NOT EXISTS inbox_address TEXT',
+  'CREATE INDEX IF NOT EXISTS inbox_threads_key_folder_updated ON inbox_threads(api_key_id,folder,updated_at DESC,id DESC)',
+  'CREATE INDEX IF NOT EXISTS received_emails_thread ON received_emails(api_key_id,thread_id,received_at,id)',
+  'CREATE INDEX IF NOT EXISTS emails_thread ON emails(api_key_id,thread_id,created_at,id)',
   `CREATE TABLE IF NOT EXISTS received_email_attachments (
     id TEXT PRIMARY KEY, received_email_id TEXT NOT NULL, filename TEXT NOT NULL,
     content_type TEXT NOT NULL, content_disposition TEXT, content_id TEXT,
@@ -388,7 +401,7 @@ function getSqlite() {
       cc_json TEXT, bcc_json TEXT, reply_to TEXT, headers_json TEXT, tags_json TEXT, attachments_json TEXT,
       text_body TEXT, html_body TEXT, attachment_payload_json TEXT, scheduled_at TEXT,
       attempt_count INTEGER NOT NULL DEFAULT 0, next_attempt_at TEXT, processing_started_at TEXT,
-      track_opens INTEGER NOT NULL DEFAULT 0, track_clicks INTEGER NOT NULL DEFAULT 0, broadcast_id TEXT,
+      track_opens INTEGER NOT NULL DEFAULT 0, track_clicks INTEGER NOT NULL DEFAULT 0, broadcast_id TEXT, thread_id TEXT,
       FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
     );
     CREATE TABLE IF NOT EXISTS broadcasts (
@@ -403,10 +416,18 @@ function getSqlite() {
       id TEXT PRIMARY KEY, provider_event_id TEXT NOT NULL UNIQUE, api_key_id TEXT NOT NULL,
       message_id TEXT, from_address TEXT NOT NULL, to_json TEXT NOT NULL, cc_json TEXT, bcc_json TEXT,
       subject TEXT NOT NULL, headers_json TEXT, text_body TEXT, html_body TEXT,
-      received_at TEXT NOT NULL, created_at TEXT NOT NULL,
+      received_at TEXT NOT NULL, created_at TEXT NOT NULL, thread_id TEXT,
       FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
     );
     CREATE INDEX IF NOT EXISTS received_emails_api_key ON received_emails(api_key_id,received_at DESC,id DESC);
+    CREATE TABLE IF NOT EXISTS inbox_threads (
+      id TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, subject TEXT NOT NULL,
+      inbox_address TEXT,
+      folder TEXT NOT NULL DEFAULT 'inbox', is_read INTEGER NOT NULL DEFAULT 0,
+      labels_json TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
+    );
+    CREATE INDEX IF NOT EXISTS inbox_threads_key_folder_updated ON inbox_threads(api_key_id,folder,updated_at DESC,id DESC);
     CREATE TABLE IF NOT EXISTS received_email_attachments (
       id TEXT PRIMARY KEY, received_email_id TEXT NOT NULL, filename TEXT NOT NULL,
       content_type TEXT NOT NULL, content_disposition TEXT, content_id TEXT,
@@ -579,12 +600,18 @@ function getSqlite() {
     ['html_body', 'TEXT'], ['attachment_payload_json', 'TEXT'], ['scheduled_at', 'TEXT'],
     ['attempt_count', 'INTEGER NOT NULL DEFAULT 0'], ['next_attempt_at', 'TEXT'], ['processing_started_at', 'TEXT'],
     ['track_opens', 'INTEGER NOT NULL DEFAULT 0'], ['track_clicks', 'INTEGER NOT NULL DEFAULT 0'],
-    ['broadcast_id', 'TEXT'],
+    ['broadcast_id', 'TEXT'], ['thread_id', 'TEXT'],
   ];
   for (const [column, definition] of emailMigrations) {
     if (!existingEmailColumns.has(column)) db.exec(`ALTER TABLE emails ADD COLUMN ${column} ${definition}`);
   }
   db.exec('CREATE INDEX IF NOT EXISTS emails_relay_message_id ON emails(relay_message_id)');
+  db.exec('CREATE INDEX IF NOT EXISTS emails_thread ON emails(api_key_id,thread_id,created_at,id)');
+  const receivedColumns = db.prepare('PRAGMA table_info(received_emails)').all() as Array<{ name: string }>;
+  if (!receivedColumns.some(({ name }) => name === 'thread_id')) db.exec('ALTER TABLE received_emails ADD COLUMN thread_id TEXT');
+  db.exec('CREATE INDEX IF NOT EXISTS received_emails_thread ON received_emails(api_key_id,thread_id,received_at,id)');
+  const inboxThreadColumns = db.prepare('PRAGMA table_info(inbox_threads)').all() as Array<{ name: string }>;
+  if (!inboxThreadColumns.some(({ name }) => name === 'inbox_address')) db.exec('ALTER TABLE inbox_threads ADD COLUMN inbox_address TEXT');
   const broadcastColumns = db.prepare('PRAGMA table_info(broadcasts)').all() as Array<{ name: string }>;
   if (!broadcastColumns.some(({ name }) => name === 'editor_json')) db.exec('ALTER TABLE broadcasts ADD COLUMN editor_json TEXT');
   const templateColumns = db.prepare('PRAGMA table_info(email_templates)').all() as Array<{ name: string }>;

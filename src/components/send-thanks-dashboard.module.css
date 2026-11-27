@@ -48,6 +48,10 @@
 /* Main */
 .column { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .main { padding: 36px 40px 48px; display: flex; flex-direction: column; gap: var(--gap); }
+.inboxRoot { height: 100dvh; min-height: 0; }
+.inboxRoot .column { height: 100dvh; min-height: 0; }
+.inboxMain { flex: 1; min-height: 0; overflow: hidden; padding: 14px 20px 16px; gap: 0; }
+.inboxMain > * { flex: 1; min-height: 0; }
 .pageHead { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
 .h1 { margin: 0; font-size: 40px; font-weight: 800; letter-spacing: -.035em; line-height: 1.05; }
 .lede { margin: 6px 0 0; font-size: 16px; line-height: 1.45; color: var(--graphite); max-width: 620px; text-wrap: pretty; }
@@ -161,6 +165,7 @@
   .usageStripText { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
   .usageStrip .meter { background: var(--paper); }
   .main { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; padding: 20px 16px 24px; }
+  .inboxMain { overflow: hidden; padding: 10px 12px 14px; }
   .main::-webkit-scrollbar { display: none; }
   .pageHead { flex-direction: column; align-items: stretch; }
   .h1 { font-size: 30px; }

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { execute, nowIso, queryOne, randomId, transaction } from '@/lib/database';
 import { readTextLimited } from '@/lib/request-json';
 import { emitWebhookEvent } from '@/lib/webhooks';
+import { findReferencedThread, replyReferences } from '@/lib/inbox-threads';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -102,10 +103,31 @@ export async function POST(request: Request) {
   const id = randomId('rx');
   const timestampNow = nowIso();
   const receivedAt = typeof payload.created_at === 'string' && Number.isFinite(Date.parse(payload.created_at)) ? new Date(payload.created_at).toISOString() : timestampNow;
+  const storedHeaders = Object.fromEntries(headers as Array<[string, string]>);
+  const parentThread = await findReferencedThread(ownerKey.id, replyReferences(storedHeaders));
+  const threadId = parentThread?.id ?? id;
+  const threadSubject = parentThread?.subject || subject;
+  const firstTo = to.values[0];
+  const inboxAddress = (/<([^<>]+)>$/.exec(firstTo)?.[1] ?? firstTo).trim();
   const statements: Array<{ sql: string; params: readonly unknown[] }> = [{
-    sql: 'INSERT INTO received_emails(id,provider_event_id,api_key_id,message_id,from_address,to_json,cc_json,bcc_json,subject,headers_json,text_body,html_body,received_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-    params: [id, eventId, ownerKey.id, messageId, from, JSON.stringify(to.values), cc.values.length ? JSON.stringify(cc.values) : null, bcc.values.length ? JSON.stringify(bcc.values) : null, subject, headers.length ? JSON.stringify(Object.fromEntries(headers)) : null, bodyText, bodyHtml, receivedAt, timestampNow],
+    sql: `INSERT INTO inbox_threads(id,api_key_id,subject,inbox_address,folder,is_read,labels_json,created_at,updated_at)
+      VALUES(?,?,?,?,'inbox',0,'[]',?,?) ON CONFLICT(id) DO UPDATE SET updated_at=excluded.updated_at,is_read=0,
+      inbox_address=COALESCE(inbox_threads.inbox_address,excluded.inbox_address),
+      folder=CASE WHEN inbox_threads.folder IN ('archive','sent') THEN 'inbox' ELSE inbox_threads.folder END`,
+    params: [threadId, ownerKey.id, threadSubject, inboxAddress, timestampNow, receivedAt],
   }];
+  if (parentThread?.source === 'received') statements.push({
+    sql: 'UPDATE received_emails SET thread_id=? WHERE id=? AND api_key_id=? AND (thread_id IS NULL OR thread_id=?)',
+    params: [threadId, parentThread.sourceId, ownerKey.id, threadId],
+  });
+  if (parentThread?.source === 'sent') statements.push({
+    sql: 'UPDATE emails SET thread_id=? WHERE id=? AND api_key_id=? AND (thread_id IS NULL OR thread_id=?)',
+    params: [threadId, parentThread.sourceId, ownerKey.id, threadId],
+  });
+  statements.push({
+    sql: 'INSERT INTO received_emails(id,provider_event_id,api_key_id,message_id,from_address,to_json,cc_json,bcc_json,subject,headers_json,text_body,html_body,received_at,created_at,thread_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    params: [id, eventId, ownerKey.id, messageId, from, JSON.stringify(to.values), cc.values.length ? JSON.stringify(cc.values) : null, bcc.values.length ? JSON.stringify(bcc.values) : null, subject, headers.length ? JSON.stringify(storedHeaders) : null, bodyText, bodyHtml, receivedAt, timestampNow, threadId],
+  });
   for (const attachment of attachments) statements.push({
     sql: 'INSERT INTO received_email_attachments(id,received_email_id,filename,content_type,content_disposition,content_id,byte_length,content_base64,created_at) VALUES(?,?,?,?,?,?,?,?,?)',
     params: [attachment.id, id, attachment.filename, attachment.contentType, attachment.contentDisposition, attachment.contentId, attachment.byteLength, attachment.contentBase64, timestampNow],
@@ -117,5 +139,5 @@ export async function POST(request: Request) {
     return error('Could not persist the received email.', 500);
   }
   await emitWebhookEvent(ownerKey.id, 'email.received', { email_id: id, from, to: to.values, subject, message_id: messageId, attachments: attachments.map(({ id: attachmentId, filename, contentType: type, contentDisposition, contentId, byteLength }) => ({ id: attachmentId, filename, content_type: type, content_disposition: contentDisposition, content_id: contentId, size: byteLength })) });
-  return NextResponse.json({ id, object: 'received_email', duplicate: false, received_at: receivedAt }, { status: 201, headers: privateHeaders });
+  return NextResponse.json({ id, object: 'received_email', duplicate: false, thread_id: threadId, received_at: receivedAt }, { status: 201, headers: privateHeaders });
 }

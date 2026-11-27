@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style data-omelette-injected>html,body{background:transparent}</style><script data-omelette-injected>(()=>{{const n=new URLSearchParams(location.search).get("theme");if(n==="light"||n==="dark"){document.documentElement.dataset.theme=n}}{if(new URLSearchParams(location.search).get("_omthumb")==="1"){const n=(f)=>{const g=f.focus;if(!g)return;f.focus=function(h){g.call(this,{...h,preventScroll:true})}};n(HTMLElement.prototype);n(SVGElement.prototype);if(typeof MathMLElement!=="undefined"){n(MathMLElement.prototype)}const d=(f)=>{f.removeAttribute("autofocus");f.inert=true;if(!(f instanceof HTMLElement))f.removeAttribute("tabindex")};const p=(f)=>{if(f.hasAttribute("autofocus"))d(f);for(const g of f.querySelectorAll("[autofocus]")){d(g)}};p(document.documentElement);new MutationObserver((f)=>{for(const g of f){for(const h of g.addedNodes){if(h.nodeType===1)p(h)}}}).observe(document,{childList:true,subtree:true})}}{const n=()=>{try{if(document.querySelector('meta[name="color-scheme"]'))return;const d=getComputedStyle(document.documentElement).getPropertyValue("color-scheme").trim();if(d&&d!=="normal")return;const p=(y)=>{if(!y)return null;const m=getComputedStyle(y).backgroundColor.match(/^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)(?:[,\s/]+([\d.]+%?))?\s*\)$/);if(!m)return null;const w=m[4]==null?1:parseFloat(m[4])/(m[4].endsWith("%")?100:1);if(w<0.99)return null;return[+m[1],+m[2],+m[3]]};const f=p(document.body)||p(document.documentElement);if(!f)return;const g=(y)=>{const m=y/255;return m<=0.04045?m/12.92:((m+0.055)/1.055)**2.4};const h=0.2126*g(f[0])+0.7152*g(f[1])+0.0722*g(f[2]);document.documentElement.style.setProperty("color-scheme",h<0.4?"dark":"light")}catch{}};if(document.readyState==="complete")n();else window.addEventListener("load",n)}var I=["https://claude.ai","https://preview.claude.ai","https://4e50820b-1ab2-45da-bd4c-3d8e8642dd94.claudeusercontent.com"];var B=true;var K=false;var C=()=>{};if(K===true){try{const n=setTimeout.bind(window);const d=1e4;const p=15;const f=1e4;const g=120000;const h=200;const y=(o)=>{try{let r;if(typeof o==="string")r=o;else if(o instanceof URL)r=o.href;else if(typeof Request!=="undefined"&&o instanceof Request)r=o.url;else return null;if(!r)return null;const l=document.baseURI;const i=new URL(r,l);if(i.protocol!=="http:"&&i.protocol!=="https:")return null;if(i.origin!==new URL(l).origin)return null;return i.origin+i.pathname}catch{return null}};const m=new Map;const w=(o)=>{let r=m.get(o);if(!r){if(m.size>=h){const l=m.keys().next().value;if(l!==undefined)m.delete(l)}r={fails:[],until:0,cooldown:f,hard:false};m.set(o,r)}return r};const R=(o)=>{const r=m.get(o);return r!==undefined&&r.until>Date.now()};const O=(o,r)=>{const l=Date.now();const i=w(o);if(r)i.hard=true;if(i.until>l)return;i.fails.push(l);while(i.fails.length>0&&i.fails[0]<=l-d)i.fails.shift();if(i.fails.length>=p){i.until=l+i.cooldown;if(i.hard)i.cooldown=Math.min(i.cooldown*2,g);i.fails.length=0;try{n(()=>{try{S(true)}catch{}},i.until-l+100)}catch{}console.warn("[omelette] asset circuit breaker: pausing requests to "+o+" for "+Math.round((i.until-l)/1000)+"s after "+p+" failures in "+d/1000+"s")}};const e=(o)=>{m.delete(o)};const t=100;const a=new WeakMap;const u=new Set;let s=null;const S=(o)=>{for(const r of Array.from(u)){try{const l=a.get(r);if(l===undefined){u.delete(r);continue}if(o){const i=y(l);if(i!==null&&R(i))continue}a.delete(r);u.delete(r);if(s!==null)s.call(r,l)}catch{}}};C=()=>{try{m.clear();S(false)}catch{}};document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")C()});const _=window.fetch;if(typeof _==="function"){const o=function(...r){let l=null;try{l=y(r[0])}catch{}if(l!==null&&R(l)){let c;try{if(r[1]&&r[1].signal!==undefined){c=r[1].signal||undefined}else if(typeof Request!=="undefined"&&r[0]instanceof Request){c=r[0].signal||undefined}}catch{c=undefined}return new Promise((k,b)=>{const E=()=>{try{return c.reason!==undefined?c.reason:new DOMException("The operation was aborted.","AbortError")}catch{return new DOMException("The operation was aborted.","AbortError")}};try{if(c&&c.aborted){b(E());return}}catch{}let T=false;const j=()=>{if(T)return;T=true;b(E())};try{if(c)c.addEventListener("abort",j,{once:true})}catch{}n(()=>{if(T)return;T=true;try{if(c)c.removeEventListener("abort",j)}catch{}let L;try{L=new Response(null,{status:429,statusText:"Too Many Requests",headers:{"Retry-After":"10"}})}catch{L={ok:false,status:429}}k(L)},250)})}const i=_.apply(window,r);if(l!==null){const c=l;i.then((k)=>{try{if(k.ok)e(c);else if(k.status===401||k.status===403||k.status===404||k.status===429){O(c,k.status!==404)}}catch{}},()=>{})}return i};window.fetch=o}const v=Object.getOwnPropertyDescriptor(HTMLImageElement.prototype,"src");if(v!==undefined&&v.set!==undefined&&v.get!==undefined){const o=v.set;s=o;Object.defineProperty(HTMLImageElement.prototype,"src",{configurable:true,enumerable:v.enumerable,get:v.get,set(r){const l=`${r}`;try{const i=y(l);if(i!==null&&R(i)){a.set(this,l);if(u.size<t)u.add(this);return}}catch{}try{a.delete(this);u.delete(this)}catch{}o.call(this,l)}})}try{const o=HTMLImageElement.prototype.setAttribute;HTMLImageElement.prototype.setAttribute=function(r,l){if(arguments.length<2){o.apply(this,arguments);return}if(typeof r==="string"&&r.toLowerCase()==="src"){const i=`${l}`;try{const c=y(i);if(c!==null&&R(c)){a.set(this,i);if(u.size<t)u.add(this);return}a.delete(this);u.delete(this)}catch{}o.call(this,r,i);return}o.call(this,r,l)}}catch{}window.addEventListener("error",(o)=>{try{const r=o.target;if(r instanceof HTMLImageElement){const l=y(r.currentSrc||r.src||"");if(l!==null)O(l,true)}}catch{}},true);window.addEventListener("load",(o)=>{try{const r=o.target;if(r instanceof HTMLImageElement){const l=y(r.currentSrc||r.src||"");if(l!==null)e(l);const i=a.get(r);if(i!==undefined){let c=false;try{c=new URL(i,document.baseURI).href===new URL(r.currentSrc||r.src||"",document.baseURI).href}catch{c=false}if(c){a.delete(r);u.delete(r)}}}}catch{}},true)}catch{}}var J=30000;var G=3000;document.addEventListener("DOMContentLoaded",()=>{const n=window.Babel;const d="om-src-id";if(n&&n.registerPlugin&&!(n.availablePlugins&&n.availablePlugins[d])){n.registerPlugin(d,({types:h})=>({visitor:{JSXOpeningElement(y,m){const w=y.node;if(w.name&&w.name.type==="JSXMemberExpression")return;for(let t=0;t<w.attributes.length;t++){const a=w.attributes[t];if(a.type==="JSXAttribute"&&a.name&&a.name.name==="data-om-id")return}const R=m.file&&m.file.opts&&m.file.opts.filename||"?";const O=w.loc&&w.loc.start;const e=`jsx:${R}:${w.start??0}:${O?O.line:0}:${O?O.column+1:0}`;w.attributes.push(h.jsxAttribute(h.jsxIdentifier("data-om-id"),h.stringLiteral(e)))}}}))}const p="om-text-extract";let f=false;if(B&&n&&n.registerPlugin&&!(n.availablePlugins&&n.availablePlugins[p])){const h=window.React;if(h&&h.useSyncExternalStore&&h.createElement){f=true;const y={};const m=new Set;let w=0;window.__omTextO=y;window.__omTextSet=(e)=>{for(const t in e){const a=e[t];if(a==null)delete y[t];else y[t]=a}w++;m.forEach((t)=>t())};const R=(e)=>{m.add(e);return()=>m.delete(e)};const O=()=>w;window.__OmT=function e(t){h.useSyncExternalStore(R,O,O);return h.createElement("span",{"data-om-text":t.i,className:"__om-t"},t.i in y?y[t.i]:t.children)};n.registerPlugin(p,({types:e})=>{const t={style:1,script:1,noscript:1,textarea:1,title:1,option:1,text:1,tspan:1,textPath:1};const a={placeholder:1,alt:1,title:1,label:1,"aria-label":1,"aria-description":1,"aria-placeholder":1};const u=(o,r)=>e.logicalExpression("??",e.memberExpression(e.logicalExpression("||",e.memberExpression(e.identifier("window"),e.identifier("__omTextO")),e.objectExpression([])),e.stringLiteral(o),true),r);const s=(o)=>o.file&&o.file.opts&&o.file.opts.filename||"?";const S=(o)=>o.file&&o.file.code||"";const _=(o,r)=>{const l=(c)=>c&&c.start!=null&&c.end!=null&&(c.type==="StringLiteral"||c.type==="TemplateLiteral"&&c.expressions.length===0)?[c.start,c.end]:null;const i=l(r);if(i)return i;if(r&&r.type==="Identifier"){const c=o.scope.getBinding(r.name);if(c&&c.constant&&c.path.node.type==="VariableDeclarator"){return l(c.path.node.init)}}return null};const v=(o,r,l)=>{const i=o.node;let c=false;const k=(E,T)=>{c=true;return e.jsxElement(e.jsxOpeningElement(e.jsxIdentifier("__OmT"),[e.jsxAttribute(e.jsxIdentifier("i"),e.stringLiteral(E))],false),e.jsxClosingElement(e.jsxIdentifier("__OmT")),[T],false)};const b=i.children.map((E)=>{if(E.type==="JSXText"){if(E.start==null||E.end==null)return E;const T=l.slice(E.start,E.end);const j=T.length-T.trimStart().length;const L=T.length-T.trimEnd().length;if(j+L>=T.length)return E;return k(`txt:${r}:${E.start+j}:${E.end-L}`,E)}if(E.type==="JSXExpressionContainer"){const T=_(o,E.expression);if(T)return k(`str:${r}:${T[0]}:${T[1]}`,E)}return E});if(c)i.children=b};return{visitor:{JSXOpeningElement(o,r){const l=o.node;const i=s(r);const c={};for(let k=0;k<l.attributes.length;k++){const b=l.attributes[k];if(b.type!=="JSXAttribute"||!b.name)continue;const E=b.name.name;if(!a[E])continue;if(!b.value||b.value.type!=="StringLiteral")continue;if(b.value.start==null||b.value.end==null)continue;const T=`txt:${i}:${b.value.start}:${b.value.end}`;c[E]=T;b.value=e.jsxExpressionContainer(u(T,e.stringLiteral(b.value.value)))}if(Object.keys(c).length){l.attributes.push(e.jsxAttribute(e.jsxIdentifier("data-om-text-attrs"),e.stringLiteral(JSON.stringify(c))))}},JSXElement(o,r){const l=o.node.openingElement;const i=l&&l.name&&l.name.name;if(i==="__OmT")return;if(typeof i==="string"&&t[i])return;v(o,s(r),S(r))},JSXFragment(o,r){v(o,s(r),S(r))}}}})}}const g=f?["transform-react-jsx-source",d,p]:["transform-react-jsx-source",d];document.querySelectorAll('script[type="text/babel"],script[type="text/jsx"]').forEach((h,y)=>{const m=h.getAttribute("data-plugins")||"";const w=g.filter((R)=>m.indexOf(R)<0);if(w.length){h.setAttribute("data-plugins",m?`${m},${w.join(",")}`:w.join(","))}if(!h.hasAttribute("data-filename")){h.setAttribute("data-filename",h.getAttribute("src")||`inline-${y}`)}})});var A=window.parent;var U="not editable here — open the project in the Claude Design editor to save";var W=()=>Promise.resolve({persisted:false,noHost:true,reason:U});var H=W;var M="data/storage.json";var z=()=>{try{const n=new URL(document.baseURI);const d=n.pathname.match(/\/projects\/([^/]+)\/serve\//);if(d)return d[1];return n.hostname.split(".")[0]||""}catch{return location.hostname.split(".")[0]||""}};var Z=()=>{try{const n=new URL(document.baseURI);const d=n.pathname.indexOf("/serve/");if(d>=0)return n.origin+n.pathname.slice(0,d+"/serve/".length)+M}catch{}return"./"+M};var x=null;var N=()=>{if(!x){x=fetch(Z(),{cache:"no-store"}).then((n)=>{if(n.ok)return n.text();return n.status===404?"":null}).catch(()=>null).then((n)=>{if(n===null){x=null;return null}const d=new Map;if(!n)return d;let p;try{p=JSON.parse(n)}catch{console.warn("[omelette.storage] "+M+" is not valid JSON; treating the store as unreadable so a save cannot overwrite the "+"hand-edited bytes. Fix the JSON (or delete the file) to re-enable persistence.");x=null;return null}if(p===null||typeof p!=="object"||Array.isArray(p)){console.warn("[omelette.storage] "+M+" doesn't hold a JSON object; treating the store as unreadable so a save cannot "+"overwrite the hand-edited bytes. Make the top level a JSON object to re-enable persistence.");x=null;return null}const f=p;if("data"in f){const g=f.data;if(g===null||typeof g!=="object"||Array.isArray(g)){console.warn("[omelette.storage] "+M+' has a "data" field that is not a JSON object; treating the store as unreadable so a '+'save cannot overwrite the hand-edited bytes. Make "data" a JSON object to re-enable persistence.');x=null;return null}const h=f._meta;const y=h!==null&&typeof h==="object"?h.project:undefined;if(typeof y==="string"&&y!==""&&y!==z())return d;for(const m of Object.keys(g))d.set(m,g[m]);return d}for(const g of Object.keys(f)){if(g!=="_meta")d.set(g,f[g])}return d})}return x};var F=(n)=>H(M,JSON.stringify({_meta:{project:z(),version:1},data:Object.fromEntries(n)},null,2));var D=Promise.resolve();var $=(n)=>{const d=D.then(n);D=d.then(()=>{return},()=>{return});return d};var V=/sk-(?:ant-)?[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|xox[a-z]-[A-Za-z0-9][A-Za-z0-9-]{9,}|AIza[0-9A-Za-z_-]{30,}|-----BEGIN [A-Z ]*PRIVATE KEY-----/;var Y=/password|passwd|secret|api[_-]?key|access[_-]?token|auth[_-]?token|credential/i;var Q=(n,d,p)=>{if(V.test(d)||Y.test(n)&&typeof p==="string"&&p.length>=8){console.warn('[omelette.storage] the value for "'+n+'" looks like a credential. The storage file is a plaintext project file — visible to '+"everyone with project access and copied when the project is duplicated. Do not store secrets here.")}};var q={persisted:false,reason:"could not load the existing store — not overwriting it"};var X={persisted:false,reason:"stored value changed since a failed read — re-read this key before saving"};var P=new Set;var ee={get:(n)=>{if(typeof n!=="string"){return Promise.reject(new TypeError("storage.get: key must be a string"))}return $(N).then((d)=>{if(d===null){P.add(n);return null}P.delete(n);if(!d.has(n))return null;const p=d.get(n);return p==null?null:JSON.parse(JSON.stringify(p))})},set:(n,d)=>{if(typeof n!=="string"){return Promise.reject(new TypeError("storage.set: key must be a string"))}let p;try{p=JSON.stringify(d)}catch(g){return Promise.reject(new TypeError("storage.set: value must be JSON-serializable ("+String(g)+")"))}if(p===undefined){return Promise.reject(new TypeError("storage.set: value must be JSON-serializable"))}Q(n,p,d);const f=JSON.parse(p);return $(()=>N().then((g)=>{if(g===null)return q;if(P.has(n)){if(g.has(n))return X;P.delete(n)}g.set(n,f);return F(g)}))},delete:(n)=>{if(typeof n!=="string"){return Promise.reject(new TypeError("storage.delete: key must be a string"))}return $(()=>N().then((d)=>{if(d===null)return q;if(P.has(n)){if(d.has(n))return X;P.delete(n)}d.delete(n);return F(d)}))},keys:()=>$(N).then((n)=>n===null?[]:Array.from(n.keys()))};window.omelette={writeFile:(n,d)=>H(n,d).then((p)=>{if(!p.persisted&&!p.noHost){throw new Error(p.reason||"write failed")}}),storage:ee};if(A&&A!==window){const n=(e,t)=>{try{A.postMessage({__omelette_log:true,type:e,data:t},"*")}catch{}};["log","warn","error"].forEach((e)=>{const t=console[e];console[e]=(...a)=>{const u=a.map((s)=>{try{return typeof s==="object"?JSON.stringify(s):String(s)}catch{try{return String(s)}catch{return"[unstringifiable]"}}}).join(" ");n(e,u);t.apply(console,a)}});window.addEventListener("error",(e)=>{const t=e.target;if(t&&t!==window&&t.tagName){const a=t.src||t.href||"";n("resource_error",`${t.tagName} failed to load: ${a}`)}else{n("error",`${e.message||"Unknown error"} at ${e.filename||"?"}:${e.lineno||0}:${e.colno||0}`)}},true);window.addEventListener("unhandledrejection",(e)=>{const t=e.reason;const a=t instanceof Error?`${t.message} ${t.stack}`:String(t);n("error",`Unhandled rejection: ${a}`)});window.addEventListener("click",(e)=>{if(e.defaultPrevented||e.button!==0)return;if(e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;const t=e.composedPath?e.composedPath():[];const a=["button","input","select","textarea","summary","label"];let u=null;for(const v of t){if(!(v instanceof Element))continue;if(v.localName==="a"){if(!(v instanceof HTMLAnchorElement))return;u=v;break}if(a.indexOf(v.localName)!==-1)return}if(!u)return;if(u.isContentEditable)return;const s=u.closest("[contenteditable]");if(s&&s.getAttribute("contenteditable")!=="false")return;const S=(u.getAttribute("target")||"_self").toLowerCase();if(S!=="_self"&&S!=="_top"&&S!=="_parent")return;let _;try{_=new URL(u.href)}catch{return}if(_.protocol!=="http:"&&_.protocol!=="https:")return;if(location.origin==="null")return;if(_.origin===location.origin)return;e.preventDefault();window.open(_.href,"_blank","noopener,noreferrer")});const d=()=>{try{A.postMessage({type:"omelette:height",height:document.documentElement.scrollHeight},"*")}catch{}};if(window.ResizeObserver)new ResizeObserver(d).observe(document.documentElement);const p=()=>{d();if(!document.querySelector('script[type="text/babel"],script[type="text/jsx"]'))return;const e=()=>document.getElementById("root")||document.querySelector("body > div[id]");const t=e()?.firstElementChild??null;let a=0;const u=()=>{const s=e();if(s&&s.firstElementChild!==t||++a>30){d();return}setTimeout(u,100)};setTimeout(u,100)};if(document.readyState==="complete")p();else window.addEventListener("load",p);const f={};let g=0;const h=(e)=>new Promise((t,a)=>{if(!I.length){a(new Error("claude.complete: no parent origin"));return}const u=`c${++g}`;const s=()=>setTimeout(()=>{delete f[u];a(new Error(`claude.complete: no data for ${J/1000}s`))},J);const S=s();f[u]={resolve:t,reject:a,text:"",t:S,arm:s};try{for(const _ of I){A.postMessage({__om_api:true,id:u,body:e},_)}}catch(_){clearTimeout(S);delete f[u];a(_)}});const y=8;const m=async(e,t)=>{if(!Array.isArray(e.messages)){throw new Error("claude.complete: tools require a messages array")}const a=e.messages.slice();const u={...e,tools:e.tools.map((_)=>{if(_===null||typeof _!=="object")return _;const v={};for(const o of Object.keys(_)){if(typeof _[o]!=="function")v[o]=_[o]}return v})};const s=u.tool_choice;const S=s!=null&&(s.type==="any"||s.type==="tool")?{...u,tool_choice:s.disable_parallel_tool_use!==undefined?{type:"auto",disable_parallel_tool_use:s.disable_parallel_tool_use}:{type:"auto"}}:u;for(let _=0;_<y;_++){const v=await h({..._===0?u:S,messages:a});const o=v.message;const r=o&&Array.isArray(o.content)?o.content:null;const l=r?r.filter((c)=>c?.type==="tool_use"):[];if(o?.stop_reason!=="tool_use"||l.length===0){return v.text}const i=[];for(const c of l){const k=t.get(c.name);if(!k){i.push({type:"tool_result",tool_use_id:c.id,content:`no handler for tool "${c.name}"`,is_error:true});continue}try{const b=await k(c.input);const E=typeof b==="string"?b:O(b)??"";i.push({type:"tool_result",tool_use_id:c.id,content:E})}catch(b){i.push({type:"tool_result",tool_use_id:c.id,content:String(b?.message??b??"tool handler failed"),is_error:true})}}a.push({role:"assistant",content:r},{role:"user",content:i})}throw new Error(`claude.complete: exceeded ${y} tool turns`)};window.claude={complete(e){const t=e;if(t!==null&&typeof t==="object"&&Array.isArray(t.tools)&&t.tools.some((a)=>a!==null&&typeof a==="object"&&typeof a.run==="function")){const a=new Map;for(const u of t.tools){if(u!==null&&typeof u==="object"&&typeof u.run==="function"){a.set(String(u.name),u.run)}}return m(t,a)}return h(e).then((a)=>a.text)}};const w={};let R=0;H=(e,t)=>new Promise((a)=>{if(!I.length){a({persisted:false,noHost:true,reason:U});return}const u=`f${++R}`;const s=setTimeout(()=>{delete w[u];a({persisted:false,noHost:true,reason:U})},G);w[u]={settle:a,t:s};try{for(const S of I){A.postMessage({__om_file:true,id:u,op:"write",path:e,content:t},S)}}catch{clearTimeout(s);delete w[u];a({persisted:false,noHost:true,reason:U})}});const O=(e)=>{try{return JSON.stringify(e)}catch{return JSON.stringify(String(e))}};window.addEventListener("message",(e)=>{if(I.indexOf(e.origin)<0)return;if(e.source!==A)return;const t=e.data;if(!t)return;if(t.type==="omelette-preview-refresh"){if(typeof t.token!=="string"||!/^[0-9a-f.-]+(\.(rc|pr-[0-9]+))?(\.[0-9]+\.[0-9a-f]{16})?$/.test(t.token))return;const s=Math.max(1,Math.floor((t.expiresAt||0)-Date.now()/1000));document.cookie="__Host-omelette-preview="+t.token+"; Path=/; Secure; SameSite=None; Partitioned; Max-Age="+s;C();return}if(t.__om_file_r){const s=w[t.id];if(!s)return;clearTimeout(s.t);delete w[t.id];s.settle(t.ok?{persisted:true}:{persisted:false,reason:t.error||"write failed"});return}if(t.__om_api_r){const s=f[t.id];if(!s)return;if(t.error!=null){clearTimeout(s.t);delete f[t.id];s.reject(new Error(t.error));return}if(t.chunk!=null){clearTimeout(s.t);s.t=s.arm();s.text+=t.chunk;return}if(t.done){clearTimeout(s.t);delete f[t.id];s.resolve({text:t.text!=null?t.text:s.text,message:t.message});return}return}if(!t.__om_eval)return;const a=t;const u=(s)=>{e.source.postMessage({...s,__om_eval_r:1,id:a.id},e.origin)};try{const s=(0,eval)(a.code);if(s&&typeof s.then==="function"){s.then((S)=>u({ok:1,v:O(S)}),(S)=>u({ok:0,e:String(S)}))}else{u({ok:1,v:O(s)})}}catch(s){u({ok:0,e:String(s)})}})}})();
+</script>
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>html,body{margin:0;background:#F4EEE3}button,input,select,textarea{font:inherit;color:inherit}:focus{outline:none}:focus-visible{outline:3px solid #1C1916;outline-offset:2px;box-shadow:0 0 0 6px #F7D56E}[data-scroll]::-webkit-scrollbar{display:none}a{color:#1C1916}a:hover{color:#3D3832}@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}</style>
+</helmet>
+<div style="position:relative;font-family:'Schibsted Grotesk',sans-serif;color:#1C1916;background:#F4EEE3;display:flex;flex-direction:{{ rootDir }};height:{{ rootH }};width:100%;box-sizing:border-box;overflow:hidden;-webkit-font-smoothing:antialiased">
+
+<sc-if value="{{ desktop }}" hint-placeholder-val="{{ true }}">
+<aside style="width:248px;flex-shrink:0;border-right:2px solid #1C1916;background:#FBF9F5;padding:24px 16px;display:flex;flex-direction:column;gap:28px;box-sizing:border-box">
+  <div style="display:flex;align-items:center;gap:10px;padding:0 8px">
+    <svg width="32" height="32" viewBox="0 0 64 64" aria-hidden="true"><rect x="1.5" y="1.5" width="61" height="61" rx="16" style="fill:#FF5A36;stroke:#1C1916;stroke-width:3"></rect><circle cx="32" cy="23" r="9" style="fill:#FBF9F5"></circle><path d="M41 35.5C41 43 34 49 21 52C27 48 31 43.5 32.5 38.5Z" style="fill:#FBF9F5"></path></svg>
+    <div style="font-size:21px;font-weight:800;letter-spacing:-.035em;line-height:1;white-space:nowrap">Send<span style="color:#FF5A36">,</span> thanks</div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:4px;padding:12px;border:2px solid #E3DCD0;border-radius:12px">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6B6359">ACCOUNT</div>
+    <div style="font-size:15px;font-weight:700">Good Yarn Co.</div>
+  </div>
+  <nav aria-label="Dashboard" style="display:flex;flex-direction:column;gap:4px">
+    <sc-for list="{{ nav }}" as="n" hint-placeholder-count="8">
+      <button type="button" aria-current="{{ n.current }}" style="display:flex;align-items:center;gap:12px;width:100%;height:44px;padding:0 12px;border-radius:12px;border:2px solid {{ n.border }};background:{{ n.bg }};font-size:15px;font-weight:{{ n.weight }};cursor:pointer;text-align:left">
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="{{ n.icon }}"></path></svg>
+        <span style="flex:1">{{ n.label }}</span>
+      </button>
+    </sc-for>
+  </nav>
+  <div style="margin-top:auto;display:flex;flex-direction:column;gap:8px;padding:14px 12px;border:2px solid #1C1916;border-radius:14px;background:#F4EEE3">
+    <div style="font-size:14px;color:#3D3832"><span style="font-weight:800;color:#1C1916">7</span> requests this month</div>
+  </div>
+</aside>
+</sc-if>
+
+<div style="flex:1;min-width:0;min-height:0;display:flex;flex-direction:column">
+  <sc-if value="{{ mobile }}" hint-placeholder-val="{{ false }}">
+    <header style="flex-shrink:0;height:56px;padding:0 16px;background:#FBF9F5;display:flex;align-items:center;gap:8px">
+      <svg width="32" height="32" viewBox="0 0 64 64" aria-hidden="true"><rect x="1.5" y="1.5" width="61" height="61" rx="16" style="fill:#FF5A36;stroke:#1C1916;stroke-width:3"></rect><circle cx="32" cy="23" r="9" style="fill:#FBF9F5"></circle><path d="M41 35.5C41 43 34 49 21 52C27 48 31 43.5 32.5 38.5Z" style="fill:#FBF9F5"></path></svg>
+      <div style="font-size:19px;font-weight:800;letter-spacing:-.035em;white-space:nowrap">Send<span style="color:#FF5A36">,</span> thanks</div>
+    </header>
+    <div role="group" aria-label="Usage this month" style="flex-shrink:0;padding:10px 16px 12px;background:#FBF9F5;border-top:1px solid #E3DCD0;border-bottom:2px solid #1C1916">
+      <div style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="font-weight:800">7</span> send requests this month</div>
+    </div>
+  </sc-if>
+
+  <div data-scroll="1" style="flex:1;min-height:0;overflow:{{ mainOverflow }};scrollbar-width:none;padding:{{ pad }};display:flex;flex-direction:column;gap:16px;box-sizing:border-box">
+    <div style="display:flex;flex-direction:{{ hdrDir }};align-items:{{ hdrAlign }};justify-content:space-between;gap:16px;flex-shrink:0">
+      <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+        <h1 style="margin:0;font-size:{{ h1Size }};font-weight:800;letter-spacing:-.035em;line-height:1.05">Receiving</h1>
+        <p style="margin:0;font-size:15px;line-height:1.45;color:#3D3832;max-width:620px;text-wrap:pretty">Mail sent to your addresses, grouped into conversations.</p>
+      </div>
+      <label style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;min-width:0">
+        <span style="font-size:13px;font-weight:700">Inbox</span>
+        <select value="{{ inbox }}" onChange="{{ onInbox }}" style="height:{{ ctl }};min-width:0;max-width:100%;padding:0 12px;border:2px solid #1C1916;border-radius:12px;background:#FBF9F5;font-size:15px;font-weight:600">
+          <sc-for list="{{ inboxOpts }}" as="o" hint-placeholder-count="3"><option value="{{ o.value }}">{{ o.label }}</option></sc-for>
+        </select>
+      </label>
+    </div>
+    <div style="flex-shrink:0;display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border:2px solid #E3DCD0;border-radius:12px;background:#FBF9F5;font-size:14px;line-height:1.4;color:#3D3832">
+      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style="flex-shrink:0;margin-top:1px;fill:none;stroke:#1C1916;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM12 11v5M12 8h.01"></path></svg>
+      <span>New mail only arrives here while this account’s receiving connection is active.</span>
+    </div>
+    <sc-if value="{{ hasNote }}" hint-placeholder-val="{{ false }}">
+      <div role="status" style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 6px 6px 16px;border:2px dashed #1C1916;border-radius:12px;background:#FBF9F5;font-size:15px">
+        <span style="min-width:0">{{ note }}</span>
+        <button type="button" onClick="{{ clearNote }}" style="flex-shrink:0;height:{{ ctl }};padding:0 14px;border-radius:10px;border:2px solid #1C1916;background:#FBF9F5;font-size:14px;font-weight:700;cursor:pointer">OK</button>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ desktop }}" hint-placeholder-val="{{ true }}">
+    <div style="flex:1;min-height:0;display:grid;grid-template-columns:184px 384px minmax(0,1fr);background:#FBF9F5;border:2px solid #1C1916;border-radius:18px;box-shadow:0 3px 0 #1C1916;overflow:hidden">
+      <nav aria-label="Folders" style="border-right:2px solid #1C1916;padding:12px;display:flex;flex-direction:column;gap:4px;background:#F4EEE3">
+        <sc-for list="{{ folders }}" as="f" hint-placeholder-count="5">
+          <button type="button" onClick="{{ f.select }}" aria-current="{{ f.current }}" aria-label="{{ f.aria }}" style="display:flex;align-items:center;gap:10px;height:44px;padding:0 10px;border-radius:12px;border:2px solid {{ f.border }};background:{{ f.bg }};font-size:15px;font-weight:{{ f.weight }};cursor:pointer;text-align:left">
+            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style="flex-shrink:0;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="{{ f.icon }}"></path></svg>
+            <span style="flex:1">{{ f.label }}</span><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#3D3832">{{ f.countText }}</span>
+          </button>
+        </sc-for>
+      </nav>
+
+      <section aria-label="Conversations" style="border-right:2px solid #1C1916;display:flex;flex-direction:column;min-height:0;min-width:0">
+        <form role="search" onSubmit="{{ doSearch }}" style="flex-shrink:0;padding:12px;border-bottom:2px solid #1C1916;display:flex;gap:8px">
+          <label style="flex:1;min-width:0;position:relative;display:flex">
+            <span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Search conversations</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style="position:absolute;left:12px;top:13px;fill:none;stroke:#3D3832;stroke-width:2.2;stroke-linecap:round"><path d="M11 4a7 7 0 1 0 0 14a7 7 0 0 0 0-14zM20 20l-4-4"></path></svg>
+            <input type="search" value="{{ draft }}" onChange="{{ onDraft }}" placeholder="Search sender, subject or text" style="flex:1;min-width:0;height:44px;padding:0 12px 0 38px;border:2px solid #1C1916;border-radius:12px;background:#FFFFFF;font-size:15px;box-sizing:border-box">
+          </label>
+          <sc-if value="{{ hasQuery }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ clearSearch }}" style="height:44px;padding:0 12px;border-radius:12px;border:2px solid #1C1916;background:#FBF9F5;font-size:14px;font-weight:700;cursor:pointer">Clear</button></sc-if>
+        </form>
+        <div style="flex-shrink:0;display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid #E3DCD0">
+          <h2 style="margin:0;font-size:17px;font-weight:800">{{ listTitle }}</h2>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#3D3832;white-space:nowrap">{{ listMeta }}</span>
+        </div>
+        <div data-scroll="1" aria-busy="{{ listBusy }}" style="flex:1;min-height:0;overflow:auto;scrollbar-width:none">
+          <sc-if value="{{ isLoading }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:16px;display:flex;flex-direction:column;gap:18px">
+              <div role="status" style="font-size:15px;font-weight:700">Loading conversations…</div>
+              <sc-for list="{{ skeleton }}" as="k" hint-placeholder-count="4"><div aria-hidden="true" style="display:flex;flex-direction:column;gap:8px"><div style="width:{{ k.w1 }};height:14px;border-radius:7px;background:#EDE5D8"></div><div style="width:{{ k.w2 }};height:12px;border-radius:6px;background:#F1EBE1"></div><div style="width:80%;height:12px;border-radius:6px;background:#F1EBE1"></div></div></sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ isError }}" hint-placeholder-val="{{ false }}">
+            <div role="alert" style="margin:16px;padding:16px;border:2px solid #1C1916;border-radius:12px;background:#FFD6C9;display:flex;flex-direction:column;gap:10px">
+              <div style="font-size:16px;font-weight:800">Couldn’t load conversations</div>
+              <div style="font-size:14px;line-height:1.45">Something went wrong while fetching this folder. Your mail is safe.</div>
+              <button type="button" onClick="{{ retry }}" style="align-self:flex-start;height:44px;padding:0 16px;border-radius:10px;border:2px solid #1C1916;background:#FBF9F5;font-size:15px;font-weight:800;cursor:pointer">Try again</button>
+            </div>
+          </sc-if>
+          <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="margin:16px;padding:18px;border:2px dashed #1C1916;border-radius:12px;display:flex;flex-direction:column;gap:6px">
+              <div style="font-size:16px;font-weight:800">{{ emptyTitle }}</div>
+              <div style="font-size:14px;line-height:1.45;color:#3D3832;text-wrap:pretty">{{ emptyBody }}</div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ noResults }}" hint-placeholder-val="{{ false }}">
+            <div style="margin:16px;padding:18px;border:2px dashed #1C1916;border-radius:12px;display:flex;flex-direction:column;gap:10px">
+              <div style="font-size:16px;font-weight:800">No conversations match “{{ query }}”</div>
+              <div style="font-size:14px;line-height:1.45;color:#3D3832">Try a name, an address or a word from the message. Search looks in {{ listTitle }} only.</div>
+              <button type="button" onClick="{{ clearSearch }}" style="align-self:flex-start;height:44px;padding:0 16px;border-radius:10px;border:2px solid #1C1916;background:#FBF9F5;font-size:15px;font-weight:700;cursor:pointer">Clear search</button>
+            </div>
+          </sc-if>
+          <sc-if value="{{ hasRows }}" hint-placeholder-val="{{ true }}">
+            <ul aria-label="{{ listTitle }} conversations" style="list-style:none;margin:0;padding:0">
+              <sc-for list="{{ rows }}" as="r" hint-placeholder-count="6">
+                <li style="border-bottom:1px solid #E3DCD0">
+                  <button type="button" onClick="{{ r.select }}" aria-current="{{ r.current }}" aria-label="{{ r.aria }}" style="width:100%;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:4px;padding:12px 16px 12px 14px;border:0;border-left:4px solid {{ r.edge }};background:{{ r.bg }}" style-hover="background:#F4EEE3">
+                    <div style="display:flex;align-items:baseline;gap:10px;min-width:0"><span style="flex:1;min-width:0;font-size:15px;font-weight:{{ r.weight }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.sender }}</span><time datetime="{{ r.iso }}" title="{{ r.full }}" style="flex-shrink:0;font-size:13px;color:#3D3832;white-space:nowrap">{{ r.date }}</time></div>
+                    <div title="{{ r.subject }}" style="font-size:14px;font-weight:{{ r.subWeight }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.subject }}</div>
+                    <div style="font-size:14px;color:#3D3832;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.snippet }}</div>
+                    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px">
+                      <sc-if value="{{ r.unread }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:999px;border:2px solid #1C1916;background:#F7D56E;font-size:12px;font-weight:800;box-sizing:border-box">Unread</span></sc-if>
+                      <sc-for list="{{ r.labels }}" as="l" hint-placeholder-count="0"><span style="display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:999px;border:2px solid #1C1916;background:#F4EEE3;font-size:12px;font-weight:700;box-sizing:border-box">{{ l }}</span></sc-for>
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6B6359;margin-left:auto">{{ r.count }}</span>
+                    </div>
+                  </button>
+                </li>
+              </sc-for>
+            </ul>
+            <div style="padding:14px 16px 18px;display:flex;flex-direction:column;gap:8px;align-items:flex-start">
+              <sc-if value="{{ hasMore }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ loadMore }}" disabled="{{ loadingMore }}" aria-busy="{{ loadingMore }}" style="height:44px;padding:0 16px;border-radius:10px;border:2px solid #1C1916;background:#FBF9F5;font-size:14px;font-weight:800;cursor:pointer;box-shadow:0 3px 0 #1C1916" style-hover="background:#F7D56E">{{ moreLabel }}</button></sc-if>
+              <sc-if value="{{ atEnd }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:#3D3832">That’s everything in {{ listTitle }}.</div></sc-if>
+            </div>
+          </sc-if>
+        </div>
+      </section>
+
+      <section aria-label="Conversation" style="display:flex;flex-direction:column;min-height:0;min-width:0">
+        <sc-if value="{{ noThread }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:32px">
+            <div style="max-width:320px;text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center">
+              <svg width="40" height="40" viewBox="0 0 24 24" aria-hidden="true" style="fill:none;stroke:#1C1916;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><path d="M3 13h5l1.5 3h5L16 13h5M5 5h14l2 8v6H3v-6z"></path></svg>
+              <div style="font-size:17px;font-weight:800">No conversation open</div>
+              <div style="font-size:14px;line-height:1.45;color:#3D3832">Pick one from the list to read it and reply.</div>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ hasThread }}" hint-placeholder-val="{{ true }}">
+          <div style="flex-shrink:0;padding:16px 20px 12px;border-bottom:2px solid #1C1916;display:flex;flex-direction:column;gap:10px">
+            <h2 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1.2;overflow-wrap:anywhere">{{ t.subject }}</h2>
+            <dl style="margin:0;display:flex;flex-wrap:wrap;gap:4px 18px;font-size:13px;color:#3D3832">
+              <sc-for list="{{ t.meta }}" as="m" hint-placeholder-count="4"><div style="display:flex;gap:6px;min-width:0"><dt style="font-weight:700;color:#1C1916">{{ m.k }}</dt><dd style="margin:0;overflow-wrap:anywhere">{{ m.v }}</dd></div></sc-for>
+            </dl>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+              <sc-if value="{{ t.unread }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;height:28px;padding:0 10px;border-radius:999px;border:2px solid #1C1916;background:#F7D56E;font-size:13px;font-weight:800;box-sizing:border-box">Unread</span></sc-if>
+              <sc-for list="{{ t.labels }}" as="l" hint-placeholder-count="1"><span style="display:inline-flex;align-items:center;height:28px;padding:0 10px;border-radius:999px;border:2px solid #1C1916;background:#F4EEE3;font-size:13px;font-weight:700;box-sizing:border-box">{{ l }}</span></sc-for>
+              <sc-if value="{{ t.noLabels }}" hint-placeholder-val="{{ false }}"><span style="font-size:13px;color:#6B6359">No labels</span></sc-if>
+            </div>
+            <div role="toolbar" aria-label="Conversation actions" style="display:flex;flex-wrap:wrap;gap:8px">
+              <button type="button" onClick="{{ openReply }}" style="height:44px;padding:0 16px;border-radius:10px;border:2px solid #1C1916;background:#FF5A36;font-size:14px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 0 #1C1916"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 6 6v4"></path></svg>Reply</button>
+              <sc-for list="{{ actions }}" as="a" hint-placeholder-count="5"><button type="button" onClick="{{ a.run }}" aria-expanded="{{ a.expanded }}" style="height:44px;padding:0 12px;border-radius:10px;border:2px solid #1C1916;background:{{ a.bg }};font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px" style-hover="background:#F4EEE3"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round"><path d="{{ a.icon }}"></path></svg>{{ a.label }}</button></sc-for>
+            </div>
+            <sc-if value="{{ labelsOpen }}" hint-placeholder-val="{{ false }}">
+              <form onSubmit="{{ saveLabels }}" aria-label="Labels for this conversation" style="padding:14px;border:2px solid #1C1916;border-radius:12px;background:#FCEFC0;display:flex;flex-direction:column;gap:10px">
+                <fieldset style="border:0;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px"><legend style="font-size:14px;font-weight:800;padding:0 0 8px">Labels</legend>
+                  <sc-for list="{{ labelOpts }}" as="o" hint-placeholder-count="4"><label style="display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 12px;border-radius:10px;border:2px solid #1C1916;background:{{ o.bg }};font-size:14px;font-weight:700;cursor:pointer"><input type="checkbox" checked="{{ o.checked }}" onChange="{{ o.toggle }}" style="width:18px;height:18px;margin:0;accent-color:#1C1916">{{ o.name }}</label></sc-for>
+                </fieldset>
+                <div style="display:flex;gap:8px"><button type="submit" style="height:44px;padding:0 16px;border-radius:10px;border:2px solid #1C1916;background:#FF5A36;font-size:14px;font-weight:800;cursor:pointer">Save labels</button><button type="button" onClick="{{ closeLabels }}" style="height:44px;padding:0 16px;border-radius:10px;border:2px solid #1C1916;background:#FBF9F5;font-size:14px;font-weight:700;cursor:pointer">Cancel</button></div>
+              </form>
+            </sc-if>
+          </div>
+          <div data-scroll="1" style="flex:1;min-height:0;overflow:auto;scrollbar-width:none;padding:16px 20px 8px">
+            <ol aria-label="Messages, oldest first" style="list-style:none;margin:0;padding:0">
+              <sc-for list="{{ t.items }}" as="m" hint-placeholder-count="3">
+                <li style="display:grid;grid-template-columns:32px minmax(0,1fr);column-gap:14px">
+                  <div style="position:relative;display:flex;justify-content:center">
+                    <div style="position:absolute;left:15px;top:{{ m.lineTop }};bottom:{{ m.lineBottom }};width:2px;background:#E3DCD0"></div>
+                    <div style="position:relative;width:32px;height:32px;border-radius:10px;border:2px {{ m.tileLine }} #1C1916;background:#FBF9F5;box-sizing:border-box;display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" style="fill:none;stroke:#1C1916;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round"><path d="{{ m.icon }}"></path></svg></div>
+                  </div>
+                  <div style="padding-bottom:14px;min-width:0">
+                    <sc-if value="{{ m.isGap }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ m.expand }}" style="width:100%;height:44px;border-radius:12px;border:2px dashed #1C1916;background:#FBF9F5;font-size:14px;font-weight:800;cursor:pointer" style-hover="background:#F4EEE3">{{ m.gapLabel }}</button></sc-if>
+                    <sc-if value="{{ m.isMsg }}" hint-placeholder-val="{{ true }}">
+                      <article aria-label="{{ m.aria }}" style="border:2px solid #1C1916;border-radius:14px;background:{{ m.bg }};padding:12px 16px 14px;display:flex;flex-direction:column;gap:8px;min-width:0">
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0">
+                          <span style="font-size:15px;font-weight:800">{{ m.fromName }}</span><span style="font-size:13px;color:#3D3832;overflow-wrap:anywhere">{{ m.fromAddr }}</span>
+                          <span style="display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:999px;border:2px solid #1C1916;background:{{ m.badgeBg }};font-size:12px;font-weight:800;box-sizing:border-box">{{ m.dir }}</span>
+                          <time datetime="{{ m.iso }}" title="{{ m.full }}" style="margin-left:auto;font-size:13px;color:#3D3832;white-space:nowrap">{{ m.time }}</time>
+                        </div>
+                        <div style="font-size:13px;color:#3D3832;overflow-wrap:anywhere">To {{ m.to }}</div>
+                        <sc-for list="{{ m.paras }}" as="p" hint-placeholder-count="1"><p style="margin:0;font-size:15px;line-height:1.55;overflow-wrap:anywhere;text-wrap:pretty">{{ p }}</p></sc-for>
+                      </article>
+                    </sc-if>
+                  </div>
+                </li>
+              </sc-for>
+            </ol>
+          </div>
+          <sc-if value="{{ composer }}" hint-placeholder-val="{{ false }}">
+            <form onSubmit="{{ sendReply }}" aria-label="Reply" style="flex-shrink:0;border-top:2px solid #1C1916;background:#FCEFC0;padding:14px 20px 16px;display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px"><span><span style="font-weight:800">To</span> {{ t.replyTo }}</span><span><span style="font-weight:800">From</span> {{ t.replyFrom }}</span></div>
+              <label style="display:flex;flex-direction:column;gap:6px"><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Your reply</span>
+                <textarea value="{{ replyText }}" onChange="{{ onReplyText }}" rows="4" placeholder="Write your reply" style="resize:vertical;min-height:96px;padding:10px 12px;border:2px solid #1C1916;border-radius:12px;background:#FFFFFF;font-size:15px;line-height:1.5;box-sizing:border-box"></textarea>
+              </label>
+              <div style="display:flex;gap:8px;align-items:center"><button type="submit" disabled="{{ cantSend }}" style="height:44px;padding:0 18px;border-radius:10px;border:2px solid #1C1916;background:#FF5A36;font-size:15px;font-weight:800;cursor:pointer;opacity:{{ sendOpacity }}">Send reply</button><button type="button" onClick="{{ closeReply }}" style="height:44px;padding:0 16px;border-radius:10px;border:2px solid #1C1916;background:#FBF9F5;font-size:15px;font-weight:700;cursor:pointer">Cancel</button><span style="font-size:13px;color:#3D3832">Esc closes</span></div>
+            </form>
+          </sc-if>
+        </sc-if>
+      </section>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ mobile }}" hint-placeholder-val="{{ false }}">
+      <nav aria-label="Folders" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px">
+        <sc-for list="{{ folders }}" as="f" hint-placeholder-count="5">
+          <button type="button" onClick="{{ f.select }}" aria-current="{{ f.current }}" aria-label="{{ f.aria }}" style="height:52px;padding:0 2px;border-radius:12px;border:2px solid {{ f.mBorder }};background:{{ f.mBg }};font-size:13px;font-weight:{{ f.weight }};cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-width:0">
+            <span>{{ f.label }}</span><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:500;color:#3D3832">{{ f.mCount }}</span>
+          </button>
+        </sc-for>
+      </nav>
+      <form role="search" onSubmit="{{ doSearch }}" style="display:flex;gap:8px">
+        <label style="flex:1;min-width:0;position:relative;display:flex">
+          <span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Search conversations</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style="position:absolute;left:14px;top:17px;fill:none;stroke:#3D3832;stroke-width:2.2;stroke-linecap:round"><path d="M11 4a7 7 0 1 0 0 14a7 7 0 0 0 0-14zM20 20l-4-4"></path></svg>
+          <input type="search" value="{{ draft }}" onChange="{{ onDraft }}" placeholder="Search mail" style="flex:1;min-width:0;height:52px;padding:0 12px 0 40px;border:2px solid #1C1916;border-radius:12px;background:#FFFFFF;font-size:16px;box-sizing:border-box">
+        </label>
+        <sc-if value="{{ hasQuery }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ clearSearch }}" style="height:52px;padding:0 14px;border-radius:12px;border:2px solid #1C1916;background:#FBF9F5;font-size:15px;font-weight:700;cursor:pointer">Clear</button></sc-if>
+      </form>
+      <section aria-label="Conversations" aria-busy="{{ listBusy }}" style="background:#FBF9F5;border:2px solid #1C1916;border-radius:18px;box-shadow:0 3px 0 #1C1916;overflow:hidden;flex-shrink:0">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:2px solid #1C1916"><h2 style="margin:0;font-size:18px;font-weight:800">{{ listTitle }}</h2><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#3D3832;white-space:nowrap">{{ listMeta }}</span></div>
+        <sc-if value="{{ isLoading }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:16px;display:flex;flex-direction:column;gap:18px"><div role="status" style="font-size:15px;font-weight:700">Loading conversations…</div>
+            <sc-for list="{{ skeleton }}" as="k" hint-placeholder-count="4"><div aria-hidden="true" style="display:flex;flex-direction:column;gap:8px"><div style="width:{{ k.w1 }};height:14px;border-radius:7px;background:#EDE5D8"></div><div style="width:{{ k.w2 }};height:12px;border-radius:6px;background:#F1EBE1"></div></div></sc-for></div>
+        </sc-if>
+        <sc-if value="{{ isError }}" hint-placeholder-val="{{ false }}">
+          <div role="alert" style="margin:16px;padding:16px;border:2px solid #1C1916;border-radius:14px;background:#FFD6C9;display:flex;flex-direction:column;gap:10px"><div style="font-size:16px;font-weight:800">Couldn’t load conversations</div><div style="font-size:15px;line-height:1.45">Something went wrong while fetching this folder. Your mail is safe.</div><button type="button" onClick="{{ retry }}" style="height:52px;border-radius:12px;border:2px solid #1C1916;background:#FBF9F5;font-size:16px;font-weight:800;cursor:pointer">Try again</button></div>
+        </sc-if>
+        <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}">
+          <div style="margin:16px;padding:18px;border:2px dashed #1C1916;border-radius:14px;display:flex;flex-direction:column;gap:6px"><div style="font-size:16px;font-weight:800">{{ emptyTitle }}</div><div style="font-size:15px;line-height:1.45;color:#3D3832;text-wrap:pretty">{{ emptyBody }}</div></div>
+        </sc-if>
+        <sc-if value="{{ noResults }}" hint-placeholder-val="{{ false }}">
+          <div style="margin:16px;padding:18px;border:2px dashed #1C1916;border-radius:14px;display:flex;flex-direction:column;gap:10px"><div style="font-size:16px;font-weight:800;overflow-wrap:anywhere">No conversations match “{{ query }}”</div><div style="font-size:15px;line-height:1.45;color:#3D3832">Try a name, an address or a word from the message.</div><button type="button" onClick="{{ clearSearch }}" style="height:52px;border-radius:12px;border:2px solid #1C1916;background:#FBF9F5;font-size:16px;font-weight:700;cursor:pointer">Clear search</button></div>
+        </sc-if>
+        <sc-if value="{{ hasRows }}" hint-placeholder-val="{{ false }}">
+          <ul aria-label="{{ listTitle }} conversations" style="list-style:none;margin:0;padding:0">
+            <sc-for list="{{ rows }}" as="r" hint-placeholder-count="5">
+              <li style="border-bottom:1px solid #E3DCD0">
+                <button type="button" onClick="{{ r.select }}" aria-label="{{ r.aria }}" style="width:100%;min-height:52px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:4px;padding:14px 16px;border:0;background:transparent">
+                  <div style="display:flex;align-items:baseline;gap:10px;min-width:0;width:100%"><span style="flex:1;min-width:0;font-size:16px;font-weight:{{ r.weight }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.sender }}</span><time datetime="{{ r.iso }}" style="flex-shrink:0;font-size:13px;color:#3D3832">{{ r.date }}</time></div>
+                  <div style="width:100%;font-size:15px;font-weight:{{ r.subWeight }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.subject }}</div>
+                  <div style="width:100%;font-size:14px;color:#3D3832;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.snippet }}</div>
+                  <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;width:100%">
+                    <sc-if value="{{ r.unread }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:999px;border:2px solid #1C1916;background:#F7D56E;font-size:12px;font-weight:800;box-sizing:border-box">Unread</span></sc-if>
+                    <sc-for list="{{ r.labels }}" as="l" hint-placeholder-count="0"><span style="display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:999px;border:2px solid #1C1916;background:#F4EEE3;font-size:12px;font-weight:700;box-sizing:border-box">{{ l }}</span></sc-for>
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6B6359;margin-left:auto">{{ r.count }}</span>
+                  </div>
+                </button>
+              </li>
+            </sc-for>
+          </ul>
+          <div style="padding:14px 16px 16px;display:flex;flex-direction:column;gap:8px">
+            <sc-if value="{{ hasMore }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ loadMore }}" disabled="{{ loadingMore }}" aria-busy="{{ loadingMore }}" style="height:52px;border-radius:12px;border:2px solid #1C1916;background:#FBF9F5;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 3px 0 #1C1916">{{ moreLabel }}</button></sc-if>
+            <sc-if value="{{ atEnd }}" hint-placeholder-val="{{ false }}"><div style="font-size:14px;color:#3D3832;text-align:center">That’s everything in {{ listTitle }}.</div></sc-if>
+          </div>
+        </sc-if>
+      </section>
+    </sc-if>
+  </div>
+
+  <sc-if value="{{ mobile }}" hint-placeholder-val="{{ false }}">
+    <nav aria-label="Dashboard" style="flex-shrink:0;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:2px;padding:6px 4px 10px;background:#FBF9F5;border-top:2px solid #1C1916">
+      <sc-for list="{{ nav }}" as="n" hint-placeholder-count="8">
+        <button type="button" aria-current="{{ n.current }}" aria-label="{{ n.label }}" style="height:60px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-radius:12px;border:2px solid {{ n.border }};background:{{ n.bg }};font-size:10px;font-weight:{{ n.weight }};cursor:pointer;padding:0;min-width:0;overflow:hidden">
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style="flex-shrink:0;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="{{ n.icon }}"></path></svg><span style="max-width:100%;font-size:10px;line-height:1.1;text-align:center;white-space:normal;hyphens:manual">{{ n.short }}</span>
+        </button>
+      </sc-for>
+    </nav>
+  </sc-if>
+</div>
+
+<sc-if value="{{ mThread }}" hint-placeholder-val="{{ false }}">
+  <div role="dialog" aria-modal="true" aria-label="{{ t.subject }}" style="position:absolute;inset:0;z-index:20;background:#FBF9F5;display:flex;flex-direction:column">
+    <div style="flex-shrink:0;padding:max(8px, env(safe-area-inset-top)) 12px 10px;border-bottom:2px solid #1C1916;display:flex;align-items:center;gap:8px">
+      <button type="button" onClick="{{ back }}" aria-label="{{ backAria }}" style="height:52px;padding:0 14px 0 8px;border-radius:12px;border:2px solid #1C1916;background:#FBF9F5;font-size:16px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:4px"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round"><path d="M15 6l-6 6 6 6"></path></svg>{{ listTitle }}</button>
+      <span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#3D3832;white-space:nowrap">{{ t.countText }}</span>
+    </div>
+    <div data-scroll="1" style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;padding:16px 16px 16px">
+      <h2 style="margin:0 0 8px;font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1.2;overflow-wrap:anywhere">{{ t.subject }}</h2>
+      <dl style="margin:0 0 10px;display:flex;flex-direction:column;gap:2px;font-size:13px;color:#3D3832">
+        <sc-for list="{{ t.meta }}" as="m" hint-placeholder-count="4"><div style="display:flex;gap:6px;min-width:0"><dt style="font-weight:700;color:#1C1916;flex-shrink:0">{{ m.k }}</dt><dd style="margin:0;overflow-wrap:anywhere;min-width:0">{{ m.v }}</dd></div></sc-for>
+      </dl>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:16px">
+        <sc-if value="{{ t.unread }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;height:28px;padding:0 10px;border-radius:999px;border:2px solid #1C1916;background:#F7D56E;font-size:13px;font-weight:800;box-sizing:border-box">Unread</span></sc-if>
+        <sc-for list="{{ t.labels }}" as="l" hint-placeholder-count="1"><span style="display:inline-flex;align-items:center;height:28px;padding:0 10px;border-radius:999px;border:2px solid #1C1916;background:#F4EEE3;font-size:13px;font-weight:700;box-sizing:border-box">{{ l }}</span></sc-for>
+      </div>
+      <ol aria-label="Messages, oldest first" style="list-style:none;margin:0;padding:0">
+        <sc-for list="{{ t.items }}" as="m" hint-placeholder-count="3">
+          <li style="display:grid;grid-template-columns:28px minmax(0,1fr);column-gap:10px">
+            <div style="position:relative;display:flex;justify-content:center">
+              <div style="position:absolute;left:13px;top:{{ m.lineTop }};bottom:{{ m.lineBottom }};width:2px;background:#E3DCD0"></div>
+              <div style="position:relative;width:28px;height:28px;border-radius:9px;border:2px {{ m.tileLine }} #1C1916;background:#FBF9F5;box-sizing:border-box;display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" style="fill:none;stroke:#1C1916;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round"><path d="{{ m.icon }}"></path></svg></div>
+            </div>
+            <div style="padding-bottom:12px;min-width:0">
+              <sc-if value="{{ m.isGap }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ m.expand }}" style="width:100%;height:52px;border-radius:12px;border:2px dashed #1C1916;background:#FBF9F5;font-size:15px;font-weight:800;cursor:pointer">{{ m.gapLabel }}</button></sc-if>
+              <sc-if value="{{ m.isMsg }}" hint-placeholder-val="{{ true }}">
+                <article aria-label="{{ m.aria }}" style="border:2px solid #1C1916;border-radius:14px;background:{{ m.bg }};padding:12px 14px;display:flex;flex-direction:column;gap:6px;min-width:0">
+                  <div style="display:flex;align-items:center;gap:8px;min-width:0"><span style="flex:1;min-width:0;font-size:15px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.fromName }}</span><span style="flex-shrink:0;display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:999px;border:2px solid #1C1916;background:{{ m.badgeBg }};font-size:12px;font-weight:800;box-sizing:border-box">{{ m.dir }}</span></div>
+                  <div style="font-size:13px;color:#3D3832;overflow-wrap:anywhere">{{ m.fromAddr }} · <time datetime="{{ m.iso }}">{{ m.time }}</time></div>
+                  <sc-for list="{{ m.paras }}" as="p" hint-placeholder-count="1"><p style="margin:0;font-size:15px;line-height:1.55;overflow-wrap:anywhere">{{ p }}</p></sc-for>
+                </article>
+              </sc-if>
+            </div>
+          </li>
+        </sc-for>
+      </ol>
+      <sc-if value="{{ composer }}" hint-placeholder-val="{{ false }}">
+        <form onSubmit="{{ sendReply }}" aria-label="Reply" style="margin-top:4px;padding:14px;border:2px solid #1C1916;border-radius:14px;background:#FCEFC0;display:flex;flex-direction:column;gap:10px">
+          <div style="font-size:13px;overflow-wrap:anywhere"><span style="font-weight:800">To</span> {{ t.replyTo }}<br><span style="font-weight:800">From</span> {{ t.replyFrom }}</div>
+          <label style="display:flex"><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Your reply</span><textarea value="{{ replyText }}" onChange="{{ onReplyText }}" rows="5" placeholder="Write your reply" style="flex:1;min-width:0;padding:12px;border:2px solid #1C1916;border-radius:12px;background:#FFFFFF;font-size:16px;line-height:1.5;box-sizing:border-box;resize:vertical"></textarea></label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><button type="button" onClick="{{ closeReply }}" style="height:52px;border-radius:12px;border:2px solid #1C1916;background:#FBF9F5;font-size:16px;font-weight:700;cursor:pointer">Cancel</button><button type="submit" disabled="{{ cantSend }}" style="height:52px;border-radius:12px;border:2px solid #1C1916;background:#FF5A36;font-size:16px;font-weight:800;cursor:pointer;opacity:{{ sendOpacity }}">Send reply</button></div>
+        </form>
+      </sc-if>
+    </div>
+    <sc-if value="{{ noComposer }}" hint-placeholder-val="{{ true }}">
+      <div role="toolbar" aria-label="Conversation actions" style="flex-shrink:0;display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:8px;padding:10px 12px max(12px, env(safe-area-inset-bottom));border-top:2px solid #1C1916;background:#FBF9F5">
+        <button type="button" onClick="{{ openReply }}" style="height:52px;border-radius:12px;border:2px solid #1C1916;background:#FF5A36;font-size:16px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 6 6v4"></path></svg>Reply</button>
+        <button type="button" onClick="{{ mArchive.run }}" style="height:52px;border-radius:12px;border:2px solid #1C1916;background:#FBF9F5;font-size:15px;font-weight:700;cursor:pointer">{{ mArchive.label }}</button>
+        <button type="button" onClick="{{ openMore }}" aria-haspopup="dialog" aria-expanded="{{ moreExpanded }}" style="height:52px;border-radius:12px;border:2px solid #1C1916;background:#FBF9F5;font-size:15px;font-weight:700;cursor:pointer">More</button>
+      </div>
+    </sc-if>
+    <sc-if value="{{ sheetOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;z-index:30;display:flex;flex-direction:column;justify-content:flex-end">
+        <div onClick="{{ closeSheet }}" style="position:absolute;inset:0;background:rgba(28,25,22,.55)"></div>
+        <div role="dialog" aria-modal="true" aria-label="{{ sheetTitle }}" style="position:relative;background:#FBF9F5;border-top:2px solid #1C1916;border-radius:24px 24px 0 0;padding:10px 16px max(20px, env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:10px;max-height:80%;overflow:auto;box-sizing:border-box">
+          <div style="width:44px;height:5px;border-radius:3px;background:#E3DCD0;align-self:center"></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><h3 style="margin:0;font-size:20px;font-weight:800">{{ sheetTitle }}</h3><button type="button" onClick="{{ closeSheet }}" style="height:52px;padding:0 14px;border-radius:12px;border:2px solid #1C1916;background:#FBF9F5;font-size:15px;font-weight:700;cursor:pointer">Cancel</button></div>
+          <sc-if value="{{ moreOpen }}" hint-placeholder-val="{{ false }}">
+            <sc-for list="{{ mActions }}" as="a" hint-placeholder-count="4"><button type="button" onClick="{{ a.run }}" style="height:52px;padding:0 14px;border-radius:12px;border:2px solid #1C1916;background:#FBF9F5;font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:12px;text-align:left"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round"><path d="{{ a.icon }}"></path></svg>{{ a.label }}</button></sc-for>
+          </sc-if>
+          <sc-if value="{{ mLabels }}" hint-placeholder-val="{{ false }}">
+            <form onSubmit="{{ saveLabels }}" style="display:flex;flex-direction:column;gap:8px">
+              <fieldset style="border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:8px"><legend style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Labels</legend>
+                <sc-for list="{{ labelOpts }}" as="o" hint-placeholder-count="4"><label style="display:flex;align-items:center;gap:12px;min-height:52px;padding:0 14px;border-radius:12px;border:2px solid #1C1916;background:{{ o.bg }};font-size:16px;font-weight:700;cursor:pointer"><input type="checkbox" checked="{{ o.checked }}" onChange="{{ o.toggle }}" style="width:22px;height:22px;margin:0;accent-color:#1C1916">{{ o.name }}</label></sc-for>
+              </fieldset>
+              <button type="submit" style="height:52px;border-radius:12px;border:2px solid #1C1916;background:#FF5A36;font-size:17px;font-weight:800;cursor:pointer;box-shadow:0 3px 0 #1C1916">Save labels</button>
+            </form>
+          </sc-if>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:1000},&quot;mode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;desktop&quot;,&quot;mobile&quot;],&quot;default&quot;:&quot;desktop&quot;,&quot;tsType&quot;:&quot;'desktop'|'mobile'&quot;},&quot;demo&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;default&quot;,&quot;long&quot;,&quot;reply&quot;,&quot;labels&quot;,&quot;unselected&quot;,&quot;empty&quot;,&quot;loading&quot;,&quot;error&quot;,&quot;noresults&quot;,&quot;list&quot;,&quot;thread&quot;,&quot;actions&quot;],&quot;default&quot;:&quot;default&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;height&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:null,&quot;tsType&quot;:&quot;number&quot;,&quot;unit&quot;:&quot;px&quot;}}">
+const NAV = [
+  { id: 'overview', label: 'Overview', icon: 'M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z' },
+  { id: 'emails', label: 'Emails', icon: 'M3 6h18v12H3zM3 7l9 6 9-6' },
+  { id: 'receiving', label: 'Receiving', short: 'Inbox', icon: 'M3 13h5l1.5 3h5L16 13h5M5 5h14l2 8v6H3v-6z' },
+  { id: 'contacts', label: 'Contacts', icon: 'M9 11a4 4 0 1 0 0-8a4 4 0 0 0 0 8zM2 21c0-4 3-6 7-6s7 2 7 6M16 3.5a4 4 0 0 1 0 7.5M22 21c0-3-1.5-5-4-5.7' },
+  { id: 'templates', label: 'Templates', icon: 'M5 4h14v16H5zM8 8h8M8 12h8M8 16h5' },
+  { id: 'domains', label: 'Domains', icon: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18' },
+  { id: 'block', label: 'Block list', short: 'Blocked', icon: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM5.6 5.6l12.8 12.8' },
+  { id: 'keys', label: 'API keys', short: 'Keys', icon: 'M15 3a6 6 0 1 1-5.2 9L3 18.8V21h3v-2h2v-2h2l1.8-1.8A6 6 0 0 1 15 3zM16.5 7.5h.01' }
+];
+// Phone tab labels: soft hyphens let long words break onto a second line instead of being cut off.
+const SHORT = { overview: 'Over\u00ADview', receiving: 'Inbox', contacts: 'Con\u00ADtacts', templates: 'Tem\u00ADplates', domains: 'Do\u00ADmains', block: 'Block list', keys: 'API keys' };
+const IC = {
+  inbox: 'M3 13h5l1.5 3h5L16 13h5M5 5h14l2 8v6H3v-6z', sent: 'M21 3L3 10.5l7 3 3 7zM10 13.5L21 3', archive: 'M3 4h18v4H3zM5 8v12h14V8M10 12h4',
+  spam: 'M12 3l9 16H3zM12 10v4M12 17h.01', trash: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13', mail: 'M3 6h18v12H3zM3 7l9 6 9-6',
+  label: 'M3 12V4h8l10 10-8 8zM7.5 7.5h.01', more: 'M7 12h10'
+};
+const FOLDERS = [['inbox', 'Inbox'], ['sent', 'Sent'], ['archive', 'Archive'], ['spam', 'Spam'], ['trash', 'Trash']];
+// Fictional demo records (design prototype only).
+const INBOXES = [{ id: 'i1', address: 'hello@goodyarn.example' }, { id: 'i2', address: 'orders@goodyarn.example' }];
+const LABELS = [{ id: 'l1', name: 'Workshops' }, { id: 'l2', name: 'Wholesale' }, { id: 'l3', name: 'Orders' }, { id: 'l4', name: 'Follow up' }];
+const P = (name, address) => ({ name, address });
+const ME = { i1: P('Good Yarn Co.', 'hello@goodyarn.example'), i2: P('Good Yarn Co.', 'orders@goodyarn.example') };
+const M = (id, dir, at, text) => ({ id, dir, at, text });
+const THREADS = [
+  { id: 't1', inbox: 'i1', folder: 'inbox', unread: true, labels: ['l1'], subject: 'Weekend class: can I bring a friend?', p: P('Mia Thompson', 'mia.thompson@example.com'), messages: [
+    M('m1', 'in', '2026-11-26T18:20:00+11:00', 'Hi there! I’m booked into Saturday’s beginner class. Could my friend Zoe come along too? She’s never knitted before.'),
+    M('m2', 'out', '2026-11-27T08:55:00+11:00', 'Hi Mia, of course! There are two spots left.\nZoe can book on the website, or reply here and we’ll hold one for her.'),
+    M('m3', 'in', '2026-11-27T09:41:00+11:00', 'Amazing, thank you. Please hold one for Zoe Clarke. We’ll both bring 5 mm needles.') ] },
+  { id: 't2', inbox: 'i2', folder: 'inbox', unread: true, labels: ['l2'], subject: 'December wholesale order', p: P('Jack Wilson', 'jack.wilson@example.net'), messages: [
+    M('m1', 'in', '2026-11-27T08:12:00+11:00', 'Morning! Can we add 20 skeins of Eucalyptus 8-ply to the December order? Same delivery address as last time.') ] },
+  { id: 't3', inbox: 'i2', folder: 'inbox', unread: false, labels: ['l3', 'l4'], subject: 'Order #1042 arrived with a pulled skein', p: P('Priya Desai', 'priya.desai@example.com'), messages: [
+    M('m1', 'in', '2026-11-24T10:02:00+11:00', 'Hi, my order arrived today but one skein of the Saltbush DK has a big pull in it.'),
+    M('m2', 'out', '2026-11-24T11:30:00+11:00', 'Sorry about that, Priya. Could you tell us the dye lot on the label so we can match it?'),
+    M('m3', 'in', '2026-11-24T12:14:00+11:00', 'It says lot 18B.'),
+    M('m4', 'out', '2026-11-24T14:40:00+11:00', 'Thanks. We have lot 18B in stock, so we’ll post a replacement tomorrow.'),
+    M('m5', 'in', '2026-11-24T15:02:00+11:00', 'Great, thanks so much.'),
+    M('m6', 'out', '2026-11-25T09:20:00+11:00', 'Your replacement is in the post. Tracking number: GY-55821.'),
+    M('m7', 'in', '2026-11-25T18:45:00+11:00', 'Got the tracking, thank you!'),
+    M('m8', 'in', '2026-11-26T14:58:00+11:00', 'It arrived and it’s perfect. Should I send the pulled one back?'),
+    M('m9', 'out', '2026-11-26T15:10:00+11:00', 'No need, keep it for swatching. Happy knitting!') ] },
+  { id: 't4', inbox: 'i1', folder: 'inbox', unread: false, labels: [], subject: 'Do you dye to order?', p: P('Tom Baker', 'tom.baker@example.net'), messages: [
+    M('m1', 'in', '2026-11-25T13:30:00+11:00', 'I’m after a deep teal for a jumper, about 1.2 kg. Is that something you’d dye to order?') ] },
+  { id: 't5', inbox: 'i2', folder: 'inbox', unread: false, labels: ['l3'], subject: 'Gift card balance', p: P('Hannah Lee', 'hannah.lee@example.org'), messages: [
+    M('m1', 'in', '2026-11-23T10:10:00+11:00', 'Hi, how much is left on gift card GY-GC-3381?'),
+    M('m2', 'out', '2026-11-23T11:02:00+11:00', 'Hi Hannah, there’s $34.50 left on that card.') ] },
+  { id: 't6', inbox: 'i1', folder: 'inbox', unread: false, labels: [], subject: 'Thanks for the pattern!', p: P('Sam Carter', 'sam.carter@example.com'), messages: [
+    M('m1', 'in', '2026-11-18T19:40:00+11:00', 'Finished the cowl from your free pattern. It’s so cosy. Thank you!') ] },
+  { id: 't7', inbox: 'i1', folder: 'inbox', unread: false, labels: [], subject: 'Stall at the Sunday market?', p: P('Olivia Brown', 'olivia.brown@example.com'), messages: [
+    M('m1', 'in', '2026-11-10T09:15:00+11:00', 'Will you have a stall at the market this Sunday? I’d love to pick up some sock yarn.') ] },
+  { id: 't8', inbox: 'i2', folder: 'inbox', unread: false, labels: ['l3'], subject: 'Change of delivery address', p: P('Noah Kim', 'noah.kim@example.net'), messages: [
+    M('m1', 'in', '2026-11-06T16:20:00+11:00', 'Please send order #1019 to my work address instead.'),
+    M('m2', 'out', '2026-11-06T16:48:00+11:00', 'Done, Noah. It’s updated.') ] },
+  { id: 't9', inbox: 'i1', folder: 'inbox', unread: false, labels: [], subject: 'Colour card request', p: P('Ella Martin', 'ella.martin@example.org'), messages: [
+    M('m1', 'in', '2026-11-02T12:00:00+11:00', 'Could you post me a colour card for the 8-ply range?') ] },
+  { id: 't10', inbox: 'i1', folder: 'sent', unread: false, labels: ['l1'], subject: 'Your workshop booking', p: P('Ruby Patel', 'ruby.patel@example.net'), messages: [
+    M('m1', 'out', '2026-11-22T10:30:00+11:00', 'Hi Ruby, you’re booked into the colourwork workshop on 6 December.') ] },
+  { id: 't11', inbox: 'i1', folder: 'archive', unread: false, labels: ['l1'], subject: 'Class photos', p: P('Grace O’Brien', 'grace.obrien@example.com'), messages: [
+    M('m1', 'in', '2026-11-15T17:05:00+11:00', 'Here’s the group photo from Saturday!'), M('m2', 'out', '2026-11-15T18:00:00+11:00', 'Love it, thanks Grace!') ] },
+  { id: 't12', inbox: 'i1', folder: 'trash', unread: false, labels: [], subject: 'Wrong order number', p: P('Leo Nguyen', 'leo.nguyen@example.com'), messages: [
+    M('m1', 'in', '2026-11-01T08:30:00+11:00', 'Sorry, ignore my last email, I used the wrong order number.') ] }
+];
+const PAGE = 6, TZ = 'Australia/Sydney', NOW = '2026-11-27T12:00:00+11:00';
+const fTime = new Intl.DateTimeFormat('en-AU', { timeZone: TZ, hour: 'numeric', minute: '2-digit', hour12: true });
+const fKey = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
+const fDay = new Intl.DateTimeFormat('en-AU', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short' });
+const fDayY = new Intl.DateTimeFormat('en-AU', { timeZone: TZ, day: 'numeric', month: 'short', year: 'numeric' });
+const fFull = new Intl.DateTimeFormat('en-AU', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' });
+const today = fKey.format(new Date(NOW)), yday = fKey.format(new Date(new Date(NOW).getTime() - 864e5));
+const listDate = iso => { const d = new Date(iso), k = fKey.format(d); return k === today ? fTime.format(d) : k === yday ? 'Yesterday' : k.slice(0, 4) === today.slice(0, 4) ? fDay.format(d) : fDayY.format(d); };
+const msgTime = iso => { const d = new Date(iso), k = fKey.format(d); return (k === today ? 'Today' : k === yday ? 'Yesterday' : fDay.format(d)) + ', ' + fTime.format(d); };
+const last = t => t.messages[t.messages.length - 1];
+const lname = id => (LABELS.find(l => l.id === id) || {}).name;
+const ON = { border: '#1C1916', bg: '#F7D56E', weight: 800 }, OFF = { border: 'transparent', bg: 'transparent', weight: 600 };
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const d = props.demo || 'default', m = props.mode === 'mobile';
+    const sel = { default: 't1', long: 't3', reply: 't1', labels: 't1', thread: 't1', actions: 't1' }[d] || null;
+    const threads = THREADS.map(t => ({ ...t, messages: t.messages.slice(), unread: t.id === sel ? false : t.unread }));
+    this.state = {
+      threads, inbox: 'all', folder: d === 'empty' ? 'spam' : 'inbox', query: d === 'noresults' ? 'invoice' : '', draft: d === 'noresults' ? 'invoice' : '',
+      sel: m && !['thread', 'long', 'actions', 'reply', 'labels'].includes(d) ? null : sel, page: 1, listStatus: d === 'loading' ? 'loading' : d === 'error' ? 'error' : 'ready',
+      loadingMore: false, composer: d === 'reply', replyText: d === 'reply' ? 'Done, Zoe’s spot is held. See you both on Saturday!' : '',
+      labelsOpen: d === 'labels', labelDraft: d === 'labels' ? ['l1'] : [], moreOpen: d === 'actions', showAll: {}, note: ''
+    };
+    this.timers = [];
+  }
+  componentDidMount() {
+    this.onKey = e => {
+      if (e.key !== 'Escape') return;
+      const s = this.state;
+      if (s.moreOpen || s.labelsOpen) return this.setState({ moreOpen: false, labelsOpen: false });
+      if (s.composer) return this.setState({ composer: false });
+      if (this.props.mode === 'mobile' && s.sel) this.setState({ sel: null });
+    };
+    window.addEventListener('keydown', this.onKey);
+  }
+  componentWillUnmount() { window.removeEventListener('keydown', this.onKey); this.timers.forEach(clearTimeout); }
+  later(fn, ms) { this.timers.push(setTimeout(fn, ms)); }
+  patchThread(id, fn) { this.setState(s => ({ threads: s.threads.map(t => t.id === id ? fn(t) : t) })); }
+
+  renderVals() {
+    const s = this.state, mobile = this.props.mode === 'mobile', desktop = !mobile, set = p => this.setState(p);
+    const inScope = t => s.inbox === 'all' || t.inbox === s.inbox;
+    const fLabel = (FOLDERS.find(f => f[0] === s.folder) || [])[1];
+    const folders = FOLDERS.map(([id, label]) => {
+      const unread = s.threads.filter(t => t.folder === id && inScope(t) && t.unread).length, cur = s.folder === id, st = cur ? ON : OFF;
+      return { label, icon: IC[id], current: cur ? 'page' : undefined, border: st.border, bg: st.bg, weight: st.weight, mBorder: cur ? '#1C1916' : '#E3DCD0', mBg: cur ? '#F7D56E' : '#FBF9F5',
+        countText: unread ? unread + ' new' : '', mCount: unread ? unread + ' new' : '\u00A0', aria: label + (unread ? `, ${unread} unread` : ''),
+        select: () => set({ folder: id, sel: null, page: 1, composer: false, labelsOpen: false, listStatus: s.listStatus === 'error' ? 'error' : 'ready' }) };
+    });
+    const q = s.query.trim().toLowerCase();
+    const all = s.threads.filter(t => t.folder === s.folder && inScope(t)).sort((a, b) => last(b).at.localeCompare(last(a).at));
+    const matched = q ? all.filter(t => [t.subject, t.p.name, t.p.address, ...t.messages.map(m => m.text)].join(' ').toLowerCase().includes(q)) : all;
+    const shown = q ? matched : matched.slice(0, s.page * PAGE), ready = s.listStatus === 'ready';
+    const rows = shown.map(t => {
+      const lm = last(t), cur = t.id === s.sel && desktop;
+      return { id: t.id, sender: (s.folder === 'sent' ? 'To ' : '') + t.p.name, subject: t.subject, snippet: (lm.dir === 'out' ? 'You: ' : '') + lm.text.replace(/\n/g, ' '),
+        iso: lm.at, date: listDate(lm.at), full: fFull.format(new Date(lm.at)), unread: t.unread, weight: t.unread ? 800 : 600, subWeight: t.unread ? 800 : 600,
+        labels: t.labels.map(lname), count: t.messages.length > 1 ? t.messages.length + ' messages' : '', current: cur ? 'true' : undefined,
+        bg: cur ? '#FCEFC0' : 'transparent', edge: cur ? '#1C1916' : 'transparent',
+        aria: `${t.unread ? 'Unread. ' : ''}${t.p.name}. ${t.subject}. ${listDate(lm.at)}`,
+        select: () => { set({ sel: t.id, composer: false, labelsOpen: false, moreOpen: false }); if (t.unread) this.patchThread(t.id, x => ({ ...x, unread: false })); } };
+    });
+    const hasMore = ready && !q && shown.length < matched.length;
+    const unreadN = all.filter(t => t.unread).length;
+    const th = s.threads.find(t => t.id === s.sel);
+    let t = { meta: [], items: [], labels: [] };
+    if (th) {
+      const msgs = th.messages, collapse = msgs.length > 4 && !s.showAll[th.id];
+      const view = collapse ? [msgs[0], { gap: msgs.length - 3 }, ...msgs.slice(-2)] : msgs;
+      const items = view.map((m, i) => {
+        const pos = { lineTop: i === 0 ? '16px' : '0px', lineBottom: i === view.length - 1 ? 'calc(100% - 16px)' : '0px' };
+        if (m.gap) return { ...pos, isGap: true, isMsg: false, icon: IC.more, tileLine: 'dashed', gapLabel: `Show ${m.gap} earlier messages`, expand: () => set({ showAll: { ...s.showAll, [th.id]: true } }) };
+        const out = m.dir === 'out', from = out ? ME[th.inbox] : th.p, to = out ? th.p : ME[th.inbox];
+        return { ...pos, isGap: false, isMsg: true, icon: out ? IC.sent : IC.inbox, tileLine: 'solid', fromName: from.name, fromAddr: from.address, to: `${to.name} <${to.address}>`,
+          dir: out ? 'Sent' : 'Received', badgeBg: out ? '#F4EEE3' : '#FBF9F5', bg: out ? '#F4EEE3' : '#FFFFFF', iso: m.at, time: msgTime(m.at), full: fFull.format(new Date(m.at)),
+          paras: m.text.split('\n'), aria: `${out ? 'Sent' : 'Received'} message from ${from.name}, ${msgTime(m.at)}` };
+      });
+      t = { subject: th.subject, unread: th.unread, labels: th.labels.map(lname), noLabels: !th.labels.length, items,
+        countText: th.messages.length + (th.messages.length === 1 ? ' MESSAGE' : ' MESSAGES'),
+        meta: [{ k: 'With', v: `${th.p.name} <${th.p.address}>` }, { k: 'Inbox', v: ME[th.inbox].address }, { k: 'Folder', v: (FOLDERS.find(f => f[0] === th.folder) || [])[1] },
+          { k: 'Messages', v: String(th.messages.length) }, { k: 'Started', v: msgTime(th.messages[0].at) }],
+        replyTo: `${th.p.name} <${th.p.address}>`, replyFrom: ME[th.inbox].address };
+    }
+    const move = (to, word) => () => {
+      if (!th) return;
+      this.patchThread(th.id, x => ({ ...x, folder: to }));
+      set({ sel: null, composer: false, labelsOpen: false, moreOpen: false, note: `Moved “${th.subject}” to ${word}.` });
+    };
+    const toggleRead = () => { if (!th) return; const u = !th.unread; this.patchThread(th.id, x => ({ ...x, unread: u })); set({ moreOpen: false, note: u ? 'Marked as unread.' : 'Marked as read.' }); };
+    const openLabels = () => set({ labelsOpen: !s.labelsOpen || mobile, moreOpen: false, labelDraft: th ? th.labels.slice() : [] });
+    const actDefs = th ? [
+      { label: th.unread ? 'Mark as read' : 'Mark as unread', icon: IC.mail, run: toggleRead },
+      { label: 'Labels', icon: IC.label, run: openLabels, expanded: String(s.labelsOpen), bg: s.labelsOpen ? '#F7D56E' : '#FBF9F5' },
+      th.folder !== 'archive' && { label: 'Archive', icon: IC.archive, run: move('archive', 'Archive') },
+      th.folder === 'archive' && { label: 'Move to Inbox', icon: IC.inbox, run: move('inbox', 'Inbox') },
+      th.folder !== 'spam' && { label: 'Spam', icon: IC.spam, run: move('spam', 'Spam') },
+      th.folder !== 'trash' && { label: 'Trash', icon: IC.trash, run: move('trash', 'Trash') }
+    ].filter(Boolean).map(a => ({ bg: '#FBF9F5', expanded: undefined, ...a })) : [];
+    const mArchive = actDefs.find(a => a.label === 'Archive' || a.label === 'Move to Inbox') || { label: 'Archive', run: () => {} };
+    const doSearch = e => { if (e && e.preventDefault) e.preventDefault(); set({ query: s.draft, sel: desktop ? s.sel : null }); };
+    const emptyCopy = { inbox: ['Nothing in Inbox', 'New conversations sent to your addresses will show up here.'], sent: ['Nothing sent yet', 'Replies you send from here will be kept in Sent.'],
+      archive: ['Archive is empty', 'Archive a conversation to tidy it out of Inbox without deleting it.'], spam: ['No spam', 'Anything marked as spam goes here, out of your way.'],
+      trash: ['Trash is empty', 'Conversations you move to Trash show up here.'] }[s.folder];
+    return {
+      desktop, mobile, rootDir: desktop ? 'row' : 'column', rootH: (this.props.height ?? (mobile ? 844 : 1000)) + 'px', mainOverflow: desktop ? 'hidden' : 'auto',
+      pad: desktop ? '28px 32px 32px' : '20px 16px 24px', hdrDir: desktop ? 'row' : 'column', hdrAlign: desktop ? 'flex-end' : 'stretch', h1Size: desktop ? '36px' : '30px', ctl: desktop ? '44px' : '52px',
+      nav: NAV.map(n => { const c = n.id === 'receiving'; return { ...n, short: SHORT[n.id] || n.label, current: c ? 'page' : undefined, border: c ? '#1C1916' : 'transparent', bg: c ? '#F7D56E' : 'transparent', weight: c ? 800 : 600 }; }),
+      inbox: s.inbox, inboxOpts: [{ value: 'all', label: 'All inboxes' }, ...INBOXES.map(i => ({ value: i.id, label: i.address }))], onInbox: e => set({ inbox: e.target.value, sel: null, page: 1 }),
+      folders, listTitle: fLabel, listMeta: ready ? `${unreadN} UNREAD · ${shown.length} SHOWN` : '', draft: s.draft, onDraft: e => set({ draft: e.target.value }), doSearch,
+      hasQuery: !!s.query, query: s.query, clearSearch: () => set({ query: '', draft: '' }),
+      isLoading: s.listStatus === 'loading', isError: s.listStatus === 'error', listBusy: String(s.listStatus === 'loading' || s.loadingMore),
+      isEmpty: ready && !q && all.length === 0, noResults: ready && !!q && matched.length === 0, hasRows: ready && rows.length > 0, rows,
+      emptyTitle: emptyCopy[0], emptyBody: emptyCopy[1], hasMore, atEnd: ready && rows.length > 0 && !hasMore && !q, loadingMore: s.loadingMore,
+      moreLabel: s.loadingMore ? 'Loading older conversations…' : 'Load older conversations',
+      loadMore: () => { set({ loadingMore: true }); this.later(() => this.setState(x => ({ loadingMore: false, page: x.page + 1 })), 700); },
+      retry: () => { set({ listStatus: 'loading' }); this.later(() => set({ listStatus: 'ready' }), 700); },
+      skeleton: [{ w1: '55%', w2: '75%' }, { w1: '40%', w2: '62%' }, { w1: '48%', w2: '70%' }, { w1: '36%', w2: '58%' }],
+      hasThread: !!th, noThread: !th, t, actions: actDefs,
+      mActions: actDefs.filter(a => a !== mArchive), mArchive,
+      composer: s.composer && !!th, noComposer: !s.composer, replyText: s.replyText, onReplyText: e => set({ replyText: e.target.value }),
+      openReply: () => set({ composer: true, labelsOpen: false, moreOpen: false }), closeReply: () => set({ composer: false }),
+      cantSend: !s.replyText.trim(), sendOpacity: s.replyText.trim() ? 1 : 0.5,
+      sendReply: e => { if (e && e.preventDefault) e.preventDefault(); if (!th || !s.replyText.trim()) return;
+        const msg = M('r' + Date.now(), 'out', '2026-11-27T11:58:00+11:00', s.replyText.trim());
+        this.patchThread(th.id, x => ({ ...x, messages: [...x.messages, msg] })); set({ composer: false, replyText: '', note: `Reply sent from ${ME[th.inbox].address}.` }); },
+      labelsOpen: s.labelsOpen && desktop && !!th, labelOpts: LABELS.map(l => { const c = s.labelDraft.includes(l.id); return { name: l.name, checked: c, bg: c ? '#F7D56E' : '#FBF9F5',
+        toggle: () => set({ labelDraft: c ? s.labelDraft.filter(x => x !== l.id) : [...s.labelDraft, l.id] }) }; }),
+      saveLabels: e => { if (e && e.preventDefault) e.preventDefault(); if (!th) return; const ids = s.labelDraft.slice(); this.patchThread(th.id, x => ({ ...x, labels: ids })); set({ labelsOpen: false, note: 'Labels saved.' }); },
+      closeLabels: () => set({ labelsOpen: false }),
+      hasNote: !!s.note, note: s.note, clearNote: () => set({ note: '' }),
+      mThread: mobile && !!th, back: () => set({ sel: null, composer: false, moreOpen: false, labelsOpen: false }), backAria: 'Back to ' + fLabel,
+      openMore: () => set({ moreOpen: true, labelsOpen: false }), moreExpanded: String(s.moreOpen),
+      sheetOpen: mobile && (s.moreOpen || s.labelsOpen), moreOpen: s.moreOpen, mLabels: mobile && s.labelsOpen && !s.moreOpen,
+      sheetTitle: s.labelsOpen && !s.moreOpen ? 'Labels' : 'More actions', closeSheet: () => set({ moreOpen: false, labelsOpen: false })
+    };
+  }
+}
+</script>
+</body>
+</html>

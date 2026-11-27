@@ -31,8 +31,8 @@ Send, thanks is an independent mail platform. It must not call the external mail
 | Audiences, segments and topics | Partial, local smoke validation passed | Saved live segments support tag, opt-in and unsubscribe filters, with counts, paginated contact previews, and point-in-time `all_contacts`, `subscribers` and `unsubscribers` metrics by segment. Topic CRUD, a public signed preference center, contact topic preferences, and multipart contact imports with column mapping, conflict handling, segment assignment, and explicit-consent topic opt-in are available. Imports are synchronous, limited to 2 MB and 2,000 rows. Broad segmentation rules remain absent. |
 | Broadcasts/newsletters | Partial, local smoke validation passed | Dashboard can save, edit, schedule, cancel and queue personalized campaigns to saved segments or subscribed topics. Only opted-in, non-suppressed contacts are eligible. Messages include signed preferences links and RFC 8058 unsubscribe headers. Each send is limited to 1,000 recipients and is drained by the existing worker. Recipient and clicked-link analytics are available through key-scoped, bounded APIs. Broadcast drafts include the visual block editor and sandboxed preview. Experiments, recipient outcome ingestion, and production relay verification are not implemented. |
 | Automations | Partial, local smoke validation passed | Full-access API and dashboard create, activate, pause and archive event-triggered workflows. Supports condition branches, delays up to 30 days, filtered wait-for-event, template email, contact name/property/tag updates, add-to-segment, idempotent custom event sends and per-step run history/cancel. Event schema CRUD and payload validation are implemented. Template references are protected from deletion. The dashboard has a simple action builder and JSON graph editor; a drag-and-drop visual canvas is absent. A durable database and scheduled worker are required. Contact deletion actions and retry/resume for failed runs are absent. |
-| Inbound email and message receiving | Partial | A signed, replay-resistant normalized provider event bridge stores inbound message bodies and attachments; full-access keys and the dashboard Receiving view can list, retrieve and download them. No MX routing or inbound SMTP/provider is configured, so actual receipt depends on an external service forwarding events. Threading and mailbox actions are absent. |
-| Shared inboxes | Not implemented | Requires inbound receiving, threads, assignments, drafts and team access controls. |
+| Inbound email and message receiving | Partial | A signed, replay-resistant normalized event bridge stores inbound message bodies and attachments. The dashboard groups messages by `Message-ID`, `In-Reply-To` and `References`, and can list, retrieve and download them. Actual receipt still depends on a separately configured forwarding service; Send, thanks does not host inbound SMTP or configure MX records. |
+| Shared inboxes | Partial | The single-admin dashboard supports inbox selection, conversation search, Inbox/Sent/Archive/Spam/Trash folders, labels, read state, and threaded plain-text replies. Replies use the selected inbox address and RFC threading headers with idempotency protection. No inbox address provisioning, assignment, private notes, saved drafts, team access, agent actions or inbox workflows are implemented. Search is plain text, without query operators or date filters. |
 
 ## Developer and team platform
 
@@ -44,7 +44,7 @@ Send, thanks is an independent mail platform. It must not call the external mail
 | Multiple workspaces, members and roles | Not implemented | Current admin is a single shared password session. |
 | OAuth, SSO and audit log | Not implemented | Requires identity and account-security design. |
 | Billing, quotas and plan controls | Not implemented | No billing provider or usage enforcement exists. |
-| Agent inboxes and inbox automation | Not implemented | Send, thanks has no inbox threads, assignments or agent actions. |
+| Agent inboxes and inbox automation | Not implemented | Send, thanks has no inbox agent connection, assignment, draft/forward action, instruction controls or inbox-triggered workflow. |
 
 ## Newly implemented Send, thanks endpoints
 
@@ -71,6 +71,10 @@ Send, thanks is an independent mail platform. It must not call the external mail
 | `GET /api/receiving` | Authenticated dashboard inbox list with cursor pagination. |
 | `GET /api/receiving/{id}` | Authenticated dashboard inbox detail with body, headers and attachment metadata. |
 | `GET /api/receiving/{id}/attachments/{attachment_id}` | Download an inbound attachment from the authenticated dashboard. |
+| `GET /api/receiving/threads` | Authenticated dashboard conversation list with folders, inbox filter, plain-text search and cursor pagination. |
+| `GET /api/receiving/threads/{id}` | Read a conversation and its inbound/outbound messages without changing read state. |
+| `PATCH /api/receiving/threads/{id}` | Set folder, read state, or up to 20 labels on a conversation. |
+| `POST /api/receiving/threads/{id}/reply` | Send a plain-text reply from the conversation inbox address with message threading and idempotency protection. |
 | `GET`, `POST /api/v1/segments` | List and create saved live contact segments. Filters support tags, consent state and unsubscribe state. |
 | `GET`, `PATCH`, `DELETE /api/v1/segments/{id}` | Read, update or remove a saved segment. Contact membership is dynamic. |
 | `GET /api/v1/segments/{id}/contacts` | Paginated contacts currently matching a segment. |
@@ -122,10 +126,8 @@ Send, thanks is an independent mail platform. It must not call the external mail
 
 Webhook signatures use `svix-id`, `svix-timestamp`, and `svix-signature` headers. The `whsec_` value is base64url encoded HMAC material. The receiver signs/verifies `<event_id>.<timestamp>.<raw_json_body>` using HMAC SHA-256. Delivery payloads remain in the database for retries; bounded receiver response excerpts are retained in attempt history.
 
-## Verified official references
+## Verification notes
 
-- [Email Compatibility Checker](https://resend.com/changelog/email-compatibility-checker)
-- [Template Folders](https://resend.com/changelog/template-folders)
-- [Vercel Cron Jobs](https://vercel.com/docs/cron-jobs)
+Current product capability notes were checked against primary product documentation on 27 November 2026. Source names and URLs are omitted from this public inventory so customer-facing material does not expose other mail service names. The worker scheduling reference remains [Vercel Cron Jobs](https://vercel.com/docs/cron-jobs).
 
 Do not describe Send, thanks as a complete email platform until every applicable row has implemented behavior and verification evidence. Features requiring a delivery event provider, inbound mail provider, team identity system or worker must remain listed as dependencies until configured.

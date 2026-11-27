@@ -209,7 +209,7 @@ export default function SendThanksDashboard(props: DashboardProps) {
   ));
 
   return (
-    <div className={s.root}>
+    <div className={`${s.root} ${view === 'receiving' ? s.inboxRoot : ''}`}>
       <aside className={s.sidebar}>
         <div className={s.brand}><SendThanksLogo size={21} withIcon iconSize={32} /></div>
         <div className={s.account}>
@@ -253,8 +253,8 @@ export default function SendThanksDashboard(props: DashboardProps) {
           <Meter usage={usage} />
         </div>
 
-        <main className={s.main}>
-          {view === 'detail' ? props.pageContent : <>
+        <main className={`${s.main} ${view === 'receiving' ? s.inboxMain : ''}`}>
+          {view === 'detail' || view === 'receiving' ? props.pageContent : <>
           <div className={s.pageHead}>
             <div><h1 className={s.h1}>{COPY[view][0]}</h1><p className={s.lede}>{COPY[view][1]}</p></div>
             {action && (
