@@ -1,12 +1,36 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import SendThanksAutomationCanvas, {
+  CANVAS_KEY,
+  insertStep,
+  removeStep,
+  type ActivationState,
+  type AutomationConnection,
+  type AutomationStep,
+  type CanvasMeta,
+  type SaveState,
+  type StepType,
+  type ValidationIssue,
+} from './SendThanksAutomationCanvas';
 
 type ApiKey = { id: string; name: string; permission: 'full_access' | 'sending_access'; prefix: string };
 type Domain = { id: string; domain: string; verified_at: string | null };
 type Template = { id: string; name: string; subject: string };
 type Segment = { id: string; name: string; contacts_count: number };
-type Automation = { id: string; api_key_id: string; key_name?: string; name: string; status: string; trigger_event: string; steps: Array<{ key: string; type: string; config: Record<string, unknown> }>; connections: Array<{ from: string; to: string; condition?: string }>; created_at: string; updated_at: string };
+type Automation = { id: string; api_key_id: string; key_name?: string; name: string; status: 'draft' | 'active' | 'paused'; trigger_event: string; steps: AutomationStep[]; connections: AutomationConnection[]; created_at: string; updated_at: string };
+type AutomationDraft = {
+  id: string;
+  name: string;
+  status: 'draft' | 'paused';
+  steps: AutomationStep[];
+  connections: AutomationConnection[];
+  selectedKey: string | null;
+  saveState: SaveState;
+  savedAtLabel: string | null;
+  issues: ValidationIssue[];
+  activation: ActivationState;
+};
 type Run = { id: string; event_name: string; contact_id: string | null; email: string | null; status: string; current_step_key: string | null; started_at: string; completed_at: string | null; error: string | null };
 type RunDetail = Record<string, unknown> & { status: string; steps: Array<{ id: string; step_key: string; step_type: string; status: string; started_at: string; finished_at: string | null; error: string | null; input: unknown; output: unknown }> };
 
@@ -39,7 +63,7 @@ export function AutomationWorkspace({ apiKeys, domains }: { apiKeys: ApiKey[]; d
   const [runs, setRuns] = useState<Record<string, Run[]>>({});
   const [runDetails, setRunDetails] = useState<Record<string, RunDetail>>({});
   const [editingId, setEditingId] = useState('');
-  const [workflowJson, setWorkflowJson] = useState('');
+  const [canvasDraft, setCanvasDraft] = useState<AutomationDraft | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -107,6 +131,7 @@ export function AutomationWorkspace({ apiKeys, domains }: { apiKeys: ApiKey[]; d
   }
 
   async function toggle(automation: Automation) {
+    if (automation.status !== 'active' && !window.confirm(`Activate “${automation.name}”? New matching events will start runs using this workflow.`)) return;
     setBusy(true); setError(''); setNotice('');
     try {
       if (automation.status === 'active') {
@@ -132,19 +157,89 @@ export function AutomationWorkspace({ apiKeys, domains }: { apiKeys: ApiKey[]; d
   function editWorkflow(automation: Automation) {
     setError(''); setNotice('');
     setEditingId(automation.id);
-    setWorkflowJson(JSON.stringify({ name: automation.name, steps: automation.steps, connections: automation.connections }, null, 2));
+    setCanvasDraft({
+      id: automation.id,
+      name: automation.name,
+      status: automation.status === 'paused' ? 'paused' : 'draft',
+      steps: JSON.parse(JSON.stringify(automation.steps)) as AutomationStep[],
+      connections: JSON.parse(JSON.stringify(automation.connections)) as AutomationConnection[],
+      selectedKey: automation.steps.at(-1)?.key ?? null,
+      saveState: 'saved',
+      savedAtLabel: new Intl.DateTimeFormat('en-AU', { hour: 'numeric', minute: '2-digit' }).format(new Date(automation.updated_at)),
+      issues: [],
+      activation: 'idle',
+    });
   }
 
-  async function saveWorkflow(automation: Automation) {
+  function defaultStep(type: StepType): AutomationStep {
+    const key = `${type}_${crypto.randomUUID().replaceAll('-', '').slice(0, 10)}`;
+    let config: Record<string, unknown> = {};
+    if (type === 'condition') config = { field: 'contact.properties.plan', operator: 'eq', value: 'pro' };
+    if (type === 'delay') config = { duration: '1 day' };
+    if (type === 'wait_for_event') config = { event_name: 'user.completed', timeout: '3 days' };
+    if (type === 'send_email') config = {
+      template: { id: templates[0]?.id ?? '' },
+      from: verifiedDomains[0] ? `hello@${verifiedDomains[0].domain}` : '',
+    };
+    if (type === 'contact_update') config = { updates: {} };
+    if (type === 'add_to_segment') config = { segment_id: segments[0]?.id ?? '' };
+    return { key, type, config };
+  }
+
+  function addCanvasStep(type: StepType, afterKey: string, branch?: 'true' | 'false') {
+    if (!canvasDraft || canvasDraft.saveState === 'saving' || canvasDraft.activation !== 'idle') return;
+    const step = defaultStep(type);
+    const next = insertStep(canvasDraft.steps, canvasDraft.connections, step, afterKey, branch);
+    setCanvasDraft({ ...canvasDraft, ...next, selectedKey: step.key, saveState: 'unsaved', issues: [], activation: 'idle' });
+  }
+
+  async function saveCanvasDraft() {
+    if (!canvasDraft || canvasDraft.saveState === 'saving') return;
     setBusy(true); setError(''); setNotice('');
+    setCanvasDraft(current => current?.id === canvasDraft.id ? { ...current, saveState: 'saving', issues: [] } : current);
     try {
-      const definition = JSON.parse(workflowJson) as unknown;
-      if (!definition || typeof definition !== 'object' || Array.isArray(definition)) throw new Error('Workflow definition must be a JSON object.');
-      await api(`/api/automations/${encodeURIComponent(automation.id)}`, { method: 'PATCH', body: JSON.stringify(definition) });
-      setEditingId(''); setWorkflowJson(''); setNotice('Workflow saved. Start it when the definition is ready.');
+      const saved = await api<Automation>(`/api/automations/${encodeURIComponent(canvasDraft.id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name: canvasDraft.name, steps: canvasDraft.steps, connections: canvasDraft.connections }),
+      });
+      setCanvasDraft(current => current?.id === canvasDraft.id ? {
+        ...current,
+        name: saved.name,
+        status: saved.status === 'paused' ? 'paused' : 'draft',
+        steps: saved.steps,
+        connections: saved.connections,
+        saveState: 'saved',
+        savedAtLabel: new Intl.DateTimeFormat('en-AU', { hour: 'numeric', minute: '2-digit' }).format(new Date(saved.updated_at)),
+        issues: [],
+      } : current);
+      setNotice('Workflow draft saved. Nothing has been activated.');
       await refresh();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save workflow.'); }
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'Could not save workflow draft.';
+      setCanvasDraft(current => current?.id === canvasDraft.id ? { ...current, saveState: 'error', issues: [{ message }], activation: 'idle' } : current);
+    }
     finally { setBusy(false); }
+  }
+
+  async function confirmCanvasActivation() {
+    if (!canvasDraft || canvasDraft.saveState !== 'saved' || canvasDraft.issues.length) return;
+    setBusy(true); setError(''); setNotice('');
+    setCanvasDraft(current => current?.id === canvasDraft.id ? { ...current, activation: 'activating' } : current);
+    try {
+      await api(`/api/automations/${encodeURIComponent(canvasDraft.id)}/start`, { method: 'POST', body: '{}' });
+      setEditingId(''); setCanvasDraft(null);
+      setNotice('Automation activated. New matching events will create runs.');
+      await refresh();
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'Could not activate automation.';
+      setCanvasDraft(current => current?.id === canvasDraft.id ? { ...current, activation: 'idle', issues: [{ message }] } : current);
+    } finally { setBusy(false); }
+  }
+
+  function closeCanvasEditor() {
+    if (canvasDraft && canvasDraft.saveState !== 'saved' && canvasDraft.saveState !== 'saving' && !window.confirm('Discard the unsaved workflow changes?')) return;
+    setEditingId('');
+    setCanvasDraft(null);
   }
 
   async function showRuns(automation: Automation) {
@@ -220,8 +315,53 @@ export function AutomationWorkspace({ apiKeys, domains }: { apiKeys: ApiKey[]; d
       <div className="panelHeader"><div><h2>Workflow definitions</h2><p>{automations.length} automations · active definitions cannot be edited.</p></div></div>
       {automations.length ? automations.map((automation) => <article className="automationRow" key={automation.id}>
         <div className="automationRowTop"><div className="automationMain"><strong>{automation.name}</strong><span>{automation.trigger_event} · {automation.steps.length} steps · {automation.key_name}</span><code>{automation.id} · updated {date(automation.updated_at)}</code></div><span className={`plainStatus ${automation.status === 'active' ? 'verified' : ''}`}>{automation.status}</span></div>
-        <div className="automationActions"><button className="outlineButton" onClick={() => void showRuns(automation)}>{openId === automation.id ? 'Hide runs' : 'View runs'}</button><button className="outlineButton" onClick={() => void toggle(automation)} disabled={busy}>{automation.status === 'active' ? 'Pause' : 'Start'}</button><button className="outlineButton" onClick={() => editingId === automation.id ? setEditingId('') : editWorkflow(automation)} disabled={busy || automation.status === 'active'}>{editingId === automation.id ? 'Close editor' : 'Edit workflow'}</button><button className="dangerButton" onClick={() => void archive(automation)} disabled={busy}>Archive</button></div>
-        {editingId === automation.id && <div className="automationEditor"><label htmlFor={`workflow-json-${automation.id}`}>Workflow definition JSON <span>Conditions, waits and advanced steps can be edited here. Pause active workflows before editing.</span></label><textarea id={`workflow-json-${automation.id}`} value={workflowJson} onChange={(event) => setWorkflowJson(event.target.value)} rows={16} spellCheck={false} aria-describedby={`workflow-help-${automation.id}`} /><div className="automationEditorActions"><p id={`workflow-help-${automation.id}`}>Keep the trigger step first, connect every step, and use unique step keys. Save validates the graph before changing the definition.</p><button className="primaryButton" onClick={() => void saveWorkflow(automation)} disabled={busy}>{busy ? 'Saving…' : 'Save workflow'}</button></div></div>}
+        <div className="automationActions"><button className="outlineButton" onClick={() => void showRuns(automation)}>{openId === automation.id ? 'Hide runs' : 'View runs'}</button><button className="outlineButton" onClick={() => void toggle(automation)} disabled={busy}>{automation.status === 'active' ? 'Pause' : 'Start'}</button><button className="outlineButton" onClick={() => editingId === automation.id ? closeCanvasEditor() : editWorkflow(automation)} disabled={busy || automation.status === 'active'}>{editingId === automation.id ? 'Close editor' : 'Edit workflow'}</button><button className="dangerButton" onClick={() => void archive(automation)} disabled={busy}>Archive</button></div>
+        {editingId === automation.id && canvasDraft?.id === automation.id && <div className="automationEditor">
+          <SendThanksAutomationCanvas
+            key={canvasDraft.id}
+            name={canvasDraft.name}
+            status={canvasDraft.status}
+            steps={canvasDraft.steps}
+            connections={canvasDraft.connections}
+            selectedKey={canvasDraft.selectedKey}
+            saveState={canvasDraft.saveState}
+            savedAtLabel={canvasDraft.savedAtLabel}
+            issues={canvasDraft.issues}
+            activation={canvasDraft.activation}
+            positionsPersist={true}
+            onNameChange={(name) => setCanvasDraft(current => current ? { ...current, name, saveState: 'unsaved', issues: [], activation: 'idle' } : current)}
+            onSelect={(key) => setCanvasDraft(current => current ? { ...current, selectedKey: key } : current)}
+            onAddStep={addCanvasStep}
+            onRemoveStep={(key) => {
+              const next = removeStep(canvasDraft.steps, canvasDraft.connections, key);
+              setCanvasDraft(current => current?.id === canvasDraft.id ? { ...current, ...next, selectedKey: next.steps[0]?.key ?? null, saveState: 'unsaved', issues: [], activation: 'idle' } : current);
+            }}
+            onConfigChange={(key, config) => setCanvasDraft(current => current?.id === canvasDraft.id ? {
+              ...current,
+              steps: current.steps.map(step => step.key === key ? { ...step, config } : step),
+              saveState: 'unsaved', issues: [], activation: 'idle',
+            } : current)}
+            onConnectionsChange={(connections) => setCanvasDraft(current => current?.id === canvasDraft.id ? { ...current, connections, saveState: 'unsaved', issues: [], activation: 'idle' } : current)}
+            onPositionChange={(key, meta: CanvasMeta) => setCanvasDraft(current => {
+              if (current?.id !== canvasDraft.id) return current;
+              return {
+                ...current,
+                steps: current.steps.map(step => {
+                  if (step.key !== key) return step;
+                  const config = { ...step.config };
+                  if (Object.keys(meta).length) config[CANVAS_KEY] = meta;
+                  else delete config[CANVAS_KEY];
+                  return { ...step, config };
+                }),
+                saveState: 'unsaved', issues: [], activation: 'idle',
+              };
+            })}
+            onSaveDraft={() => void saveCanvasDraft()}
+            onRequestActivate={() => setCanvasDraft(current => current?.saveState === 'saved' && !current.issues.length ? { ...current, activation: 'confirming' } : current)}
+            onConfirmActivate={() => void confirmCanvasActivation()}
+            onCancelActivate={() => setCanvasDraft(current => current ? { ...current, activation: 'idle' } : current)}
+          />
+        </div>}
         {openId === automation.id && <div className="automationRuns">{runs[automation.id]?.length ? runs[automation.id].map((run) => <div className="automationRun" key={run.id}>
           <div className="automationRunSummary"><button className="textButton" onClick={() => void showRun(automation, run)}>{run.event_name} · {run.email ?? run.contact_id ?? 'No contact'}</button><span className={`plainStatus ${run.status === 'completed' ? 'verified' : run.status === 'failed' ? 'failed' : ''}`}>{run.status}</span><time>{date(run.started_at)}</time>{['running','waiting'].includes(run.status) && <button className="textButton" onClick={() => void stopRun(automation, run)} disabled={busy}>Stop run</button>}</div>
           {run.error && <p className="failureReason automationRunError">{run.error}</p>}
