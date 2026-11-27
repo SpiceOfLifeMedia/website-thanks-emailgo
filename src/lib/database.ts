@@ -361,10 +361,18 @@ const postgresSchema = [
   )`,
   'CREATE INDEX IF NOT EXISTS segment_contact_exclusions_contact ON segment_contact_exclusions(contact_id,segment_id)',
   `CREATE TABLE IF NOT EXISTS topics (
-    id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, slug TEXT NOT NULL UNIQUE, description TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL, disabled_at TEXT
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT NOT NULL, description TEXT,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL, disabled_at TEXT,
+    workspace_id TEXT NOT NULL DEFAULT 'default' REFERENCES workspaces(id)
   )`,
   'ALTER TABLE topics ADD COLUMN IF NOT EXISTS disabled_at TEXT',
+  "ALTER TABLE topics ADD COLUMN IF NOT EXISTS workspace_id TEXT NOT NULL DEFAULT 'default' REFERENCES workspaces(id)",
+  "UPDATE topics SET workspace_id='default' WHERE workspace_id IS NULL",
+  'ALTER TABLE topics ALTER COLUMN workspace_id SET NOT NULL',
+  'ALTER TABLE topics DROP CONSTRAINT IF EXISTS topics_name_key',
+  'ALTER TABLE topics DROP CONSTRAINT IF EXISTS topics_slug_key',
+  'CREATE UNIQUE INDEX IF NOT EXISTS topics_workspace_name_unique ON topics(workspace_id,name)',
+  'CREATE UNIQUE INDEX IF NOT EXISTS topics_workspace_slug_unique ON topics(workspace_id,slug)',
   'CREATE INDEX IF NOT EXISTS topics_updated_at ON topics(updated_at DESC)',
   `CREATE TABLE IF NOT EXISTS contact_topics (
     contact_id TEXT NOT NULL, topic_id TEXT NOT NULL, subscribed_at TEXT, unsubscribed_at TEXT,
@@ -653,8 +661,9 @@ function getSqlite() {
     );
     CREATE INDEX IF NOT EXISTS segment_contact_exclusions_contact ON segment_contact_exclusions(contact_id,segment_id);
     CREATE TABLE IF NOT EXISTS topics (
-      id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, slug TEXT NOT NULL UNIQUE, description TEXT,
-      created_at TEXT NOT NULL, updated_at TEXT NOT NULL, disabled_at TEXT
+      id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT NOT NULL, description TEXT,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL, disabled_at TEXT,
+      workspace_id TEXT NOT NULL DEFAULT 'default' REFERENCES workspaces(id)
     );
     CREATE INDEX IF NOT EXISTS topics_updated_at ON topics(updated_at DESC);
     CREATE TABLE IF NOT EXISTS contact_topics (
@@ -849,6 +858,51 @@ function getSqlite() {
     BEFORE UPDATE OF workspace_id ON segments
     WHEN NOT EXISTS (SELECT 1 FROM workspaces WHERE id=NEW.workspace_id)
     BEGIN SELECT RAISE(ABORT,'Segment workspace does not exist'); END`);
+  const topicColumns = db.prepare('PRAGMA table_info(topics)').all() as Array<{ name: string }>;
+  const topicColumnNames = new Set(topicColumns.map(({ name }) => name));
+  if (!topicColumnNames.has('disabled_at')) db.exec('ALTER TABLE topics ADD COLUMN disabled_at TEXT');
+  const migratedTopicColumns = db.prepare('PRAGMA table_info(topics)').all() as Array<{ name: string }>;
+  const migratedTopicColumnNames = new Set(migratedTopicColumns.map(({ name }) => name));
+  const topicIndexes = db.prepare("PRAGMA index_list('topics')").all() as Array<{ name: string; unique: number }>;
+  const uniqueTopicColumns = new Set<string>();
+  for (const { name, unique } of topicIndexes) {
+    if (!unique) continue;
+    const escapedName = name.replaceAll('"', '""');
+    const columns = db.prepare(`PRAGMA index_info("${escapedName}")`).all() as Array<{ name: string }>;
+    if (columns.length === 1 && (columns[0]?.name === 'name' || columns[0]?.name === 'slug')) uniqueTopicColumns.add(columns[0].name);
+  }
+  if (!migratedTopicColumnNames.has('workspace_id') || uniqueTopicColumns.size) {
+    db.exec('PRAGMA foreign_keys = OFF');
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      const workspaceSelection = migratedTopicColumnNames.has('workspace_id') ? "COALESCE(workspace_id,'default')" : "'default'";
+      db.exec(`CREATE TABLE topics_workspace_migration (
+        id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT NOT NULL, description TEXT,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL, disabled_at TEXT,
+        workspace_id TEXT NOT NULL DEFAULT 'default' REFERENCES workspaces(id)
+      )`);
+      db.exec(`INSERT INTO topics_workspace_migration(id,name,slug,description,created_at,updated_at,disabled_at,workspace_id)
+        SELECT id,name,slug,description,created_at,updated_at,disabled_at,${workspaceSelection} FROM topics`);
+      db.exec('DROP TABLE topics');
+      db.exec('ALTER TABLE topics_workspace_migration RENAME TO topics');
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    } finally {
+      db.exec('PRAGMA foreign_keys = ON');
+    }
+  }
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS topics_workspace_name_unique ON topics(workspace_id,name)');
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS topics_workspace_slug_unique ON topics(workspace_id,slug)');
+  db.exec(`CREATE TRIGGER IF NOT EXISTS topics_workspace_insert
+    BEFORE INSERT ON topics
+    WHEN NOT EXISTS (SELECT 1 FROM workspaces WHERE id=NEW.workspace_id)
+    BEGIN SELECT RAISE(ABORT,'Topic workspace does not exist'); END`);
+  db.exec(`CREATE TRIGGER IF NOT EXISTS topics_workspace_update
+    BEFORE UPDATE OF workspace_id ON topics
+    WHEN NOT EXISTS (SELECT 1 FROM workspaces WHERE id=NEW.workspace_id)
+    BEGIN SELECT RAISE(ABORT,'Topic workspace does not exist'); END`);
   const automationEventColumns = db.prepare('PRAGMA table_info(automation_events)').all() as Array<{ name: string }>;
   if (!automationEventColumns.some(({ name }) => name === 'request_hash')) db.exec('ALTER TABLE automation_events ADD COLUMN request_hash TEXT');
   const emailEventColumns = db.prepare('PRAGMA table_info(email_events)').all() as Array<{ name: string }>;

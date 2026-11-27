@@ -22,7 +22,7 @@ async function __emailgo_GET_handler(request: Request, context: { params: Promis
   if (!contact) return error('Contact not found.', 404);
   const rows = await query<{ id: string; name: string; slug: string; description: string | null; subscribed_at: string | null; unsubscribed_at: string | null; consent_source: string | null; consented_at: string | null }>(`SELECT t.id,t.name,t.slug,t.description,ct.subscribed_at,ct.unsubscribed_at,ct.consent_source,ct.consented_at
     FROM topics t LEFT JOIN contact_topics ct ON ct.topic_id=t.id AND ct.contact_id=?
-    WHERE t.disabled_at IS NULL ORDER BY t.name ASC`, [id]);
+    WHERE t.disabled_at IS NULL AND t.workspace_id=? ORDER BY t.name ASC`, [id, auth.apiKey.workspaceId]);
   return NextResponse.json({ object: 'list', data: rows.rows.map((topic) => ({ ...topic, subscribed: Boolean(topic.subscribed_at && !topic.unsubscribed_at && !contact.unsubscribed_at && contact.consent_status === 'opted_in') })) });
 }
 
@@ -43,15 +43,15 @@ async function __emailgo_PUT_handler(request: Request, context: { params: Promis
   if (topicIds.length && (consentSource.length < 2 || consentSource.length > 200 || /[\r\n]/.test(consentSource))) return error('A consent_source of 2 to 200 single-line characters is required to subscribe to topics.', 400);
   if (topicIds.length) {
     const placeholders = topicIds.map(() => '?').join(',');
-    const topics = await query<{ id: string }>(`SELECT id FROM topics WHERE disabled_at IS NULL AND id IN (${placeholders})`, topicIds);
+    const topics = await query<{ id: string }>(`SELECT id FROM topics WHERE disabled_at IS NULL AND workspace_id=? AND id IN (${placeholders})`, [auth.apiKey.workspaceId, ...topicIds]);
     if (topics.rows.length !== topicIds.length) return error('One or more topics are missing or archived.', 404);
   }
-  const existing = await query<{ topic_id: string; subscribed_at: string | null; unsubscribed_at: string | null; consent_source: string | null; consented_at: string | null }>('SELECT topic_id,subscribed_at,unsubscribed_at,consent_source,consented_at FROM contact_topics WHERE contact_id=?', [id]);
+  const existing = await query<{ topic_id: string; subscribed_at: string | null; unsubscribed_at: string | null; consent_source: string | null; consented_at: string | null }>('SELECT ct.topic_id,ct.subscribed_at,ct.unsubscribed_at,ct.consent_source,ct.consented_at FROM contact_topics ct JOIN topics t ON t.id=ct.topic_id WHERE ct.contact_id=? AND t.workspace_id=?', [id, auth.apiKey.workspaceId]);
   const selected = new Set(topicIds);
   const timestamp = nowIso();
   const statements: Array<{ sql: string; params: readonly unknown[] }> = [];
   for (const topic of existing.rows) {
-    if (!selected.has(topic.topic_id) && topic.unsubscribed_at === null) statements.push({ sql: 'UPDATE contact_topics SET unsubscribed_at=? WHERE contact_id=? AND topic_id=? AND unsubscribed_at IS NULL', params: [timestamp, id, topic.topic_id] });
+    if (!selected.has(topic.topic_id) && topic.unsubscribed_at === null) statements.push({ sql: 'UPDATE contact_topics SET unsubscribed_at=? WHERE contact_id=? AND topic_id=? AND unsubscribed_at IS NULL AND EXISTS (SELECT 1 FROM topics WHERE topics.id=contact_topics.topic_id AND topics.workspace_id=?)', params: [timestamp, id, topic.topic_id, auth.apiKey.workspaceId] });
   }
   for (const topicId of topicIds) {
     const previous = existing.rows.find((topic) => topic.topic_id === topicId);

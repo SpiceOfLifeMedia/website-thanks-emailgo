@@ -13,7 +13,7 @@ async function __emailgo_GET_handler(request: Request, context: { params: Promis
   if (!apiKey) return error('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(apiKey)) return error('This API key has sending-only access.', 403);
   const { id } = await context.params;
-  const row = await queryOne<TopicRow>('SELECT id,name,slug,description,created_at,updated_at FROM topics WHERE id=? AND disabled_at IS NULL', [id]);
+  const row = await queryOne<TopicRow>('SELECT id,name,slug,description,created_at,updated_at,workspace_id FROM topics WHERE id=? AND workspace_id=? AND disabled_at IS NULL', [id, apiKey.workspaceId]);
   return row ? NextResponse.json(await toTopic(row)) : error('Topic not found.', 404);
 }
 
@@ -22,16 +22,16 @@ async function __emailgo_PATCH_handler(request: Request, context: { params: Prom
   if (!apiKey) return error('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(apiKey)) return error('This API key has sending-only access.', 403);
   const { id } = await context.params;
-  const current = await queryOne<TopicRow>('SELECT id,name,slug,description,created_at,updated_at FROM topics WHERE id=? AND disabled_at IS NULL', [id]);
+  const current = await queryOne<TopicRow>('SELECT id,name,slug,description,created_at,updated_at,workspace_id FROM topics WHERE id=? AND workspace_id=? AND disabled_at IS NULL', [id, apiKey.workspaceId]);
   if (!current) return error('Topic not found.', 404);
   const parsed = await readJsonLimited(request, 10_000);
   if (!parsed.ok) return error(parsed.error, parsed.status);
   const validated = validateTopicBody(parsed.value, current);
   if (!validated.ok) return error(validated.error, 400);
   const updatedAt = nowIso();
-  try { await execute('UPDATE topics SET name=?,slug=?,description=?,updated_at=? WHERE id=? AND disabled_at IS NULL', [validated.value.name, validated.value.slug, validated.value.description, updatedAt, id]); }
+  try { await execute('UPDATE topics SET name=?,slug=?,description=?,updated_at=? WHERE id=? AND workspace_id=? AND disabled_at IS NULL', [validated.value.name, validated.value.slug, validated.value.description, updatedAt, id, apiKey.workspaceId]); }
   catch { return error('A topic with that name or slug already exists.', 409); }
-  return NextResponse.json(await toTopic({ id, ...validated.value, created_at: current.created_at, updated_at: updatedAt }));
+  return NextResponse.json(await toTopic({ id, ...validated.value, created_at: current.created_at, updated_at: updatedAt, workspace_id: apiKey.workspaceId }));
 }
 
 async function __emailgo_DELETE_handler(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -40,7 +40,7 @@ async function __emailgo_DELETE_handler(request: Request, context: { params: Pro
   if (!hasFullApiAccess(apiKey)) return error('This API key has sending-only access.', 403);
   const { id } = await context.params;
   const disabledAt = nowIso();
-  const changed = await execute('UPDATE topics SET disabled_at=?,updated_at=? WHERE id=? AND disabled_at IS NULL', [disabledAt, disabledAt, id]);
+  const changed = await execute('UPDATE topics SET disabled_at=?,updated_at=? WHERE id=? AND workspace_id=? AND disabled_at IS NULL', [disabledAt, disabledAt, id, apiKey.workspaceId]);
   return changed ? NextResponse.json({ object: 'topic', id, archived: true }) : error('Topic not found.', 404);
 }
 

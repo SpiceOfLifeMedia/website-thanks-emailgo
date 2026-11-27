@@ -58,6 +58,16 @@ test('SQLite backfills legacy keys, domains and contacts once and scopes unique 
       id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, filters_json TEXT NOT NULL,
       created_at TEXT NOT NULL, updated_at TEXT NOT NULL
     );
+    CREATE TABLE topics (
+      id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, slug TEXT NOT NULL UNIQUE, description TEXT,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE TABLE contact_topics (
+      contact_id TEXT NOT NULL, topic_id TEXT NOT NULL, subscribed_at TEXT, unsubscribed_at TEXT,
+      consent_source TEXT, consented_at TEXT, PRIMARY KEY(contact_id,topic_id),
+      FOREIGN KEY(contact_id) REFERENCES contacts(id) ON DELETE CASCADE,
+      FOREIGN KEY(topic_id) REFERENCES topics(id) ON DELETE CASCADE
+    );
     CREATE TABLE segment_contacts (
       segment_id TEXT NOT NULL, contact_id TEXT NOT NULL, created_at TEXT NOT NULL,
       PRIMARY KEY(segment_id,contact_id),
@@ -71,8 +81,12 @@ test('SQLite backfills legacy keys, domains and contacts once and scopes unique 
       VALUES('legacy_contact','shared@example.test','Legacy contact','{}','[]',NULL,'2026-01-01T00:00:00.000Z','2026-01-01T00:00:00.000Z');
     INSERT INTO segments(id,name,filters_json,created_at,updated_at)
       VALUES('legacy_segment','Legacy segment','{"tags_all":["legacy"]}','2026-01-01T00:00:00.000Z','2026-01-01T00:00:00.000Z');
+    INSERT INTO topics(id,name,slug,description,created_at,updated_at)
+      VALUES('legacy_topic','Legacy topic','legacy-topic','Old topic','2026-01-01T00:00:00.000Z','2026-01-01T00:00:00.000Z');
     INSERT INTO segment_contacts(segment_id,contact_id,created_at)
       VALUES('legacy_segment','legacy_contact','2026-01-01T00:00:00.000Z');
+    INSERT INTO contact_topics(contact_id,topic_id,subscribed_at,consent_source,consented_at)
+      VALUES('legacy_contact','legacy_topic','2026-01-01T00:00:00.000Z','legacy import','2026-01-01T00:00:00.000Z');
   `);
   legacy.close();
 
@@ -82,6 +96,8 @@ test('SQLite backfills legacy keys, domains and contacts once and scopes unique 
   const legacyContact = await database.queryOne('SELECT id,email,workspace_id FROM contacts WHERE id=?', ['legacy_contact']);
   const legacySegment = await database.queryOne('SELECT id,name,workspace_id FROM segments WHERE id=?', ['legacy_segment']);
   const legacySegmentMembership = await database.queryOne('SELECT segment_id,contact_id FROM segment_contacts WHERE segment_id=? AND contact_id=?', ['legacy_segment', 'legacy_contact']);
+  const legacyTopic = await database.queryOne('SELECT id,name,slug,workspace_id,disabled_at FROM topics WHERE id=?', ['legacy_topic']);
+  const legacyTopicMembership = await database.queryOne('SELECT contact_id,topic_id,consent_source FROM contact_topics WHERE contact_id=? AND topic_id=?', ['legacy_contact', 'legacy_topic']);
   assert.equal(legacyKey?.id, 'legacy_key');
   assert.equal(legacyKey?.workspace_id, 'default');
   assert.equal(legacyDomain?.id, 'legacy_domain');
@@ -97,6 +113,12 @@ test('SQLite backfills legacy keys, domains and contacts once and scopes unique 
   assert.equal(legacySegment?.workspace_id, 'default');
   assert.equal(legacySegmentMembership?.segment_id, 'legacy_segment');
   assert.equal(legacySegmentMembership?.contact_id, 'legacy_contact');
+  assert.equal(legacyTopic?.id, 'legacy_topic');
+  assert.equal(legacyTopic?.workspace_id, 'default');
+  assert.equal(legacyTopic?.disabled_at, null);
+  assert.equal(legacyTopicMembership?.contact_id, 'legacy_contact');
+  assert.equal(legacyTopicMembership?.topic_id, 'legacy_topic');
+  assert.equal(legacyTopicMembership?.consent_source, 'legacy import');
 
   await database.execute("INSERT INTO workspaces(id,name,created_at) VALUES(?,?,?)", ['workspace_b', 'Workspace B', '2026-01-01T00:00:00.000Z']);
   await database.execute(`INSERT INTO domains(id,domain,verification_token,created_at,workspace_id)
@@ -105,6 +127,8 @@ test('SQLite backfills legacy keys, domains and contacts once and scopes unique 
     VALUES(?,?,?,?,?,?,?,?,?)`, ['workspace_b_contact', 'shared@example.test', 'Workspace B contact', '{}', '[]', null, '2026-01-02T00:00:00.000Z', '2026-01-02T00:00:00.000Z', 'workspace_b']);
   await database.execute(`INSERT INTO segments(id,name,filters_json,created_at,updated_at,workspace_id)
     VALUES(?,?,?,?,?,?)`, ['workspace_b_segment', 'Legacy segment', '{"tags_all":["legacy"]}', '2026-01-02T00:00:00.000Z', '2026-01-02T00:00:00.000Z', 'workspace_b']);
+  await database.execute(`INSERT INTO topics(id,name,slug,description,created_at,updated_at,workspace_id)
+    VALUES(?,?,?,?,?,?,?)`, ['workspace_b_topic', 'Legacy topic', 'legacy-topic', null, '2026-01-02T00:00:00.000Z', '2026-01-02T00:00:00.000Z', 'workspace_b']);
 
   const handle = globalThis.emailgoSqlite;
   handle.close();
@@ -123,6 +147,8 @@ test('SQLite backfills legacy keys, domains and contacts once and scopes unique 
     VALUES(?,?,?,?,?)`, ['duplicate_default_domain', 'old.example.test', 'verify=dup', '2026-01-03T00:00:00.000Z', 'default']));
   await assert.rejects(database.execute(`INSERT INTO segments(id,name,filters_json,created_at,updated_at,workspace_id)
     VALUES(?,?,?,?,?,?)`, ['duplicate_default_segment', 'Legacy segment', '{"tags_all":["legacy"]}', '2026-01-03T00:00:00.000Z', '2026-01-03T00:00:00.000Z', 'default']));
+  await assert.rejects(database.execute(`INSERT INTO topics(id,name,slug,created_at,updated_at,workspace_id)
+    VALUES(?,?,?,?,?,?)`, ['duplicate_default_topic', 'Legacy topic', 'another-topic', '2026-01-03T00:00:00.000Z', '2026-01-03T00:00:00.000Z', 'default']));
   assert.deepEqual(globalThis.emailgoSqlite.prepare('PRAGMA foreign_key_check').all(), []);
 });
 
@@ -225,7 +251,7 @@ test('API key and domain routes isolate two workspaces', async (context) => {
 test('API contact collection and item routes isolate two workspaces', async (context) => {
   setupTemporaryDatabase(context, 'send-thanks-workspace-contacts-');
   const database = await import('../src/lib/database.ts');
-  const [contactCollection, contactItem, contactTopics, contactSegments, contactSegment, eventSend, segmentCollection, segmentItem, segmentContacts, segmentMetrics] = await Promise.all([
+  const [contactCollection, contactItem, contactTopics, contactSegments, contactSegment, eventSend, segmentCollection, segmentItem, segmentContacts, segmentMetrics, topicCollection, topicItem, preferencesRoute, broadcasts, contactImports] = await Promise.all([
     import('../src/app/api/v1/contacts/route.ts'),
     import('../src/app/api/v1/contacts/[id]/route.ts'),
     import('../src/app/api/v1/contacts/[id]/topics/route.ts'),
@@ -236,7 +262,18 @@ test('API contact collection and item routes isolate two workspaces', async (con
     import('../src/app/api/v1/segments/[id]/route.ts'),
     import('../src/app/api/v1/segments/[id]/contacts/route.ts'),
     import('../src/app/api/v1/segments/metrics/route.ts'),
+    import('../src/app/api/v1/topics/route.ts'),
+    import('../src/app/api/v1/topics/[id]/route.ts'),
+    import('../src/app/api/preferences/[token]/route.ts'),
+    import('../src/lib/broadcasts.ts'),
+    import('../src/app/api/v1/contacts/imports/route.ts'),
   ]);
+  const originalPreferencesSecret = process.env.EMAILGO_PREFERENCES_SECRET;
+  process.env.EMAILGO_PREFERENCES_SECRET = 'workspace-preferences-secret-at-least-32-chars';
+  context.after(() => {
+    if (originalPreferencesSecret === undefined) delete process.env.EMAILGO_PREFERENCES_SECRET;
+    else process.env.EMAILGO_PREFERENCES_SECRET = originalPreferencesSecret;
+  });
   const timestamp = '2026-01-01T00:00:00.000Z';
   await database.execute('INSERT INTO workspaces(id,name,created_at) VALUES(?,?,?)', ['workspace_a', 'Workspace A', timestamp]);
   await database.execute('INSERT INTO workspaces(id,name,created_at) VALUES(?,?,?)', ['workspace_b', 'Workspace B', timestamp]);
@@ -264,7 +301,17 @@ test('API contact collection and item routes isolate two workspaces', async (con
     await database.execute('INSERT INTO segments(id,name,filters_json,created_at,updated_at,workspace_id) VALUES(?,?,?,?,?,?)', [id, 'Shared segment', '{"tags_all":["active"]}', timestamp, timestamp, workspaceId]);
   }
   await database.execute("UPDATE contacts SET tags_json='[\"active\"]' WHERE id IN (?,?)", ['contact_a_older', 'contact_b']);
-  await database.execute('INSERT INTO topics(id,name,slug,description,created_at,updated_at) VALUES(?,?,?,?,?,?)', ['shared_topic', 'Shared topic', 'shared-topic', null, timestamp, timestamp]);
+  await database.execute("UPDATE contacts SET consent_status='opted_in',consent_source='API import',consented_at=? WHERE id IN (?,?)", [timestamp, 'contact_a_older', 'contact_b']);
+  for (const [id, workspaceId] of [['domain_a', 'workspace_a'], ['domain_b', 'workspace_b']]) {
+    await database.execute('INSERT INTO domains(id,domain,verification_token,created_at,verified_at,workspace_id) VALUES(?,?,?,?,?,?)', [id, 'shared.example.test', `verify=${id}`, timestamp, timestamp, workspaceId]);
+  }
+  for (const [id, workspaceId] of [['shared_topic_a', 'workspace_a'], ['shared_topic_b', 'workspace_b']]) {
+    await database.execute('INSERT INTO topics(id,name,slug,description,created_at,updated_at,workspace_id) VALUES(?,?,?,?,?,?,?)', [id, 'Shared topic', 'shared-topic', null, timestamp, timestamp, workspaceId]);
+  }
+  await database.execute(`INSERT INTO contact_topics(contact_id,topic_id,subscribed_at,consent_source,consented_at)
+    VALUES(?,?,?,?,?)`, ['contact_a_older', 'shared_topic_a', timestamp, 'API import', timestamp]);
+  await database.execute(`INSERT INTO contact_topics(contact_id,topic_id,subscribed_at,consent_source,consented_at)
+    VALUES(?,?,?,?,?)`, ['contact_b', 'shared_topic_b', timestamp, 'API import', timestamp]);
 
   async function request(handler, workspaceId, method = 'GET', path = 'http://send-thanks.test/api/v1/contacts', body, contextValue) {
     await database.execute('DELETE FROM api_request_limits');
@@ -305,7 +352,7 @@ test('API contact collection and item routes isolate two workspaces', async (con
   assert.equal(deleteForeignContact.status, 404);
   const foreignTopicRead = await request(contactTopics.GET, 'workspace_a', 'GET', 'http://send-thanks.test/api/v1/contacts/contact_b/topics', undefined, params('contact_b'));
   assert.equal(foreignTopicRead.status, 404);
-  const foreignTopicWrite = await request(contactTopics.PUT, 'workspace_a', 'PUT', 'http://send-thanks.test/api/v1/contacts/contact_b/topics', { topic_ids: ['shared_topic'], consent_source: 'api request' }, params('contact_b'));
+  const foreignTopicWrite = await request(contactTopics.PUT, 'workspace_a', 'PUT', 'http://send-thanks.test/api/v1/contacts/contact_b/topics', { topic_ids: ['shared_topic_a'], consent_source: 'api request' }, params('contact_b'));
   assert.equal(foreignTopicWrite.status, 404);
   const foreignSegmentRead = await request(contactSegments.GET, 'workspace_a', 'GET', 'http://send-thanks.test/api/v1/contacts/contact_b/segments', undefined, params('contact_b'));
   assert.equal(foreignSegmentRead.status, 404);
@@ -319,9 +366,67 @@ test('API contact collection and item routes isolate two workspaces', async (con
   const protectedContact = await database.queryOne('SELECT name,workspace_id FROM contacts WHERE id=?', ['contact_b']);
   assert.equal(protectedContact?.name, 'contact_b');
   assert.equal(protectedContact?.workspace_id, 'workspace_b');
-  assert.equal((await database.queryOne('SELECT COUNT(*) AS count FROM contact_topics WHERE contact_id=?', ['contact_b']))?.count, 0);
+  assert.equal((await database.queryOne('SELECT COUNT(*) AS count FROM contact_topics WHERE contact_id=? AND topic_id=?', ['contact_b', 'shared_topic_b']))?.count, 1);
   assert.equal((await database.queryOne('SELECT COUNT(*) AS count FROM segment_contacts WHERE contact_id=?', ['contact_b']))?.count, 0);
   assert.equal((await database.queryOne('SELECT COUNT(*) AS count FROM segment_contact_exclusions WHERE contact_id=?', ['contact_b']))?.count, 0);
+
+  const visibleTopicsA = await request(topicCollection.GET, 'workspace_a', 'GET', 'http://send-thanks.test/api/v1/topics');
+  const visibleTopicsB = await request(topicCollection.GET, 'workspace_b', 'GET', 'http://send-thanks.test/api/v1/topics');
+  assert.deepEqual((await visibleTopicsA.json()).data.map(({ id }) => id), ['shared_topic_a']);
+  assert.deepEqual((await visibleTopicsB.json()).data.map(({ id }) => id), ['shared_topic_b']);
+  const ownTopic = await request(topicItem.GET, 'workspace_a', 'GET', 'http://send-thanks.test/api/v1/topics/shared_topic_a', undefined, params('shared_topic_a'));
+  assert.equal(ownTopic.status, 200);
+  assert.equal((await ownTopic.json()).subscribers_count, 1);
+  const hiddenTopic = await request(topicItem.GET, 'workspace_a', 'GET', 'http://send-thanks.test/api/v1/topics/shared_topic_b', undefined, params('shared_topic_b'));
+  assert.equal(hiddenTopic.status, 404);
+  const hiddenTopicUpdate = await request(topicItem.PATCH, 'workspace_a', 'PATCH', 'http://send-thanks.test/api/v1/topics/shared_topic_b', { name: 'Changed', slug: 'changed' }, params('shared_topic_b'));
+  assert.equal(hiddenTopicUpdate.status, 404);
+  const hiddenTopicArchive = await request(topicItem.DELETE, 'workspace_a', 'DELETE', 'http://send-thanks.test/api/v1/topics/shared_topic_b', undefined, params('shared_topic_b'));
+  assert.equal(hiddenTopicArchive.status, 404);
+  const foreignTopicSubscription = await request(contactTopics.PUT, 'workspace_a', 'PUT', 'http://send-thanks.test/api/v1/contacts/contact_a_older/topics', { topic_ids: ['shared_topic_b'], consent_source: 'api request' }, params('contact_a_older'));
+  assert.equal(foreignTopicSubscription.status, 404);
+  const ownTopicPreferences = await request(contactTopics.GET, 'workspace_a', 'GET', 'http://send-thanks.test/api/v1/contacts/contact_a_older/topics', undefined, params('contact_a_older'));
+  assert.deepEqual((await ownTopicPreferences.json()).data.map(({ id }) => id), ['shared_topic_a']);
+  const preferenceTokenModule = await import('../src/lib/contact-preferences.ts');
+  const preferenceToken = preferenceTokenModule.createContactPreferenceToken({ contactId: 'contact_a_older', email: 'shared@example.test' });
+  const publicPreferences = await preferencesRoute.GET(new Request(`http://send-thanks.test/api/preferences/${preferenceToken}`), { params: Promise.resolve({ token: preferenceToken }) });
+  assert.equal(publicPreferences.status, 200);
+  assert.deepEqual((await publicPreferences.json()).topics.map(({ id }) => id), ['shared_topic_a']);
+  const crossWorkspacePreferenceWrite = await preferencesRoute.POST(new Request(`http://send-thanks.test/api/preferences/${preferenceToken}`, {
+    method: 'POST',
+    headers: { origin: 'http://send-thanks.test', host: 'send-thanks.test', 'content-type': 'application/json' },
+    body: JSON.stringify({ topic_ids: ['shared_topic_b'] }),
+  }), { params: Promise.resolve({ token: preferenceToken }) });
+  assert.equal(crossWorkspacePreferenceWrite.status, 404);
+  const ownAudience = await broadcasts.eligibleBroadcastContacts({ apiKeyId: 'key_a', audienceType: 'topic', audienceId: 'shared_topic_a' });
+  const otherAudience = await broadcasts.eligibleBroadcastContacts({ apiKeyId: 'key_b', audienceType: 'topic', audienceId: 'shared_topic_b' });
+  assert.deepEqual(ownAudience.map(({ id }) => id), ['contact_a_older']);
+  assert.deepEqual(otherAudience.map(({ id }) => id), ['contact_b']);
+  const validTopicAudience = await broadcasts.validateBroadcastInput({ apiKeyId: 'key_a', audienceType: 'topic', audienceId: 'shared_topic_a', from: 'hello@shared.example.test' });
+  assert.equal(validTopicAudience.key.workspace_id, 'workspace_a');
+  const foreignTopicAudience = await broadcasts.validateBroadcastInput({ apiKeyId: 'key_a', audienceType: 'topic', audienceId: 'shared_topic_b', from: 'hello@shared.example.test' });
+  assert.equal(foreignTopicAudience.status, 404);
+  async function importWithTopic(topicId, email) {
+    const form = new FormData();
+    form.set('file', new Blob([`email,consent_status,consent_source,consented_at\n${email},opted_in,signup form,${timestamp}\n`], { type: 'text/csv' }), 'contacts.csv');
+    form.set('column_map', JSON.stringify({ email: 'email' }));
+    form.set('topics', JSON.stringify([{ id: topicId, subscription: 'opt_in' }]));
+    return contactImports.POST(new Request('http://send-thanks.test/api/v1/contacts/imports', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${secrets.workspace_a}` },
+      body: form,
+    }));
+  }
+  const foreignTopicImport = await importWithTopic('shared_topic_b', 'foreign-topic-import@example.test');
+  assert.equal(foreignTopicImport.status, 404);
+  const validTopicImport = await importWithTopic('shared_topic_a', 'topic-import@example.test');
+  assert.equal(validTopicImport.status, 201);
+  assert.equal((await database.queryOne(`SELECT c.workspace_id,ct.topic_id FROM contacts c JOIN contact_topics ct ON ct.contact_id=c.id WHERE c.email=?`, ['topic-import@example.test']))?.topic_id, 'shared_topic_a');
+  assert.equal((await database.queryOne('SELECT workspace_id FROM contacts WHERE email=?', ['topic-import@example.test']))?.workspace_id, 'workspace_a');
+  const sameNameTopicA = await request(topicCollection.POST, 'workspace_a', 'POST', 'http://send-thanks.test/api/v1/topics', { name: 'Separate topic', slug: 'separate-topic' });
+  const sameNameTopicB = await request(topicCollection.POST, 'workspace_b', 'POST', 'http://send-thanks.test/api/v1/topics', { name: 'Separate topic', slug: 'separate-topic' });
+  assert.equal(sameNameTopicA.status, 201);
+  assert.equal(sameNameTopicB.status, 201);
 
   const visibleSegments = await request(segmentCollection.GET, 'workspace_a', 'GET', 'http://send-thanks.test/api/v1/segments');
   assert.equal(visibleSegments.status, 200);
@@ -343,7 +448,7 @@ test('API contact collection and item routes isolate two workspaces', async (con
   const hiddenSegmentMetrics = await request(segmentMetrics.GET, 'workspace_a', 'GET', 'http://send-thanks.test/api/v1/segments/metrics?segment_id=shared_segment_b');
   assert.equal(hiddenSegmentMetrics.status, 404);
   const isolatedMetrics = await request(segmentMetrics.GET, 'workspace_a', 'GET', 'http://send-thanks.test/api/v1/segments/metrics');
-  assert.equal((await isolatedMetrics.json()).totals.all_contacts, 2);
+  assert.equal((await isolatedMetrics.json()).totals.all_contacts, 3);
   const sameNameInA = await request(segmentCollection.POST, 'workspace_a', 'POST', 'http://send-thanks.test/api/v1/segments', { name: 'Separate name', filters: { tags_all: ['active'] } });
   const sameNameInB = await request(segmentCollection.POST, 'workspace_b', 'POST', 'http://send-thanks.test/api/v1/segments', { name: 'Separate name', filters: { tags_all: ['active'] } });
   assert.equal(sameNameInA.status, 201);

@@ -173,7 +173,7 @@ async function __emailgo_POST_handler(request: Request) {
   const topics = topicsValue as Array<{ id: string; subscription: 'opt_in' | 'opt_out' }>;
   if (new Set(topics.map(({ id }) => id)).size !== topics.length) return errorResponse('topics cannot contain duplicate IDs.', 400);
   if (topics.length) {
-    const found = (await query<{ id: string }>(`SELECT id FROM topics WHERE disabled_at IS NULL AND id IN (${topics.map(() => '?').join(',')})`, topics.map(({ id }) => id))).rows;
+    const found = (await query<{ id: string }>(`SELECT id FROM topics WHERE disabled_at IS NULL AND workspace_id=? AND id IN (${topics.map(() => '?').join(',')})`, [key.workspaceId, ...topics.map(({ id }) => id)])).rows;
     if (found.length !== topics.length) return errorResponse('One or more topics were not found or are archived.', 404);
   }
 
@@ -268,15 +268,15 @@ async function __emailgo_POST_handler(request: Request) {
           sql: subscription === 'opt_in'
             ? `INSERT INTO contact_topics(contact_id,topic_id,subscribed_at,unsubscribed_at,consent_source,consented_at)
               SELECT c.id,t.id,?,NULL,c.consent_source,c.consented_at FROM contacts c CROSS JOIN topics t
-              WHERE c.workspace_id=? AND lower(c.email) IN (${emailPlaceholders}) AND t.id IN (${topicPlaceholders}) AND t.disabled_at IS NULL ${consentFilter}
+              WHERE c.workspace_id=? AND lower(c.email) IN (${emailPlaceholders}) AND t.workspace_id=? AND t.id IN (${topicPlaceholders}) AND t.disabled_at IS NULL ${consentFilter}
               ON CONFLICT(contact_id,topic_id) DO UPDATE SET
                 subscribed_at=CASE WHEN contact_topics.unsubscribed_at IS NULL THEN contact_topics.subscribed_at ELSE excluded.subscribed_at END,
                 unsubscribed_at=NULL,consent_source=excluded.consent_source,consented_at=excluded.consented_at`
             : `INSERT INTO contact_topics(contact_id,topic_id,subscribed_at,unsubscribed_at,consent_source,consented_at)
               SELECT c.id,t.id,NULL,?,NULL,NULL FROM contacts c CROSS JOIN topics t
-              WHERE c.workspace_id=? AND lower(c.email) IN (${emailPlaceholders}) AND t.id IN (${topicPlaceholders}) AND t.disabled_at IS NULL
+              WHERE c.workspace_id=? AND lower(c.email) IN (${emailPlaceholders}) AND t.workspace_id=? AND t.id IN (${topicPlaceholders}) AND t.disabled_at IS NULL
               ON CONFLICT(contact_id,topic_id) DO UPDATE SET unsubscribed_at=excluded.unsubscribed_at`,
-          params: [timestamp, key.workspaceId, ...appliedEmails, ...topicIds],
+          params: [timestamp, key.workspaceId, ...appliedEmails, key.workspaceId, ...topicIds],
         });
       }
       return statements;
@@ -296,7 +296,7 @@ async function __emailgo_POST_handler(request: Request) {
       const placeholders = appliedEmails.map(() => '?').join(',');
       const contacts = (await query<{ id: string; email: string; unsubscribed_at: string | null; consent_status: string; consent_source: string | null; consented_at: string | null }>(`SELECT id,email,unsubscribed_at,consent_status,consent_source,consented_at FROM contacts WHERE workspace_id=? AND lower(email) IN (${placeholders})`, [key.workspaceId, ...appliedEmails])).rows;
       const topicIds = [...new Set(topics.map(({ id }) => id))];
-      const activeTopics = new Set((await query<{ id: string }>(`SELECT id FROM topics WHERE disabled_at IS NULL AND id IN (${topicIds.map(() => '?').join(',')})`, topicIds)).rows.map(({ id }) => id));
+      const activeTopics = new Set((await query<{ id: string }>(`SELECT id FROM topics WHERE workspace_id=? AND disabled_at IS NULL AND id IN (${topicIds.map(() => '?').join(',')})`, [key.workspaceId, ...topicIds])).rows.map(({ id }) => id));
       const timestamp = nowIso();
       for (const contact of contacts) {
         const optedInTopics = topics.filter(({ id, subscription }) => subscription === 'opt_in' && activeTopics.has(id)).map(({ id }) => id);

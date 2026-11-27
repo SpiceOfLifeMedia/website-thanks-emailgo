@@ -9,12 +9,12 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 const privateHeaders = { 'Cache-Control': 'private, no-store' };
 type PreferenceContext = { params: Promise<{ token: string }> };
-type ContactPreferenceRow = { id: string; email: string; name: string | null; consent_status: string; unsubscribed_at: string | null };
+type ContactPreferenceRow = { id: string; email: string; name: string | null; consent_status: string; unsubscribed_at: string | null; workspace_id: string };
 
 async function resolveContact(token: string) {
   const identity = verifyContactPreferenceToken(token);
   if (!identity) return null;
-  const contact = await queryOne<ContactPreferenceRow>('SELECT id,email,name,consent_status,unsubscribed_at FROM contacts WHERE id=?', [identity.contactId]);
+  const contact = await queryOne<ContactPreferenceRow>('SELECT id,email,name,consent_status,unsubscribed_at,workspace_id FROM contacts WHERE id=?', [identity.contactId]);
   if (!contact || contact.email !== identity.email) return null;
   return contact;
 }
@@ -25,7 +25,7 @@ export async function GET(_request: Request, context: PreferenceContext) {
   if (!contact) return NextResponse.json({ error: 'This preference link is invalid.' }, { status: 404, headers: privateHeaders });
   const rows = await query<{ id: string; name: string; slug: string; description: string | null; subscribed_at: string | null; unsubscribed_at: string | null }>(`SELECT t.id,t.name,t.slug,t.description,ct.subscribed_at,ct.unsubscribed_at
     FROM topics t LEFT JOIN contact_topics ct ON ct.topic_id=t.id AND ct.contact_id=?
-    WHERE t.disabled_at IS NULL ORDER BY t.name ASC`, [contact.id]);
+    WHERE t.workspace_id=? AND t.disabled_at IS NULL ORDER BY t.name ASC`, [contact.id, contact.workspace_id]);
   return NextResponse.json({
     contact: { email: contact.email, name: contact.name, unsubscribed: Boolean(contact.unsubscribed_at), consent_status: contact.consent_status },
     topics: rows.rows.map((topic) => ({ id: topic.id, name: topic.name, slug: topic.slug, description: topic.description, subscribed: Boolean(topic.subscribed_at && !topic.unsubscribed_at && !contact.unsubscribed_at && contact.consent_status === 'opted_in') })),
@@ -56,10 +56,10 @@ export async function POST(request: Request, context: PreferenceContext) {
   if (contact.unsubscribed_at && topicIds.length && body.confirm_resubscribe !== true) return NextResponse.json({ error: 'Confirm that you want to opt in again before subscribing to topics.' }, { status: 409, headers: privateHeaders });
   if (topicIds.length) {
     const placeholders = topicIds.map(() => '?').join(',');
-    const activeTopics = await query<{ id: string }>(`SELECT id FROM topics WHERE disabled_at IS NULL AND id IN (${placeholders})`, topicIds);
+    const activeTopics = await query<{ id: string }>(`SELECT id FROM topics WHERE workspace_id=? AND disabled_at IS NULL AND id IN (${placeholders})`, [contact.workspace_id, ...topicIds]);
     if (activeTopics.rows.length !== topicIds.length) return NextResponse.json({ error: 'One or more topics are missing or archived.' }, { status: 404, headers: privateHeaders });
   }
-  const existing = await query<{ topic_id: string; subscribed_at: string | null; unsubscribed_at: string | null; consent_source: string | null; consented_at: string | null }>('SELECT topic_id,subscribed_at,unsubscribed_at,consent_source,consented_at FROM contact_topics WHERE contact_id=?', [contact.id]);
+  const existing = await query<{ topic_id: string; subscribed_at: string | null; unsubscribed_at: string | null; consent_source: string | null; consented_at: string | null }>('SELECT ct.topic_id,ct.subscribed_at,ct.unsubscribed_at,ct.consent_source,ct.consented_at FROM contact_topics ct JOIN topics t ON t.id=ct.topic_id WHERE ct.contact_id=? AND t.workspace_id=?', [contact.id, contact.workspace_id]);
   const selected = new Set(topicIds);
   const timestamp = nowIso();
   const subscribedTopicIds = topicIds.filter((topicId) => {
@@ -71,7 +71,7 @@ export async function POST(request: Request, context: PreferenceContext) {
     .map((topic) => topic.topic_id);
   const statements: Array<{ sql: string; params: readonly unknown[] }> = [];
   for (const topic of existing.rows) {
-    if (!selected.has(topic.topic_id) && topic.unsubscribed_at === null) statements.push({ sql: 'UPDATE contact_topics SET unsubscribed_at=? WHERE contact_id=? AND topic_id=? AND unsubscribed_at IS NULL', params: [timestamp, contact.id, topic.topic_id] });
+    if (!selected.has(topic.topic_id) && topic.unsubscribed_at === null) statements.push({ sql: 'UPDATE contact_topics SET unsubscribed_at=? WHERE contact_id=? AND topic_id=? AND unsubscribed_at IS NULL AND EXISTS (SELECT 1 FROM topics WHERE topics.id=contact_topics.topic_id AND topics.workspace_id=?)', params: [timestamp, contact.id, topic.topic_id, contact.workspace_id] });
   }
   for (const topicId of topicIds) {
     const previous = existing.rows.find((topic) => topic.topic_id === topicId);

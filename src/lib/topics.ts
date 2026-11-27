@@ -1,6 +1,7 @@
 import { queryOne } from '@/lib/database';
+import { DEFAULT_WORKSPACE_ID } from './workspaces.ts';
 
-export type TopicRow = { id: string; name: string; slug: string; description: string | null; created_at: string; updated_at: string };
+export type TopicRow = { id: string; name: string; slug: string; description: string | null; created_at: string; updated_at: string; workspace_id?: string };
 
 export function validateTopicBody(value: unknown, current?: TopicRow) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return { ok: false as const, error: 'Request body must be a JSON object.' };
@@ -15,8 +16,9 @@ export function validateTopicBody(value: unknown, current?: TopicRow) {
 }
 
 export async function toTopic(row: TopicRow) {
+  const workspaceId = row.workspace_id ?? DEFAULT_WORKSPACE_ID;
   const count = await queryOne<{ count: number }>(`SELECT CAST(COUNT(*) AS INTEGER) AS count FROM contact_topics ct
-    JOIN contacts c ON c.id=ct.contact_id WHERE ct.topic_id=? AND ct.subscribed_at IS NOT NULL
-      AND ct.unsubscribed_at IS NULL AND c.unsubscribed_at IS NULL AND c.consent_status='opted_in'`, [row.id]);
+    JOIN contacts c ON c.id=ct.contact_id WHERE ct.topic_id=? AND c.workspace_id=? AND ct.subscribed_at IS NOT NULL
+      AND ct.unsubscribed_at IS NULL AND c.unsubscribed_at IS NULL AND c.consent_status='opted_in'`, [row.id, workspaceId]);
   return { id: row.id, object: 'topic', name: row.name, slug: row.slug, description: row.description, subscribers_count: Number(count?.count ?? 0), created_at: row.created_at, updated_at: row.updated_at };
 }
