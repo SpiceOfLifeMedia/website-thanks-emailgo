@@ -11,6 +11,7 @@ Send, thanks is an independent mail platform. It must not call the external mail
 | Base64 attachments | Implemented, local validation passed | Request limit is 1 MB; attachments capped at 650 KB total and 10 files per message. Attachment bytes are not retained. |
 | Reusable templates with variables | Implemented, local smoke validation passed | Draft and published versions, immutable version history, aliases, fallback values, duplicate/publish operations, HTML escaping, a visual block editor with sandboxed preview, and protection against deleting templates referenced by automations. Link validation runs before publication or sending. Per-workspace isolation is not implemented. |
 | Email link checker | Partial, unit tests passed | Static checks run before API sends, broadcast queuing, template publication, and automation handoff. It detects missing or empty destinations, unsafe schemes, malformed URLs and common placeholders; dynamic variables are checked after rendering. It does not warn inline while editing or fetch remote pages to confirm that a destination responds. |
+| Email client compatibility checker | Partial, unit tests passed | Template and broadcast HTML source editors show advisory findings while editing for commonly stripped elements, event handlers, linked stylesheets, modern CSS layout and color features, and framework markup. Checks are a fixed heuristic list, not a refreshed client-support matrix; they do not annotate code or guarantee rendering across inboxes. |
 | Batch send | Implemented, local smoke validation passed | Accepts the standard direct JSON array and the earlier `{ "emails": [...] }` wrapper. Up to 100 messages, one API rate-limit unit, five SMTP sends in parallel, per-item results and idempotency keys. Each send is synchronous and can exceed a serverless execution window. |
 | Scheduled sends and retry queue | Implemented, local worker smoke validation passed; production activation pending | Durable database records, reschedule/cancel endpoints, three total attempts and a protected worker. Requires `CRON_SECRET`, durable database storage, a production deployment, and a Vercel plan that meets the desired cadence. |
 | Domain verification and authentication guidance | Partial | Send, thanks TXT ownership checks and read-only SPF, DMARC and MX diagnostics are available. DKIM, custom return paths and custom tracking domains still rely on the selected relay or manual DNS configuration. |
@@ -119,6 +120,7 @@ Webhook signatures use `svix-id`, `svix-timestamp`, and `svix-signature` headers
 
 ## Verified official references
 
+- [Email Compatibility Checker](https://resend.com/changelog/email-compatibility-checker)
 - [Vercel Cron Jobs](https://vercel.com/docs/cron-jobs)
 
 Do not describe Send, thanks as a complete email platform until every applicable row has implemented behavior and verification evidence. Features requiring a delivery event provider, inbound mail provider, team identity system or worker must remain listed as dependencies until configured.

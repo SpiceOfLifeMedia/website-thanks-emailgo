@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { renderEmailDesign, type EmailDesign } from '@/lib/email-design';
+import { EmailCompatibilityPanel } from '@/components/EmailCompatibilityPanel';
 import { TemplatesEditor } from '@/components/templates-editor';
 import { createClaudeStarterDesign, designToEditor, editorToDesign } from '@/components/templates-editor/adapter';
 import type { Block, EmailTheme } from '@/components/templates-editor/blocks';
@@ -179,6 +180,7 @@ export function TemplatesWorkspace() {
             <button type="button" className={editorMode === 'html' ? 'selected' : ''} onClick={() => { if (design) setHtml(renderEmailDesign(design)); setDesign(null); setEditorMode('html'); }}>HTML source</button>
           </div>
           <label>HTML<textarea value={html} onChange={(event) => setHtml(event.target.value)} rows={7} maxLength={500_000} placeholder="<p>Hello {{{RECIPIENT_NAME}}},</p>" /></label>
+          <EmailCompatibilityPanel html={design ? renderEmailDesign(design) : html} />
         </div>
         <label className="templateVariablesField">Variables (JSON)<textarea value={variablesJson} onChange={(event) => setVariablesJson(event.target.value)} rows={6} spellCheck={false} placeholder={'[{"key":"RECIPIENT_NAME","type":"string","fallback_value":"friend"}]'} /></label>
       </div>
@@ -622,6 +624,7 @@ export function BroadcastsWorkspace({ apiKeys, domains, canQueue }: { apiKeys: B
             <button type="button" className={editorMode === 'html' ? 'selected' : ''} onClick={() => { if (draft.design) update('html', renderEmailDesign(draft.design)); update('design', null); setEditorMode('html'); }}>HTML source</button>
           </div>
           <label>HTML body<textarea value={draft.html} onChange={(event) => update('html', event.target.value)} maxLength={500000} rows={7} placeholder="Optional HTML. {{name}}, {{email}}, {{preferences_url}} and {{unsubscribe_url}} are available." /></label>
+          <EmailCompatibilityPanel html={draft.design ? renderEmailDesign(draft.design) : draft.html} />
         </div>
         <div className="broadcastDisclosure">Each queued message gets a signed preference link and a List-Unsubscribe header. Message delivery starts from the scheduled worker. Opens and clicks are approximate metrics.</div>
         {error && <p className="inlineError" role="alert">{error}</p>}
