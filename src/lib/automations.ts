@@ -7,6 +7,7 @@ import { relayMessageIdFromResponse } from '@/lib/ses-events';
 import { checkEmailLinks } from '@/lib/email-link-checker';
 import { recordEmailSentActivity } from '@/lib/email-activity';
 import { resolvePlainText } from '@/lib/plain-text';
+import { DEFAULT_WORKSPACE_ID } from './workspaces.ts';
 
 export type AutomationStep = { key: string; type: string; config: Record<string, unknown> };
 export type AutomationConnection = { from: string; to: string; condition?: 'true' | 'false' };
@@ -100,6 +101,9 @@ export function parseDuration(value: unknown): number | null {
 }
 
 export async function saveAutomation(apiKeyId: string, id: string | null, value: unknown): Promise<{ ok: true; automation: AutomationRecord } | { ok: false; status: 400 | 404 | 409; error: string }> {
+  const ownerKey = await queryOne<{ workspace_id: string }>('SELECT workspace_id FROM api_keys WHERE id=? AND revoked_at IS NULL', [apiKeyId]);
+  if (!ownerKey) return { ok: false, status: 404, error: 'API key not found.' };
+  const workspaceId = ownerKey.workspace_id;
   let existing: { id: string; api_key_id: string; name: string; status: string; trigger_event: string; steps_json: string; connections_json: string; created_at: string; updated_at: string } | undefined;
   if (id) {
     existing = await queryOne<{ id: string; api_key_id: string; name: string; status: string; trigger_event: string; steps_json: string; connections_json: string; created_at: string; updated_at: string }>("SELECT id,api_key_id,name,status,trigger_event,steps_json,connections_json,created_at,updated_at FROM automations WHERE id=? AND api_key_id=? AND status<>'archived'", [id, apiKeyId]);
@@ -130,10 +134,10 @@ export async function saveAutomation(apiKeyId: string, id: string | null, value:
       if (parsed.definition.status === 'active' && !emailTemplate.published_version_id) return { ok: false, status: 400, error: `Template "${String(template)}" must be published before an active automation can send it.` };
       if (parsed.definition.status === 'active') {
         const domain = extractAddress(String(step.config.from)).split('@').at(-1)?.toLowerCase() ?? '';
-        if (!await queryOne<{ id: string }>('SELECT id FROM domains WHERE lower(domain)=? AND verified_at IS NOT NULL', [domain])) return { ok: false, status: 400, error: `Sender domain "${domain}" is not verified in Send, thanks.` };
+        if (!await queryOne<{ id: string }>('SELECT id FROM domains WHERE lower(domain)=? AND verified_at IS NOT NULL AND workspace_id=?', [domain, workspaceId])) return { ok: false, status: 400, error: `Sender domain "${domain}" is not verified in Send, thanks.` };
       }
     }
-    if (step.type === 'add_to_segment' && !await queryOne<{ id: string }>('SELECT id FROM segments WHERE id=?', [String(step.config.segment_id)])) return { ok: false, status: 400, error: `Segment "${String(step.config.segment_id)}" does not exist.` };
+    if (step.type === 'add_to_segment' && !await queryOne<{ id: string }>('SELECT id FROM segments WHERE id=? AND workspace_id=?', [String(step.config.segment_id), workspaceId])) return { ok: false, status: 400, error: `Segment "${String(step.config.segment_id)}" does not exist.` };
   }
   const updatedAt = nowIso();
   const templateIds = [...new Set(parsed.definition.steps.flatMap((step) => {
@@ -336,12 +340,14 @@ export async function processAutomationRuns(limit = 10) {
 async function advanceAutomationRun(runId: string): Promise<'completed' | 'waiting' | 'running'> {
   let run = await queryOne<RunRow>('SELECT * FROM automation_runs WHERE id=?', [runId]);
   if (!run) throw new Error('Automation run disappeared.');
+  const ownerKey = await queryOne<{ workspace_id: string }>('SELECT workspace_id FROM api_keys WHERE id=?', [run.api_key_id]);
+  const workspaceId = ownerKey?.workspace_id ?? DEFAULT_WORKSPACE_ID;
   const steps = parseJson<AutomationStep[]>(run.steps_json, []);
   const connections = parseJson<AutomationConnection[]>(run.connections_json, []);
   let context = parseJson<Record<string, unknown>>(run.context_json, {});
   let contact: ContactContext | undefined;
-  if (run.contact_id) contact = await queryOne<ContactContext>('SELECT id,email,name,properties_json,tags_json,unsubscribed_at,consent_status FROM contacts WHERE id=?', [run.contact_id]);
-  if (!contact && run.email) contact = await queryOne<ContactContext>('SELECT id,email,name,properties_json,tags_json,unsubscribed_at,consent_status FROM contacts WHERE lower(email)=lower(?)', [run.email]);
+  if (run.contact_id) contact = await queryOne<ContactContext>('SELECT id,email,name,properties_json,tags_json,unsubscribed_at,consent_status FROM contacts WHERE id=? AND workspace_id=?', [run.contact_id, workspaceId]);
+  if (!contact && run.email) contact = await queryOne<ContactContext>('SELECT id,email,name,properties_json,tags_json,unsubscribed_at,consent_status FROM contacts WHERE lower(email)=lower(?) AND workspace_id=?', [run.email, workspaceId]);
   const contactData = contact ? { id: contact.id, email: contact.email, name: contact.name, properties: parseJson<Record<string, unknown>>(contact.properties_json, {}), tags: parseJson<string[]>(contact.tags_json, []), consent_status: contact.consent_status, unsubscribed: Boolean(contact.unsubscribed_at) } : {};
   context = { ...context, contact: contactData, event: { ...parseJson<Record<string, unknown>>(run.payload_json, {}), event_name: run.event_name }, wait_events: recordValue(context.wait_events) };
   await execute('UPDATE automation_runs SET context_json=? WHERE id=?', [JSON.stringify(context), runId]);
@@ -427,7 +433,7 @@ async function advanceAutomationRun(runId: string): Promise<'completed' | 'waiti
       }
       if (Object.hasOwn(updates, 'tags')) tags = [...new Set(updates.tags as string[])];
       const updatedAt = nowIso();
-      await execute('UPDATE contacts SET name=?,properties_json=?,tags_json=?,updated_at=? WHERE id=?', [name, JSON.stringify(properties), JSON.stringify(tags), updatedAt, contact.id]);
+      await execute('UPDATE contacts SET name=?,properties_json=?,tags_json=?,updated_at=? WHERE id=? AND workspace_id=?', [name, JSON.stringify(properties), JSON.stringify(tags), updatedAt, contact.id, workspaceId]);
       await emitWebhookEvent(run.api_key_id, 'contact.updated', { contact_id: contact.id, email: contact.email });
       context = { ...context, contact: { ...contactData, name, properties, tags } };
       await execute("UPDATE automation_run_steps SET status='completed',output_json=?,finished_at=? WHERE id=?", [JSON.stringify({ contact_id: contact.id, updated: Object.keys(updates) }), nowIso(), historyId]);
@@ -439,7 +445,7 @@ async function advanceAutomationRun(runId: string): Promise<'completed' | 'waiti
     if (step.type === 'add_to_segment') {
       if (!contact) throw new Error('Add to segment requires a contact attached to the event.');
       const segmentId = String(step.config.segment_id);
-      if (!await queryOne<{ id: string }>('SELECT id FROM segments WHERE id=?', [segmentId])) throw new Error(`Segment "${segmentId}" no longer exists.`);
+      if (!await queryOne<{ id: string }>('SELECT id FROM segments WHERE id=? AND workspace_id=?', [segmentId, workspaceId])) throw new Error(`Segment "${segmentId}" no longer exists.`);
       await execute('INSERT INTO segment_contacts(segment_id,contact_id,created_at) VALUES(?,?,?) ON CONFLICT(segment_id,contact_id) DO NOTHING', [segmentId, contact.id, nowIso()]);
       await execute("UPDATE automation_run_steps SET status='completed',output_json=?,finished_at=? WHERE id=?", [JSON.stringify({ segment_id: segmentId, contact_id: contact.id }), nowIso(), historyId]);
       const next = nextStep(connections, step.key);

@@ -75,16 +75,16 @@ export function parseBroadcastDesign(value: string | null | undefined): EmailDes
 }
 
 export async function validateBroadcastInput(input: BroadcastInput) {
-  const key = await queryOne<{ id: string; permission: string; domain_id: string | null }>('SELECT id,permission,domain_id FROM api_keys WHERE id=? AND revoked_at IS NULL', [input.apiKeyId]);
+  const key = await queryOne<{ id: string; permission: string; domain_id: string | null; workspace_id: string }>('SELECT id,permission,domain_id,workspace_id FROM api_keys WHERE id=? AND revoked_at IS NULL', [input.apiKeyId]);
   if (!key) return { error: 'The selected API key is not active.', status: 400 } as const;
   const sender = /<([^<>]+)>$/.exec(input.from)?.[1] ?? input.from;
   const senderDomain = sender.slice(sender.lastIndexOf('@') + 1).toLowerCase();
-  const domains = await query<{ id: string; domain: string }>('SELECT id,domain FROM domains WHERE verified_at IS NOT NULL');
+  const domains = await query<{ id: string; domain: string }>('SELECT id,domain FROM domains WHERE verified_at IS NOT NULL AND workspace_id=?', [key.workspace_id]);
   const domain = domains.rows.filter((entry) => senderDomain === entry.domain.toLowerCase() || senderDomain.endsWith(`.${entry.domain.toLowerCase()}`)).sort((a, b) => b.domain.length - a.domain.length)[0];
   if (!domain) return { error: 'The sender domain must be verified in Send, thanks.', status: 403 } as const;
   if (key.permission === 'sending_access' && key.domain_id !== domain.id) return { error: 'The selected sending-only key is restricted to a different sender domain.', status: 403 } as const;
   if (input.audienceType === 'segment') {
-    const segment = await queryOne<{ id: string }>('SELECT id FROM segments WHERE id=?', [input.audienceId]);
+    const segment = await queryOne<{ id: string }>('SELECT id FROM segments WHERE id=? AND workspace_id=?', [input.audienceId, key.workspace_id]);
     if (!segment) return { error: 'The selected segment does not exist.', status: 404 } as const;
   } else {
     const topic = await queryOne<{ id: string }>('SELECT id FROM topics WHERE id=? AND disabled_at IS NULL', [input.audienceId]);
@@ -93,23 +93,25 @@ export async function validateBroadcastInput(input: BroadcastInput) {
   return { key, domain } as const;
 }
 
-export async function eligibleBroadcastContacts(input: Pick<BroadcastInput, 'audienceType' | 'audienceId'>, max = 1001) {
+export async function eligibleBroadcastContacts(input: Pick<BroadcastInput, 'apiKeyId' | 'audienceType' | 'audienceId'>, max = 1001) {
+  const key = await queryOne<{ workspace_id: string }>('SELECT workspace_id FROM api_keys WHERE id=? AND revoked_at IS NULL', [input.apiKeyId]);
+  if (!key) return [];
   if (input.audienceType === 'topic') {
     const result = await query<{ id: string; email: string; name: string | null; properties_json: string }>(`SELECT c.id,c.email,c.name,c.properties_json FROM contacts c
       JOIN contact_topics ct ON ct.contact_id=c.id JOIN topics t ON t.id=ct.topic_id AND t.disabled_at IS NULL
-      WHERE ct.topic_id=? AND ct.subscribed_at IS NOT NULL AND ct.unsubscribed_at IS NULL
+      WHERE c.workspace_id=? AND ct.topic_id=? AND ct.subscribed_at IS NOT NULL AND ct.unsubscribed_at IS NULL
         AND c.consent_status='opted_in' AND c.unsubscribed_at IS NULL
         AND NOT EXISTS (SELECT 1 FROM suppressions s WHERE s.normalized_email=lower(c.email))
-      ORDER BY c.id ASC LIMIT ?`, [input.audienceId, max]);
+      ORDER BY c.id ASC LIMIT ?`, [key.workspace_id, input.audienceId, max]);
     return result.rows;
   }
-  const segment = await queryOne<{ filters_json: string }>('SELECT filters_json FROM segments WHERE id=?', [input.audienceId]);
+  const segment = await queryOne<{ filters_json: string }>('SELECT filters_json FROM segments WHERE id=? AND workspace_id=?', [input.audienceId, key.workspace_id]);
   if (!segment) return [];
   let filters: unknown;
   try { filters = JSON.parse(segment.filters_json); } catch { return []; }
   const parsedFilters = parseSegmentFilters(filters);
   if (!parsedFilters.ok) return [];
-  const filter = segmentWhere(parsedFilters.filters, input.audienceId);
+  const filter = segmentWhere(parsedFilters.filters, input.audienceId, undefined, undefined, key.workspace_id);
   const where = filter.where ? ` AND ${filter.where}` : '';
   const result = await query<{ id: string; email: string; name: string | null; properties_json: string }>(`SELECT c.id,c.email,c.name,c.properties_json FROM contacts c
     WHERE c.consent_status='opted_in' AND c.unsubscribed_at IS NULL

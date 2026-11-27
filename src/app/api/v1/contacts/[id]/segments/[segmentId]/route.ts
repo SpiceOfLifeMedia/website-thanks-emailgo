@@ -14,7 +14,7 @@ async function __emailgo_POST_handler(request: Request, context: { params: Promi
   const { id, segmentId } = await context.params;
   const contact = await queryOne<{ id: string }>('SELECT id FROM contacts WHERE workspace_id=? AND (id=? OR lower(email)=lower(?)) LIMIT 1', [key.workspaceId, id, id]);
   if (!contact) return error('Contact not found.', 404);
-  if (!await queryOne<{ id: string }>('SELECT id FROM segments WHERE id=?', [segmentId])) return error('Segment not found.', 404);
+  if (!await queryOne<{ id: string }>('SELECT id FROM segments WHERE id=? AND workspace_id=?', [segmentId, key.workspaceId])) return error('Segment not found.', 404);
   const timestamp = nowIso();
   await transaction([
     { sql: 'DELETE FROM segment_contact_exclusions WHERE segment_id=? AND contact_id=?', params: [segmentId, contact.id] },
@@ -30,7 +30,7 @@ async function __emailgo_DELETE_handler(request: Request, context: { params: Pro
   const { id, segmentId } = await context.params;
   const contact = await queryOne<{ id: string }>('SELECT id FROM contacts WHERE workspace_id=? AND (id=? OR lower(email)=lower(?)) LIMIT 1', [key.workspaceId, id, id]);
   if (!contact) return error('Contact not found.', 404);
-  if (!await queryOne<{ id: string }>('SELECT id FROM segments WHERE id=?', [segmentId])) return error('Segment not found.', 404);
+  if (!await queryOne<{ id: string }>('SELECT id FROM segments WHERE id=? AND workspace_id=?', [segmentId, key.workspaceId])) return error('Segment not found.', 404);
   const timestamp = nowIso();
   await transaction([
     { sql: 'DELETE FROM segment_contacts WHERE segment_id=? AND contact_id=?', params: [segmentId, contact.id] },

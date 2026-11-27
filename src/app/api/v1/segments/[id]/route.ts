@@ -13,8 +13,8 @@ async function __emailgo_GET_handler(request: Request, context: { params: Promis
   if (!apiKey) return errorResponse('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(apiKey)) return errorResponse('This API key has sending-only access.', 403);
   const { id } = await context.params;
-  const row = await queryOne<SegmentRow>('SELECT id,name,filters_json,created_at,updated_at FROM segments WHERE id=?', [id]);
-  return row ? NextResponse.json(await toSegment(row)) : errorResponse('Segment not found.', 404);
+  const row = await queryOne<SegmentRow>('SELECT id,name,filters_json,created_at,updated_at,workspace_id FROM segments WHERE id=? AND workspace_id=?', [id, apiKey.workspaceId]);
+  return row ? NextResponse.json(await toSegment(row, apiKey.workspaceId)) : errorResponse('Segment not found.', 404);
 }
 
 async function __emailgo_PATCH_handler(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -22,7 +22,7 @@ async function __emailgo_PATCH_handler(request: Request, context: { params: Prom
   if (!apiKey) return errorResponse('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(apiKey)) return errorResponse('This API key has sending-only access.', 403);
   const { id } = await context.params;
-  const current = await queryOne<SegmentRow>('SELECT id,name,filters_json,created_at,updated_at FROM segments WHERE id=?', [id]);
+  const current = await queryOne<SegmentRow>('SELECT id,name,filters_json,created_at,updated_at,workspace_id FROM segments WHERE id=? AND workspace_id=?', [id, apiKey.workspaceId]);
   if (!current) return errorResponse('Segment not found.', 404);
   const parsed = await readJsonLimited(request, 20_000);
   if (!parsed.ok) return errorResponse(parsed.error, parsed.status);
@@ -36,10 +36,10 @@ async function __emailgo_PATCH_handler(request: Request, context: { params: Prom
     if (!filters.ok) return errorResponse(filters.error, 400);
     filtersJson = JSON.stringify(filters.filters);
   }
-  try { await execute('UPDATE segments SET name=?,filters_json=?,updated_at=? WHERE id=?', [name, filtersJson, nowIso(), id]); }
+  try { await execute('UPDATE segments SET name=?,filters_json=?,updated_at=? WHERE id=? AND workspace_id=?', [name, filtersJson, nowIso(), id, apiKey.workspaceId]); }
   catch { return errorResponse('A segment with that name already exists.', 409); }
-  const updated = await queryOne<SegmentRow>('SELECT id,name,filters_json,created_at,updated_at FROM segments WHERE id=?', [id]);
-  return updated ? NextResponse.json(await toSegment(updated)) : errorResponse('The updated segment could not be read.', 500);
+  const updated = await queryOne<SegmentRow>('SELECT id,name,filters_json,created_at,updated_at,workspace_id FROM segments WHERE id=? AND workspace_id=?', [id, apiKey.workspaceId]);
+  return updated ? NextResponse.json(await toSegment(updated, apiKey.workspaceId)) : errorResponse('The updated segment could not be read.', 500);
 }
 
 async function __emailgo_DELETE_handler(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -47,7 +47,7 @@ async function __emailgo_DELETE_handler(request: Request, context: { params: Pro
   if (!apiKey) return errorResponse('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(apiKey)) return errorResponse('This API key has sending-only access.', 403);
   const { id } = await context.params;
-  const deleted = await execute('DELETE FROM segments WHERE id=?', [id]);
+  const deleted = await execute('DELETE FROM segments WHERE id=? AND workspace_id=?', [id, apiKey.workspaceId]);
   return deleted ? NextResponse.json({ object: 'segment', id, deleted: true }) : errorResponse('Segment not found.', 404);
 }
 

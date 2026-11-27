@@ -20,11 +20,11 @@ async function __emailgo_GET_handler(request: Request, context: { params: Promis
   if (!apiKey) return errorResponse('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(apiKey)) return errorResponse('This API key has sending-only access.', 403);
   const { id } = await context.params;
-  const segment = await queryOne<SegmentRow>('SELECT id,name,filters_json,created_at,updated_at FROM segments WHERE id=?', [id]);
+  const segment = await queryOne<SegmentRow>('SELECT id,name,filters_json,created_at,updated_at FROM segments WHERE id=? AND workspace_id=?', [id, apiKey.workspaceId]);
   if (!segment) return errorResponse('Segment not found.', 404);
   let filters: SegmentFilters;
   try { filters = JSON.parse(segment.filters_json) as SegmentFilters; } catch { return errorResponse('Segment filters are unavailable.', 500); }
-  const { where, params } = segmentWhere(filters, id);
+  const { where, params } = segmentWhere(filters, id, undefined, undefined, apiKey.workspaceId);
   const url = new URL(request.url);
   const rawLimit = url.searchParams.get('limit');
   const limit = rawLimit === null ? 20 : Number(rawLimit);

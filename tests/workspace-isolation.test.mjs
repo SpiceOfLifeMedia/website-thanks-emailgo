@@ -54,11 +54,25 @@ test('SQLite backfills legacy keys, domains and contacts once and scopes unique 
       properties_json TEXT NOT NULL, tags_json TEXT NOT NULL, unsubscribed_at TEXT,
       created_at TEXT NOT NULL, updated_at TEXT NOT NULL
     );
+    CREATE TABLE segments (
+      id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, filters_json TEXT NOT NULL,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE TABLE segment_contacts (
+      segment_id TEXT NOT NULL, contact_id TEXT NOT NULL, created_at TEXT NOT NULL,
+      PRIMARY KEY(segment_id,contact_id),
+      FOREIGN KEY(segment_id) REFERENCES segments(id) ON DELETE CASCADE,
+      FOREIGN KEY(contact_id) REFERENCES contacts(id) ON DELETE CASCADE
+    );
     INSERT INTO api_keys(id,name,prefix,secret_hash,created_at) VALUES('legacy_key','Legacy key','eg_live_legacy','legacy_hash','2026-01-01T00:00:00.000Z');
     INSERT INTO domains(id,domain,verification_token,created_at,verified_at,open_tracking,click_tracking)
       VALUES('legacy_domain','old.example.test','verify=old','2026-01-01T00:00:00.000Z',NULL,1,0);
     INSERT INTO contacts(id,email,name,properties_json,tags_json,unsubscribed_at,created_at,updated_at)
       VALUES('legacy_contact','shared@example.test','Legacy contact','{}','[]',NULL,'2026-01-01T00:00:00.000Z','2026-01-01T00:00:00.000Z');
+    INSERT INTO segments(id,name,filters_json,created_at,updated_at)
+      VALUES('legacy_segment','Legacy segment','{"tags_all":["legacy"]}','2026-01-01T00:00:00.000Z','2026-01-01T00:00:00.000Z');
+    INSERT INTO segment_contacts(segment_id,contact_id,created_at)
+      VALUES('legacy_segment','legacy_contact','2026-01-01T00:00:00.000Z');
   `);
   legacy.close();
 
@@ -66,6 +80,8 @@ test('SQLite backfills legacy keys, domains and contacts once and scopes unique 
   const legacyKey = await database.queryOne('SELECT id,workspace_id FROM api_keys WHERE id=?', ['legacy_key']);
   const legacyDomain = await database.queryOne('SELECT id,domain,workspace_id,open_tracking,click_tracking FROM domains WHERE id=?', ['legacy_domain']);
   const legacyContact = await database.queryOne('SELECT id,email,workspace_id FROM contacts WHERE id=?', ['legacy_contact']);
+  const legacySegment = await database.queryOne('SELECT id,name,workspace_id FROM segments WHERE id=?', ['legacy_segment']);
+  const legacySegmentMembership = await database.queryOne('SELECT segment_id,contact_id FROM segment_contacts WHERE segment_id=? AND contact_id=?', ['legacy_segment', 'legacy_contact']);
   assert.equal(legacyKey?.id, 'legacy_key');
   assert.equal(legacyKey?.workspace_id, 'default');
   assert.equal(legacyDomain?.id, 'legacy_domain');
@@ -76,12 +92,19 @@ test('SQLite backfills legacy keys, domains and contacts once and scopes unique 
   assert.equal(legacyContact?.id, 'legacy_contact');
   assert.equal(legacyContact?.email, 'shared@example.test');
   assert.equal(legacyContact?.workspace_id, 'default');
+  assert.equal(legacySegment?.id, 'legacy_segment');
+  assert.equal(legacySegment?.name, 'Legacy segment');
+  assert.equal(legacySegment?.workspace_id, 'default');
+  assert.equal(legacySegmentMembership?.segment_id, 'legacy_segment');
+  assert.equal(legacySegmentMembership?.contact_id, 'legacy_contact');
 
   await database.execute("INSERT INTO workspaces(id,name,created_at) VALUES(?,?,?)", ['workspace_b', 'Workspace B', '2026-01-01T00:00:00.000Z']);
   await database.execute(`INSERT INTO domains(id,domain,verification_token,created_at,workspace_id)
     VALUES(?,?,?,?,?)`, ['workspace_b_domain', 'old.example.test', 'verify=b', '2026-01-02T00:00:00.000Z', 'workspace_b']);
   await database.execute(`INSERT INTO contacts(id,email,name,properties_json,tags_json,unsubscribed_at,created_at,updated_at,workspace_id)
     VALUES(?,?,?,?,?,?,?,?,?)`, ['workspace_b_contact', 'shared@example.test', 'Workspace B contact', '{}', '[]', null, '2026-01-02T00:00:00.000Z', '2026-01-02T00:00:00.000Z', 'workspace_b']);
+  await database.execute(`INSERT INTO segments(id,name,filters_json,created_at,updated_at,workspace_id)
+    VALUES(?,?,?,?,?,?)`, ['workspace_b_segment', 'Legacy segment', '{"tags_all":["legacy"]}', '2026-01-02T00:00:00.000Z', '2026-01-02T00:00:00.000Z', 'workspace_b']);
 
   const handle = globalThis.emailgoSqlite;
   handle.close();
@@ -98,6 +121,9 @@ test('SQLite backfills legacy keys, domains and contacts once and scopes unique 
 
   await assert.rejects(database.execute(`INSERT INTO domains(id,domain,verification_token,created_at,workspace_id)
     VALUES(?,?,?,?,?)`, ['duplicate_default_domain', 'old.example.test', 'verify=dup', '2026-01-03T00:00:00.000Z', 'default']));
+  await assert.rejects(database.execute(`INSERT INTO segments(id,name,filters_json,created_at,updated_at,workspace_id)
+    VALUES(?,?,?,?,?,?)`, ['duplicate_default_segment', 'Legacy segment', '{"tags_all":["legacy"]}', '2026-01-03T00:00:00.000Z', '2026-01-03T00:00:00.000Z', 'default']));
+  assert.deepEqual(globalThis.emailgoSqlite.prepare('PRAGMA foreign_key_check').all(), []);
 });
 
 test('API key and domain routes isolate two workspaces', async (context) => {
@@ -199,13 +225,17 @@ test('API key and domain routes isolate two workspaces', async (context) => {
 test('API contact collection and item routes isolate two workspaces', async (context) => {
   setupTemporaryDatabase(context, 'send-thanks-workspace-contacts-');
   const database = await import('../src/lib/database.ts');
-  const [contactCollection, contactItem, contactTopics, contactSegments, contactSegment, eventSend] = await Promise.all([
+  const [contactCollection, contactItem, contactTopics, contactSegments, contactSegment, eventSend, segmentCollection, segmentItem, segmentContacts, segmentMetrics] = await Promise.all([
     import('../src/app/api/v1/contacts/route.ts'),
     import('../src/app/api/v1/contacts/[id]/route.ts'),
     import('../src/app/api/v1/contacts/[id]/topics/route.ts'),
     import('../src/app/api/v1/contacts/[id]/segments/route.ts'),
     import('../src/app/api/v1/contacts/[id]/segments/[segmentId]/route.ts'),
     import('../src/app/api/v1/events/send/route.ts'),
+    import('../src/app/api/v1/segments/route.ts'),
+    import('../src/app/api/v1/segments/[id]/route.ts'),
+    import('../src/app/api/v1/segments/[id]/contacts/route.ts'),
+    import('../src/app/api/v1/segments/metrics/route.ts'),
   ]);
   const timestamp = '2026-01-01T00:00:00.000Z';
   await database.execute('INSERT INTO workspaces(id,name,created_at) VALUES(?,?,?)', ['workspace_a', 'Workspace A', timestamp]);
@@ -230,7 +260,10 @@ test('API contact collection and item routes isolate two workspaces', async (con
   await seedContact('contact_a_older', 'shared@example.test', 'workspace_a', '2026-01-02T00:00:00.000Z');
   await seedContact('contact_a_newer', 'a-newer@example.test', 'workspace_a', '2026-01-03T00:00:00.000Z');
   await seedContact('contact_b', 'b-only@example.test', 'workspace_b', '2026-01-04T00:00:00.000Z');
-  await database.execute('INSERT INTO segments(id,name,filters_json,created_at,updated_at) VALUES(?,?,?,?,?)', ['shared_segment', 'Shared segment', '{"tags_all":["active"]}', timestamp, timestamp]);
+  for (const [id, workspaceId] of [['shared_segment_a', 'workspace_a'], ['shared_segment_b', 'workspace_b']]) {
+    await database.execute('INSERT INTO segments(id,name,filters_json,created_at,updated_at,workspace_id) VALUES(?,?,?,?,?,?)', [id, 'Shared segment', '{"tags_all":["active"]}', timestamp, timestamp, workspaceId]);
+  }
+  await database.execute("UPDATE contacts SET tags_json='[\"active\"]' WHERE id IN (?,?)", ['contact_a_older', 'contact_b']);
   await database.execute('INSERT INTO topics(id,name,slug,description,created_at,updated_at) VALUES(?,?,?,?,?,?)', ['shared_topic', 'Shared topic', 'shared-topic', null, timestamp, timestamp]);
 
   async function request(handler, workspaceId, method = 'GET', path = 'http://send-thanks.test/api/v1/contacts', body, contextValue) {
@@ -276,9 +309,9 @@ test('API contact collection and item routes isolate two workspaces', async (con
   assert.equal(foreignTopicWrite.status, 404);
   const foreignSegmentRead = await request(contactSegments.GET, 'workspace_a', 'GET', 'http://send-thanks.test/api/v1/contacts/contact_b/segments', undefined, params('contact_b'));
   assert.equal(foreignSegmentRead.status, 404);
-  const foreignSegmentAdd = await request(contactSegment.POST, 'workspace_a', 'POST', 'http://send-thanks.test/api/v1/contacts/contact_b/segments/shared_segment', undefined, contactSegmentParams('contact_b', 'shared_segment'));
+  const foreignSegmentAdd = await request(contactSegment.POST, 'workspace_a', 'POST', 'http://send-thanks.test/api/v1/contacts/contact_b/segments/shared_segment_b', undefined, contactSegmentParams('contact_b', 'shared_segment_b'));
   assert.equal(foreignSegmentAdd.status, 404);
-  const foreignSegmentRemove = await request(contactSegment.DELETE, 'workspace_a', 'DELETE', 'http://send-thanks.test/api/v1/contacts/contact_b/segments/shared_segment', undefined, contactSegmentParams('contact_b', 'shared_segment'));
+  const foreignSegmentRemove = await request(contactSegment.DELETE, 'workspace_a', 'DELETE', 'http://send-thanks.test/api/v1/contacts/contact_b/segments/shared_segment_b', undefined, contactSegmentParams('contact_b', 'shared_segment_b'));
   assert.equal(foreignSegmentRemove.status, 404);
   const foreignContactEvent = await request(eventSend.POST, 'workspace_a', 'POST', 'http://send-thanks.test/api/v1/events/send', { event: 'account.updated', contact_id: 'contact_b' });
   assert.equal(foreignContactEvent.status, 404);
@@ -289,6 +322,34 @@ test('API contact collection and item routes isolate two workspaces', async (con
   assert.equal((await database.queryOne('SELECT COUNT(*) AS count FROM contact_topics WHERE contact_id=?', ['contact_b']))?.count, 0);
   assert.equal((await database.queryOne('SELECT COUNT(*) AS count FROM segment_contacts WHERE contact_id=?', ['contact_b']))?.count, 0);
   assert.equal((await database.queryOne('SELECT COUNT(*) AS count FROM segment_contact_exclusions WHERE contact_id=?', ['contact_b']))?.count, 0);
+
+  const visibleSegments = await request(segmentCollection.GET, 'workspace_a', 'GET', 'http://send-thanks.test/api/v1/segments');
+  assert.equal(visibleSegments.status, 200);
+  assert.deepEqual((await visibleSegments.json()).data.map(({ id }) => id), ['shared_segment_a']);
+  const ownSegment = await request(segmentItem.GET, 'workspace_a', 'GET', 'http://send-thanks.test/api/v1/segments/shared_segment_a', undefined, params('shared_segment_a'));
+  assert.equal(ownSegment.status, 200);
+  assert.equal((await ownSegment.json()).contacts_count, 1);
+  const hiddenSegment = await request(segmentItem.GET, 'workspace_a', 'GET', 'http://send-thanks.test/api/v1/segments/shared_segment_b', undefined, params('shared_segment_b'));
+  assert.equal(hiddenSegment.status, 404);
+  const hiddenSegmentUpdate = await request(segmentItem.PATCH, 'workspace_a', 'PATCH', 'http://send-thanks.test/api/v1/segments/shared_segment_b', { name: 'Changed' }, params('shared_segment_b'));
+  assert.equal(hiddenSegmentUpdate.status, 404);
+  const hiddenSegmentDelete = await request(segmentItem.DELETE, 'workspace_a', 'DELETE', 'http://send-thanks.test/api/v1/segments/shared_segment_b', undefined, params('shared_segment_b'));
+  assert.equal(hiddenSegmentDelete.status, 404);
+  const hiddenSegmentContacts = await request(segmentContacts.GET, 'workspace_a', 'GET', 'http://send-thanks.test/api/v1/segments/shared_segment_b/contacts', undefined, params('shared_segment_b'));
+  assert.equal(hiddenSegmentContacts.status, 404);
+  const ownSegmentContacts = await request(segmentContacts.GET, 'workspace_a', 'GET', 'http://send-thanks.test/api/v1/segments/shared_segment_a/contacts', undefined, params('shared_segment_a'));
+  assert.equal(ownSegmentContacts.status, 200);
+  assert.deepEqual((await ownSegmentContacts.json()).data.map(({ id }) => id), ['contact_a_older']);
+  const hiddenSegmentMetrics = await request(segmentMetrics.GET, 'workspace_a', 'GET', 'http://send-thanks.test/api/v1/segments/metrics?segment_id=shared_segment_b');
+  assert.equal(hiddenSegmentMetrics.status, 404);
+  const isolatedMetrics = await request(segmentMetrics.GET, 'workspace_a', 'GET', 'http://send-thanks.test/api/v1/segments/metrics');
+  assert.equal((await isolatedMetrics.json()).totals.all_contacts, 2);
+  const sameNameInA = await request(segmentCollection.POST, 'workspace_a', 'POST', 'http://send-thanks.test/api/v1/segments', { name: 'Separate name', filters: { tags_all: ['active'] } });
+  const sameNameInB = await request(segmentCollection.POST, 'workspace_b', 'POST', 'http://send-thanks.test/api/v1/segments', { name: 'Separate name', filters: { tags_all: ['active'] } });
+  assert.equal(sameNameInA.status, 201);
+  assert.equal(sameNameInB.status, 201);
+  const duplicateNameInA = await request(segmentCollection.POST, 'workspace_a', 'POST', 'http://send-thanks.test/api/v1/segments', { name: 'Shared segment', filters: { tags_all: ['active'] } });
+  assert.equal(duplicateNameInA.status, 409);
 
   const createdByA = await request(contactCollection.POST, 'workspace_a', 'POST', 'http://send-thanks.test/api/v1/contacts', { email: 'created-a@example.test', name: 'Created A' });
   assert.equal(createdByA.status, 201);

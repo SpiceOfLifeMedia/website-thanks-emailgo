@@ -1,3 +1,5 @@
+import { DEFAULT_WORKSPACE_ID } from './workspaces.ts';
+
 export type SegmentEvent = 'email.sent' | 'email.delivered' | 'email.opened' | 'email.clicked' | 'email.bounced' | 'email.complained';
 export type SegmentPropertyType = 'string' | 'number';
 type StringPropertyOperator = 'equals' | 'not_equals' | 'contains' | 'is_set' | 'is_empty';
@@ -25,6 +27,7 @@ export type SegmentRow = {
   filters_json: string;
   created_at: string;
   updated_at: string;
+  workspace_id?: string;
 };
 
 const propertyKeyPattern = /^[A-Za-z_][A-Za-z0-9_.-]{0,99}$/;
@@ -196,34 +199,34 @@ function propertyCondition(rule: Extract<SegmentCondition, { type: 'property' }>
   };
 }
 
-function activityCondition(rule: Extract<SegmentCondition, { type: 'activity' }>, isPostgres: boolean, nowMs: number) {
+function activityCondition(rule: Extract<SegmentCondition, { type: 'activity' }>, isPostgres: boolean, nowMs: number, workspaceId: string) {
   const cutoff = new Date(nowMs - rule.within_days * 24 * 60 * 60 * 1000).toISOString();
   let existsSql: string;
   let params: Array<string | number | null>;
   if (rule.event === 'email.sent') {
     const eventRecipientMatch = contactEmailMatches('e', isPostgres);
     const fallbackRecipientMatch = contactEmailMatches('e', isPostgres);
-    existsSql = `(EXISTS (SELECT 1 FROM email_events ev JOIN emails e ON e.id=ev.email_id WHERE ev.type='email.sent' AND ev.created_at>=? AND (${eventRecipientMatch}))
-      OR EXISTS (SELECT 1 FROM emails e WHERE e.status IN ('sent','deferred','delivered','bounced','complained') AND e.created_at>=?
+    existsSql = `(EXISTS (SELECT 1 FROM email_events ev JOIN emails e ON e.id=ev.email_id JOIN api_keys ak ON ak.id=e.api_key_id WHERE ak.workspace_id=? AND ev.type='email.sent' AND ev.created_at>=? AND (${eventRecipientMatch}))
+      OR EXISTS (SELECT 1 FROM emails e JOIN api_keys ak ON ak.id=e.api_key_id WHERE ak.workspace_id=? AND e.status IN ('sent','deferred','delivered','bounced','complained') AND e.created_at>=?
         AND NOT EXISTS (SELECT 1 FROM email_events ev WHERE ev.email_id=e.id AND ev.type='email.sent') AND (${fallbackRecipientMatch})))`;
-    params = [cutoff, cutoff];
+    params = [workspaceId, cutoff, workspaceId, cutoff];
   } else if (rule.event === 'email.opened' || rule.event === 'email.clicked') {
     const recipientMatch = contactEmailMatches('e', isPostgres);
-    existsSql = `EXISTS (SELECT 1 FROM email_events ev JOIN emails e ON e.id=ev.email_id WHERE ev.type=? AND ev.created_at>=? AND (${recipientMatch}) AND (${recipientCount('e', isPostgres)})=1)`;
-    params = [rule.event, cutoff];
+    existsSql = `EXISTS (SELECT 1 FROM email_events ev JOIN emails e ON e.id=ev.email_id JOIN api_keys ak ON ak.id=e.api_key_id WHERE ak.workspace_id=? AND ev.type=? AND ev.created_at>=? AND (${recipientMatch}) AND (${recipientCount('e', isPostgres)})=1)`;
+    params = [workspaceId, rule.event, cutoff];
   } else {
     const eventType = deliveryEventTypes[rule.event];
     if (!eventType) return { sql: '0=1', params: [] };
-    existsSql = `EXISTS (SELECT 1 FROM delivery_events d WHERE lower(d.recipient)=lower(c.email) AND d.event_type=? AND d.created_at>=?)`;
-    params = [eventType, cutoff];
+    existsSql = `EXISTS (SELECT 1 FROM delivery_events d JOIN emails e ON e.id=d.email_id JOIN api_keys ak ON ak.id=e.api_key_id WHERE ak.workspace_id=? AND lower(d.recipient)=lower(c.email) AND d.event_type=? AND d.created_at>=?)`;
+    params = [workspaceId, eventType, cutoff];
   }
   const sql = rule.occurrence === 'occurred' ? existsSql : `NOT (${existsSql})`;
   return { sql, params };
 }
 
-function conditionWhere(rule: SegmentCondition, isPostgres: boolean, nowMs: number) {
+function conditionWhere(rule: SegmentCondition, isPostgres: boolean, nowMs: number, workspaceId: string) {
   if (rule.type === 'property') return propertyCondition(rule, isPostgres);
-  if (rule.type === 'activity') return activityCondition(rule, isPostgres, nowMs);
+  if (rule.type === 'activity') return activityCondition(rule, isPostgres, nowMs, workspaceId);
   if (rule.type === 'tag') {
     const tag = `c.tags_json LIKE ? ESCAPE '!'`;
     return { sql: rule.operator === 'has' ? tag : `NOT (${tag})`, params: [`%${escapeLike(JSON.stringify(rule.value))}%`] };
@@ -232,9 +235,9 @@ function conditionWhere(rule: SegmentCondition, isPostgres: boolean, nowMs: numb
   return { sql: rule.value ? 'c.unsubscribed_at IS NOT NULL' : 'c.unsubscribed_at IS NULL', params: [] };
 }
 
-export function segmentWhere(filters: SegmentFilters, segmentId?: string, isPostgres = Boolean(process.env.DATABASE_URL), nowMs = Date.now()) {
-  const clauses: string[] = [];
-  const params: Array<string | number | null> = [];
+export function segmentWhere(filters: SegmentFilters, segmentId?: string, isPostgres = Boolean(process.env.DATABASE_URL), nowMs = Date.now(), workspaceId = DEFAULT_WORKSPACE_ID) {
+  const clauses: string[] = ['c.workspace_id=?'];
+  const params: Array<string | number | null> = [workspaceId];
   for (const tag of filters.tags_all ?? []) {
     clauses.push("c.tags_json LIKE ? ESCAPE '!' ");
     params.push(`%${escapeLike(JSON.stringify(tag))}%`);
@@ -250,7 +253,7 @@ export function segmentWhere(filters: SegmentFilters, segmentId?: string, isPost
   if (filters.unsubscribed !== undefined) clauses.push(filters.unsubscribed ? 'c.unsubscribed_at IS NOT NULL' : 'c.unsubscribed_at IS NULL');
   const compiledGroups: Array<{ sql: string; params: Array<string | number | null> }> = [];
   for (const group of filters.groups ?? []) {
-    const compiled = group.rules.map((rule) => conditionWhere(rule, isPostgres, nowMs));
+    const compiled = group.rules.map((rule) => conditionWhere(rule, isPostgres, nowMs, workspaceId));
     compiledGroups.push({
       sql: `(${compiled.map((item) => item.sql).join(group.match === 'all' ? ' AND ' : ' OR ')})`,
       params: compiled.flatMap((item) => item.params),
@@ -269,15 +272,15 @@ export function segmentWhere(filters: SegmentFilters, segmentId?: string, isPost
   };
 }
 
-export async function countSegment(filters: SegmentFilters, segmentId?: string) {
+export async function countSegment(filters: SegmentFilters, segmentId?: string, workspaceId = DEFAULT_WORKSPACE_ID) {
   const { queryOne } = await import('@/lib/database');
-  const { where, params } = segmentWhere(filters, segmentId);
+  const { where, params } = segmentWhere(filters, segmentId, undefined, undefined, workspaceId);
   const result = await queryOne<{ count: number }>(`SELECT CAST(COUNT(*) AS INTEGER) AS count FROM contacts c WHERE ${where}`, params);
   return Number(result?.count ?? 0);
 }
 
-export async function toSegment(row: SegmentRow) {
+export async function toSegment(row: SegmentRow, workspaceId = row.workspace_id ?? DEFAULT_WORKSPACE_ID) {
   let filters: SegmentFilters = {};
   try { filters = JSON.parse(row.filters_json) as SegmentFilters; } catch {}
-  return { id: row.id, object: 'segment', name: row.name, filters, contacts_count: await countSegment(filters, row.id), created_at: row.created_at, updated_at: row.updated_at };
+  return { id: row.id, object: 'segment', name: row.name, filters, contacts_count: await countSegment(filters, row.id, workspaceId), created_at: row.created_at, updated_at: row.updated_at };
 }

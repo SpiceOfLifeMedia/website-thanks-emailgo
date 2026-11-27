@@ -21,11 +21,11 @@ function parseList(params: URLSearchParams, key: string) {
   return params.getAll(key).flatMap((value) => value.split(',')).map((value) => value.trim()).filter(Boolean);
 }
 
-async function countContacts(where = '', values: Array<string | number | null> = []) {
+async function countContacts(workspaceId: string, where = '', values: Array<string | number | null> = []) {
   const rows = await query<ContactCounts>(`SELECT CAST(COUNT(*) AS INTEGER) AS all_contacts,
       CAST(COALESCE(SUM(CASE WHEN c.unsubscribed_at IS NULL THEN 1 ELSE 0 END),0) AS INTEGER) AS subscribers,
       CAST(COALESCE(SUM(CASE WHEN c.unsubscribed_at IS NOT NULL THEN 1 ELSE 0 END),0) AS INTEGER) AS unsubscribers
-    FROM contacts c${where ? ` WHERE ${where}` : ''}`, values);
+    FROM contacts c WHERE c.workspace_id=?${where ? ` AND (${where})` : ''}`, [workspaceId, ...values]);
   const row = rows.rows[0];
   return Object.fromEntries(availableMetrics.map((metric) => [metric, Number(row?.[metric] ?? 0)]));
 }
@@ -53,11 +53,11 @@ async function __emailgo_GET_handler(request: Request) {
   if (dimensions.includes('segment') || requestedSegmentIds.length) {
     if (requestedSegmentIds.length) {
       const placeholders = requestedSegmentIds.map(() => '?').join(',');
-      segments = (await query<SegmentRow>(`SELECT id,name,filters_json,created_at,updated_at FROM segments WHERE id IN (${placeholders})`, requestedSegmentIds)).rows
+      segments = (await query<SegmentRow>(`SELECT id,name,filters_json,created_at,updated_at FROM segments WHERE workspace_id=? AND id IN (${placeholders})`, [key.workspaceId, ...requestedSegmentIds])).rows
         .sort((left, right) => right.created_at.localeCompare(left.created_at) || right.id.localeCompare(left.id));
       if (segments.length !== requestedSegmentIds.length) return errorResponse('One or more segments were not found.', 404);
     } else {
-      segments = (await query<SegmentRow>('SELECT id,name,filters_json,created_at,updated_at FROM segments ORDER BY created_at DESC,id DESC LIMIT ?', [MAX_SEGMENTS_PER_REQUEST + 1])).rows;
+      segments = (await query<SegmentRow>('SELECT id,name,filters_json,created_at,updated_at FROM segments WHERE workspace_id=? ORDER BY created_at DESC,id DESC LIMIT ?', [key.workspaceId, MAX_SEGMENTS_PER_REQUEST + 1])).rows;
       if (segments.length > MAX_SEGMENTS_PER_REQUEST) return errorResponse(`Segment dimension is limited to ${MAX_SEGMENTS_PER_REQUEST} segments per request. Add segment_id filters.`, 413);
     }
   }
@@ -69,21 +69,21 @@ async function __emailgo_GET_handler(request: Request) {
       let filters: SegmentFilters;
       try { filters = JSON.parse(segment.filters_json) as SegmentFilters; }
       catch { return errorResponse('A requested segment has invalid saved filters.', 500); }
-      segmentFilters.push(segmentWhere(filters, segment.id));
+      segmentFilters.push(segmentWhere(filters, segment.id, undefined, undefined, key.workspaceId));
     }
     const where = segmentFilters.map(({ where }) => `(${where})`).join(' OR ');
     const values = segmentFilters.flatMap(({ params: values }) => values);
-    totals = await countContacts(`(${where})`, values);
+    totals = await countContacts(key.workspaceId, `(${where})`, values);
   } else {
-    totals = await countContacts();
+    totals = await countContacts(key.workspaceId);
   }
 
   const data = dimensions.includes('segment') ? await Promise.all(segments.map(async (segment) => {
     let filters: SegmentFilters;
     try { filters = JSON.parse(segment.filters_json) as SegmentFilters; }
     catch { throw new Error('A segment has invalid saved filters.'); }
-    const membership = segmentWhere(filters, segment.id);
-    const counts = await countContacts(membership.where, membership.params);
+    const membership = segmentWhere(filters, segment.id, undefined, undefined, key.workspaceId);
+    const counts = await countContacts(key.workspaceId, membership.where, membership.params);
     return { id: segment.id, name: segment.name, ...Object.fromEntries(metrics.map((metric) => [metric, counts[metric]])) };
   })) : undefined;
 

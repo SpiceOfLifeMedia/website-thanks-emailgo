@@ -23,6 +23,9 @@ test('automation condition branches validate and canvas positions survive draft 
 
   const now = new Date().toISOString();
   await database.execute('INSERT INTO api_keys(id,name,prefix,secret_hash,created_at) VALUES(?,?,?,?,?)', ['key_canvas', 'Canvas test', 'eg_live_test', 'hash', now]);
+  await database.execute('INSERT INTO workspaces(id,name,created_at) VALUES(?,?,?)', ['workspace_other', 'Other workspace', now]);
+  await database.execute('INSERT INTO api_keys(id,name,prefix,secret_hash,created_at,workspace_id) VALUES(?,?,?,?,?,?)', ['key_other', 'Other workspace key', 'eg_live_other', 'other_hash', now, 'workspace_other']);
+  await database.execute('INSERT INTO segments(id,name,filters_json,created_at,updated_at,workspace_id) VALUES(?,?,?,?,?,?)', ['segment_other', 'Other segment', '{"tags_all":["other"]}', now, now, 'workspace_other']);
 
   const definition = {
     name: 'Welcome path',
@@ -63,4 +66,17 @@ test('automation condition branches validate and canvas positions survive draft 
   assert.deepEqual(reloaded?.steps[2].config.__sendThanksCanvas, { dx: -48, dy: 24 });
   assert.deepEqual(reloaded?.steps[2].config.preserved_option, { source: 'existing' });
   assert.deepEqual(reloaded?.connections, definition.connections);
+
+  const crossWorkspaceDefinition = {
+    name: 'Foreign segment attempt',
+    status: 'draft',
+    steps: [
+      { key: 'start', type: 'trigger', config: { event_name: 'user.created' } },
+      { key: 'segment', type: 'add_to_segment', config: { segment_id: 'segment_other' } },
+    ],
+    connections: [{ from: 'start', to: 'segment' }],
+  };
+  const rejectedForeignSegment = await automations.saveAutomation('key_canvas', null, crossWorkspaceDefinition);
+  assert.equal(rejectedForeignSegment.ok, false);
+  if (!rejectedForeignSegment.ok) assert.match(rejectedForeignSegment.error, /does not exist/);
 });

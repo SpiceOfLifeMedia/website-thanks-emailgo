@@ -162,7 +162,7 @@ async function __emailgo_POST_handler(request: Request) {
   const segmentIds = [...new Set((segmentsValue as Array<{ id: string }>).map(({ id }) => id))];
   if (segmentIds.length !== segmentsValue.length) return errorResponse('segments cannot contain duplicate IDs.', 400);
   if (segmentIds.length) {
-    const found = (await query<{ id: string }>(`SELECT id FROM segments WHERE id IN (${segmentIds.map(() => '?').join(',')})`, segmentIds)).rows;
+    const found = (await query<{ id: string }>(`SELECT id FROM segments WHERE workspace_id=? AND id IN (${segmentIds.map(() => '?').join(',')})`, [key.workspaceId, ...segmentIds])).rows;
     if (found.length !== segmentIds.length) return errorResponse('One or more segments were not found.', 404);
   }
 
@@ -252,9 +252,9 @@ async function __emailgo_POST_handler(request: Request) {
         statements.push({
           sql: `INSERT INTO segment_contacts(segment_id,contact_id,created_at)
             SELECT s.id,c.id,? FROM segments s CROSS JOIN contacts c
-            WHERE s.id IN (${segmentPlaceholders}) AND c.workspace_id=? AND lower(c.email) IN (${emailPlaceholders})
+            WHERE s.id IN (${segmentPlaceholders}) AND s.workspace_id=? AND c.workspace_id=? AND lower(c.email) IN (${emailPlaceholders})
             ON CONFLICT(segment_id,contact_id) DO NOTHING`,
-          params: [timestamp, ...segmentIds, key.workspaceId, ...appliedEmails],
+          params: [timestamp, ...segmentIds, key.workspaceId, key.workspaceId, ...appliedEmails],
         });
       }
       for (const subscription of ['opt_in', 'opt_out'] as const) {

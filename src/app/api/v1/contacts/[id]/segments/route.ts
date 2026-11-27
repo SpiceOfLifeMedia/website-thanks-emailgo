@@ -15,12 +15,12 @@ async function __emailgo_GET_handler(request: Request, context: { params: Promis
   const { id } = await context.params;
   const contact = await queryOne<{ id: string }>('SELECT id FROM contacts WHERE workspace_id=? AND (id=? OR lower(email)=lower(?)) LIMIT 1', [key.workspaceId, id, id]);
   if (!contact) return error('Contact not found.', 404);
-  const rows = await query<SegmentRow>('SELECT id,name,filters_json,created_at,updated_at FROM segments ORDER BY created_at DESC,id DESC');
+  const rows = await query<SegmentRow>('SELECT id,name,filters_json,created_at,updated_at,workspace_id FROM segments WHERE workspace_id=? ORDER BY created_at DESC,id DESC', [key.workspaceId]);
   const data: Array<{ id: string; name: string; created_at: string }> = [];
   for (const segment of rows.rows) {
     let filters: SegmentFilters;
     try { filters = JSON.parse(segment.filters_json) as SegmentFilters; } catch { continue; }
-    const condition = segmentWhere(filters, segment.id);
+    const condition = segmentWhere(filters, segment.id, undefined, undefined, key.workspaceId);
     const member = await queryOne<{ id: string }>(`SELECT c.id FROM contacts c WHERE c.id=? AND c.workspace_id=? AND ${condition.where}`, [contact.id, key.workspaceId, ...condition.params]);
     if (member) data.push({ id: segment.id, name: segment.name, created_at: segment.created_at });
   }

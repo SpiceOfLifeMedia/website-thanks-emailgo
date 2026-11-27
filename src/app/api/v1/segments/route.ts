@@ -12,8 +12,8 @@ async function __emailgo_GET_handler(request: Request) {
   const apiKey = await authorizeApiKey(request);
   if (!apiKey) return errorResponse('Invalid or revoked API key.', 401);
   if (!hasFullApiAccess(apiKey)) return errorResponse('This API key has sending-only access.', 403);
-  const rows = await query<SegmentRow>('SELECT id,name,filters_json,created_at,updated_at FROM segments ORDER BY updated_at DESC,id DESC');
-  return NextResponse.json({ object: 'list', data: await Promise.all(rows.rows.map(toSegment)) });
+  const rows = await query<SegmentRow>('SELECT id,name,filters_json,created_at,updated_at,workspace_id FROM segments WHERE workspace_id=? ORDER BY updated_at DESC,id DESC', [apiKey.workspaceId]);
+  return NextResponse.json({ object: 'list', data: await Promise.all(rows.rows.map((row) => toSegment(row, apiKey.workspaceId))) });
 }
 
 async function __emailgo_POST_handler(request: Request) {
@@ -30,10 +30,10 @@ async function __emailgo_POST_handler(request: Request) {
   if (!filters.ok) return errorResponse(filters.error, 400);
   const id = randomId('seg');
   const timestamp = nowIso();
-  try { await execute('INSERT INTO segments(id,name,filters_json,created_at,updated_at) VALUES(?,?,?,?,?)', [id, name, JSON.stringify(filters.filters), timestamp, timestamp]); }
+  try { await execute('INSERT INTO segments(id,name,filters_json,created_at,updated_at,workspace_id) VALUES(?,?,?,?,?,?)', [id, name, JSON.stringify(filters.filters), timestamp, timestamp, apiKey.workspaceId]); }
   catch { return errorResponse('A segment with that name already exists.', 409); }
-  const row = { id, name, filters_json: JSON.stringify(filters.filters), created_at: timestamp, updated_at: timestamp };
-  return NextResponse.json(await toSegment(row), { status: 201 });
+  const row = { id, name, filters_json: JSON.stringify(filters.filters), created_at: timestamp, updated_at: timestamp, workspace_id: apiKey.workspaceId };
+  return NextResponse.json(await toSegment(row, apiKey.workspaceId), { status: 201 });
 }
 
 export const GET = withApiRequestLog(__emailgo_GET_handler);

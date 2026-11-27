@@ -336,9 +336,15 @@ const postgresSchema = [
   'CREATE INDEX IF NOT EXISTS contacts_created_at ON contacts(created_at DESC)',
   'CREATE INDEX IF NOT EXISTS contacts_updated_at ON contacts(updated_at DESC)',
   `CREATE TABLE IF NOT EXISTS segments (
-    id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, filters_json TEXT NOT NULL,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, filters_json TEXT NOT NULL,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    workspace_id TEXT NOT NULL DEFAULT 'default' REFERENCES workspaces(id)
   )`,
+  "ALTER TABLE segments ADD COLUMN IF NOT EXISTS workspace_id TEXT NOT NULL DEFAULT 'default' REFERENCES workspaces(id)",
+  "UPDATE segments SET workspace_id='default' WHERE workspace_id IS NULL",
+  'ALTER TABLE segments ALTER COLUMN workspace_id SET NOT NULL',
+  'ALTER TABLE segments DROP CONSTRAINT IF EXISTS segments_name_key',
+  'CREATE UNIQUE INDEX IF NOT EXISTS segments_workspace_name_unique ON segments(workspace_id,name)',
   'CREATE INDEX IF NOT EXISTS segments_updated_at ON segments(updated_at DESC)',
   `CREATE TABLE IF NOT EXISTS segment_contacts (
     segment_id TEXT NOT NULL, contact_id TEXT NOT NULL, created_at TEXT NOT NULL,
@@ -627,8 +633,9 @@ function getSqlite() {
     CREATE INDEX IF NOT EXISTS contacts_created_at ON contacts(created_at DESC);
     CREATE INDEX IF NOT EXISTS contacts_updated_at ON contacts(updated_at DESC);
     CREATE TABLE IF NOT EXISTS segments (
-      id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, filters_json TEXT NOT NULL,
-      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      id TEXT PRIMARY KEY, name TEXT NOT NULL, filters_json TEXT NOT NULL,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      workspace_id TEXT NOT NULL DEFAULT 'default' REFERENCES workspaces(id)
     );
     CREATE INDEX IF NOT EXISTS segments_updated_at ON segments(updated_at DESC);
     CREATE TABLE IF NOT EXISTS segment_contacts (
@@ -802,6 +809,46 @@ function getSqlite() {
     BEFORE UPDATE OF workspace_id ON contacts
     WHEN NOT EXISTS (SELECT 1 FROM workspaces WHERE id=NEW.workspace_id)
     BEGIN SELECT RAISE(ABORT,'Contact workspace does not exist'); END`);
+  const segmentColumns = db.prepare('PRAGMA table_info(segments)').all() as Array<{ name: string }>;
+  const segmentColumnNames = new Set(segmentColumns.map(({ name }) => name));
+  const segmentIndexes = db.prepare("PRAGMA index_list('segments')").all() as Array<{ name: string; unique: number }>;
+  const hasGlobalSegmentNameUnique = segmentIndexes.some(({ name, unique }) => {
+    if (!unique) return false;
+    const escapedName = name.replaceAll('"', '""');
+    const columns = db.prepare(`PRAGMA index_info("${escapedName}")`).all() as Array<{ name: string }>;
+    return columns.length === 1 && columns[0]?.name === 'name';
+  });
+  if (!segmentColumnNames.has('workspace_id') || hasGlobalSegmentNameUnique) {
+    db.exec('PRAGMA foreign_keys = OFF');
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      const workspaceSelection = segmentColumnNames.has('workspace_id') ? "COALESCE(workspace_id,'default')" : "'default'";
+      db.exec(`CREATE TABLE segments_workspace_migration (
+        id TEXT PRIMARY KEY, name TEXT NOT NULL, filters_json TEXT NOT NULL,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+        workspace_id TEXT NOT NULL DEFAULT 'default' REFERENCES workspaces(id)
+      )`);
+      db.exec(`INSERT INTO segments_workspace_migration(id,name,filters_json,created_at,updated_at,workspace_id)
+        SELECT id,name,filters_json,created_at,updated_at,${workspaceSelection} FROM segments`);
+      db.exec('DROP TABLE segments');
+      db.exec('ALTER TABLE segments_workspace_migration RENAME TO segments');
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    } finally {
+      db.exec('PRAGMA foreign_keys = ON');
+    }
+  }
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS segments_workspace_name_unique ON segments(workspace_id,name)');
+  db.exec(`CREATE TRIGGER IF NOT EXISTS segments_workspace_insert
+    BEFORE INSERT ON segments
+    WHEN NOT EXISTS (SELECT 1 FROM workspaces WHERE id=NEW.workspace_id)
+    BEGIN SELECT RAISE(ABORT,'Segment workspace does not exist'); END`);
+  db.exec(`CREATE TRIGGER IF NOT EXISTS segments_workspace_update
+    BEFORE UPDATE OF workspace_id ON segments
+    WHEN NOT EXISTS (SELECT 1 FROM workspaces WHERE id=NEW.workspace_id)
+    BEGIN SELECT RAISE(ABORT,'Segment workspace does not exist'); END`);
   const automationEventColumns = db.prepare('PRAGMA table_info(automation_events)').all() as Array<{ name: string }>;
   if (!automationEventColumns.some(({ name }) => name === 'request_hash')) db.exec('ALTER TABLE automation_events ADD COLUMN request_hash TEXT');
   const emailEventColumns = db.prepare('PRAGMA table_info(email_events)').all() as Array<{ name: string }>;
