@@ -5,7 +5,7 @@ import { authorizeBroadcastRequest, eligibleBroadcastContacts, type BroadcastInp
 import { readJsonLimited } from '@/lib/request-json';
 import { smtpConfigured } from '@/lib/smtp';
 import { checkEmailLinks, type EmailLinkIssue } from '@/lib/email-link-checker';
-import { broadcastContactVariables, renderBroadcastContent } from '@/lib/broadcast-template';
+import { addBroadcastPreheader, broadcastContactVariables, renderBroadcastContent } from '@/lib/broadcast-template';
 import { normalizeScheduledAt } from '@/lib/scheduled-time';
 import { emitWebhookEvents, type WebhookEventInput } from '@/lib/webhooks';
 
@@ -33,7 +33,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (process.env.NODE_ENV === 'production' && publicOrigin.protocol !== 'https:') return NextResponse.json({ error: 'EMAILGO_PUBLIC_URL must use HTTPS in production.' }, { status: 503, headers: privateHeaders });
 
   const { id } = await context.params;
-  const campaign = await queryOne<BroadcastInput & { id: string; status: string }>('SELECT id,name,api_key_id AS "apiKeyId",from_address AS "from",subject,text_body AS text,html_body AS html,audience_type AS "audienceType",audience_id AS "audienceId",status FROM broadcasts WHERE id=?', [id]);
+  const campaign = await queryOne<BroadcastInput & { id: string; status: string }>('SELECT id,name,api_key_id AS "apiKeyId",from_address AS "from",subject,reply_to AS "replyTo",preview_text AS "previewText",text_body AS text,html_body AS html,audience_type AS "audienceType",audience_id AS "audienceId",status FROM broadcasts WHERE id=?', [id]);
   if (!campaign) return NextResponse.json({ error: 'Broadcast not found.' }, { status: 404, headers: privateHeaders });
   if (campaign.status !== 'draft') return NextResponse.json({ error: 'Only draft broadcasts can be queued.' }, { status: 409, headers: privateHeaders });
   const validated = await validateBroadcastInput(campaign);
@@ -90,8 +90,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       if (!subject || subject.length > 998) throw new Error('A rendered broadcast subject is invalid.');
       const textBody = renderBroadcastContent(campaign.text, values, false);
       const htmlBody = renderBroadcastContent(campaign.html, values, true);
+      const previewText = renderBroadcastContent(campaign.previewText, values, false);
       const textWithFooter = textBody === null ? null : `${textBody}\n\nManage preferences: ${preferencesUrl}\nUnsubscribe: ${unsubscribeUrl}`;
-      const htmlWithFooter = htmlBody === null ? null : `${htmlBody}<div style="margin-top:24px;font-size:12px;color:#666"><a href="${htmlEscape(preferencesUrl)}">Manage preferences</a> · <a href="${htmlEscape(unsubscribeUrl)}">Unsubscribe</a></div>`;
+      const htmlWithPreheader = addBroadcastPreheader(htmlBody, previewText);
+      const htmlWithFooter = htmlWithPreheader === null ? null : `${htmlWithPreheader}<div style="margin-top:24px;font-size:12px;color:#666"><a href="${htmlEscape(preferencesUrl)}">Manage preferences</a> · <a href="${htmlEscape(unsubscribeUrl)}">Unsubscribe</a></div>`;
       const linkIssues = checkEmailLinks(htmlWithFooter, textWithFooter);
       if (linkIssues.length) throw new BroadcastLinkValidationError(linkIssues);
       const createdAt = nowIso();
@@ -103,9 +105,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         });
       }
       baseStatements.push({
-        sql: `INSERT INTO emails(id,api_key_id,from_address,to_json,subject,status,headers_json,text_body,html_body,scheduled_at,track_opens,track_clicks,broadcast_id,created_at)
-          VALUES(?,?,?,?,?,'scheduled',?,?,?,?,?,?,?,?)`,
-        params: [emailId, campaign.apiKeyId, campaign.from, JSON.stringify([recipient.email]), subject,
+        sql: `INSERT INTO emails(id,api_key_id,from_address,to_json,reply_to,subject,status,headers_json,text_body,html_body,scheduled_at,track_opens,track_clicks,broadcast_id,created_at)
+          VALUES(?,?,?,?,?,?,'scheduled',?,?,?,?,?,?,?,?)`,
+        params: [emailId, campaign.apiKeyId, campaign.from, JSON.stringify([recipient.email]), campaign.replyTo, subject,
           JSON.stringify({ 'List-Unsubscribe': `<${unsubscribeUrl}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' }),
           textWithFooter, htmlWithFooter, scheduledAt, tracking.open ? 1 : 0, tracking.click ? 1 : 0, id, createdAt],
       });

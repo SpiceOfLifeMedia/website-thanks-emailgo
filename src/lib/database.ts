@@ -104,13 +104,15 @@ const postgresSchema = [
   'CREATE UNIQUE INDEX IF NOT EXISTS broadcast_folders_name_lower_unique ON broadcast_folders(LOWER(name))',
   `CREATE TABLE IF NOT EXISTS broadcasts (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, api_key_id TEXT NOT NULL, from_address TEXT NOT NULL,
-    subject TEXT NOT NULL, text_body TEXT, html_body TEXT, editor_json TEXT,
+    subject TEXT NOT NULL, text_body TEXT, html_body TEXT, editor_json TEXT, reply_to TEXT, preview_text TEXT,
     audience_type TEXT NOT NULL, audience_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft', folder_id TEXT,
     scheduled_at TEXT, recipient_count INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
     FOREIGN KEY(api_key_id) REFERENCES api_keys(id),
     FOREIGN KEY(folder_id) REFERENCES broadcast_folders(id) ON DELETE SET NULL
   )`,
   'ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS editor_json TEXT',
+  'ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS reply_to TEXT',
+  'ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS preview_text TEXT',
   'ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS folder_id TEXT REFERENCES broadcast_folders(id) ON DELETE SET NULL',
   'CREATE INDEX IF NOT EXISTS broadcasts_updated_at ON broadcasts(updated_at DESC)',
   'CREATE INDEX IF NOT EXISTS broadcasts_folder_updated_at ON broadcasts(folder_id,updated_at DESC,id DESC)',
@@ -417,7 +419,7 @@ function getSqlite() {
     CREATE UNIQUE INDEX IF NOT EXISTS broadcast_folders_name_lower_unique ON broadcast_folders(LOWER(name));
     CREATE TABLE IF NOT EXISTS broadcasts (
       id TEXT PRIMARY KEY, name TEXT NOT NULL, api_key_id TEXT NOT NULL, from_address TEXT NOT NULL,
-      subject TEXT NOT NULL, text_body TEXT, html_body TEXT, editor_json TEXT,
+      subject TEXT NOT NULL, text_body TEXT, html_body TEXT, editor_json TEXT, reply_to TEXT, preview_text TEXT,
       audience_type TEXT NOT NULL, audience_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft', folder_id TEXT REFERENCES broadcast_folders(id) ON DELETE SET NULL,
       scheduled_at TEXT, recipient_count INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
       FOREIGN KEY(api_key_id) REFERENCES api_keys(id)
@@ -627,6 +629,8 @@ function getSqlite() {
   const broadcastColumns = db.prepare('PRAGMA table_info(broadcasts)').all() as Array<{ name: string }>;
   if (!broadcastColumns.some(({ name }) => name === 'editor_json')) db.exec('ALTER TABLE broadcasts ADD COLUMN editor_json TEXT');
   if (!broadcastColumns.some(({ name }) => name === 'folder_id')) db.exec('ALTER TABLE broadcasts ADD COLUMN folder_id TEXT REFERENCES broadcast_folders(id) ON DELETE SET NULL');
+  if (!broadcastColumns.some(({ name }) => name === 'reply_to')) db.exec('ALTER TABLE broadcasts ADD COLUMN reply_to TEXT');
+  if (!broadcastColumns.some(({ name }) => name === 'preview_text')) db.exec('ALTER TABLE broadcasts ADD COLUMN preview_text TEXT');
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS broadcast_folders_name_lower_unique ON broadcast_folders(LOWER(name))');
   db.exec('CREATE INDEX IF NOT EXISTS broadcasts_folder_updated_at ON broadcasts(folder_id,updated_at DESC,id DESC)');
   const templateColumns = db.prepare('PRAGMA table_info(email_templates)').all() as Array<{ name: string }>;

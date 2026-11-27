@@ -34,10 +34,13 @@ test('any owned broadcast can be copied into a fresh draft', async (context) => 
   for (const [id, prefix] of [['key_1', 'eg_live_1'], ['key_2', 'eg_live_2']]) {
     await database.execute('INSERT INTO api_keys(id,name,prefix,secret_hash,created_at) VALUES(?,?,?,?,?)', [id, id, prefix, 'test-hash', now]);
   }
-  await database.execute(`INSERT INTO broadcasts(id,name,api_key_id,from_address,subject,text_body,html_body,editor_json,audience_type,audience_id,status,scheduled_at,recipient_count,created_at,updated_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?,'sent',?,?,?,?)`, [
+  const broadcastColumns = await database.query('PRAGMA table_info(broadcasts)');
+  assert.ok(broadcastColumns.rows.some(({ name }) => name === 'reply_to'));
+  assert.ok(broadcastColumns.rows.some(({ name }) => name === 'preview_text'));
+  await database.execute(`INSERT INTO broadcasts(id,name,api_key_id,from_address,subject,reply_to,preview_text,text_body,html_body,editor_json,audience_type,audience_id,status,scheduled_at,recipient_count,created_at,updated_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'sent',?,?,?,?)`, [
     'broadcast_sent', 'A'.repeat(120), 'key_1', 'Team <hello@example.test>', 'A subject',
-    'Plain copy', '<p>HTML copy</p>', '{"blocks":[]}', 'segment', 'segment_1', now, 14, now, now,
+    'Team <reply@example.test>', 'A short preview.', 'Plain copy', '<p>HTML copy</p>', '{"blocks":[]}', 'segment', 'segment_1', now, 14, now, now,
   ]);
 
   const duplicateId = await duplicateBroadcast('key_1', 'broadcast_sent');
@@ -51,6 +54,8 @@ test('any owned broadcast can be copied into a fresh draft', async (context) => 
   assert.equal(duplicate?.api_key_id, 'key_1');
   assert.equal(duplicate?.from_address, 'Team <hello@example.test>');
   assert.equal(duplicate?.subject, 'A subject');
+  assert.equal(duplicate?.reply_to, 'Team <reply@example.test>');
+  assert.equal(duplicate?.preview_text, 'A short preview.');
   assert.equal(duplicate?.text_body, 'Plain copy');
   assert.equal(duplicate?.html_body, '<p>HTML copy</p>');
   assert.equal(duplicate?.editor_json, '{"blocks":[]}');

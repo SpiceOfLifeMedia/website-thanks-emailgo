@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { broadcastContactVariables, renderBroadcastContent } from '../src/lib/broadcast-template.ts';
+import { addBroadcastPreheader, broadcastContactVariables, renderBroadcastContent } from '../src/lib/broadcast-template.ts';
 import { parseBroadcastCreateOptions } from '../src/lib/broadcast-options.ts';
 import { checkEmailLinks } from '../src/lib/email-link-checker.ts';
 
@@ -44,6 +44,14 @@ test('HTML merge tags escape double braces and preserve explicit triple-brace ma
     NAME: '<Sam & friends>', HTML: '<strong>Welcome</strong>',
   }, true);
   assert.equal(rendered, '<p>&lt;Sam &amp; friends&gt;</p><p><strong>Welcome</strong></p><a href="https://example.test">Read</a>');
+});
+
+test('broadcast preview text is escaped and inserted inside a complete HTML body', () => {
+  const html = addBroadcastPreheader('<!doctype html><html><body class="email"><p>Hello</p></body></html>', 'A <short> & useful preview');
+  assert.equal(html, '<!doctype html><html><body class="email"><div style="display:none!important;max-height:0;overflow:hidden;opacity:0;color:transparent;mso-hide:all;font-size:1px;line-height:1px">A &lt;short&gt; &amp; useful preview</div><p>Hello</p></body></html>');
+  assert.equal(addBroadcastPreheader('<p>Hello</p>', 'A preview'), '<div style="display:none!important;max-height:0;overflow:hidden;opacity:0;color:transparent;mso-hide:all;font-size:1px;line-height:1px">A preview</div><p>Hello</p>');
+  assert.equal(addBroadcastPreheader(null, 'A preview'), null);
+  assert.equal(addBroadcastPreheader('<p>Hello</p>', null), '<p>Hello</p>');
 });
 
 test('rendered broadcast URL fallbacks pass link checks and unsafe schemes are rejected', () => {

@@ -6,6 +6,14 @@ function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character] ?? character);
 }
 
+export function addBroadcastPreheader(html: string | null, previewText: string | null): string | null {
+  if (html === null || !previewText) return html;
+  const preheader = `<div style="display:none!important;max-height:0;overflow:hidden;opacity:0;color:transparent;mso-hide:all;font-size:1px;line-height:1px">${escapeHtml(previewText)}</div>`;
+  return /<body\b[^>]*>/i.test(html)
+    ? html.replace(/<body\b[^>]*>/i, (bodyTag) => `${bodyTag}${preheader}`)
+    : `${preheader}${html}`;
+}
+
 /**
  * Render broadcast merge tags. Double braces escape HTML. Triple braces are an
  * explicit opt-in to raw HTML for trusted template values. A pipe introduces a

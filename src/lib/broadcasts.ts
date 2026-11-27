@@ -2,12 +2,15 @@ import { query, queryOne } from '@/lib/database';
 import { authorizeApiKey, hasFullApiAccess, hasTrustedBrowserOrigin, isAdminSession } from '@/lib/auth';
 import { normalizeEmailDesign, renderEmailDesign, type EmailDesign } from '@/lib/email-design';
 import { parseSegmentFilters, segmentWhere } from '@/lib/segments';
+import { parseBroadcastMetadata } from '@/lib/broadcast-metadata';
 
 export type BroadcastInput = {
   name: string;
   apiKeyId: string;
   from: string;
   subject: string;
+  replyTo: string | null;
+  previewText: string | null;
   text: string | null;
   html: string | null;
   design?: EmailDesign | null;
@@ -34,6 +37,8 @@ export function parseBroadcastInput(value: unknown): { ok: true; value: Broadcas
   const apiKeyId = typeof body.api_key_id === 'string' ? body.api_key_id : '';
   const from = typeof body.from === 'string' ? body.from.trim() : '';
   const subject = typeof body.subject === 'string' ? body.subject.trim() : '';
+  const metadata = parseBroadcastMetadata(body.reply_to, body.preview_text);
+  if (!metadata.ok) return metadata;
   const text = body.text === undefined || body.text === null ? null : typeof body.text === 'string' ? body.text : undefined;
   let design: EmailDesign | null | undefined;
   if (Object.prototype.hasOwnProperty.call(body, 'design')) {
@@ -58,7 +63,7 @@ export function parseBroadcastInput(value: unknown): { ok: true; value: Broadcas
   if ((text?.length ?? 0) > 500_000 || (html?.length ?? 0) > 500_000) return { ok: false, error: 'Email content exceeds the 500 KB limit.' };
   if (audienceType !== 'segment' && audienceType !== 'topic') return { ok: false, error: 'audience_type must be segment or topic.' };
   if (!audienceId || audienceId.length > 100) return { ok: false, error: 'Choose a saved segment or topic.' };
-  return { ok: true, value: { name, apiKeyId, from, subject, text, html, design, audienceType, audienceId } };
+  return { ok: true, value: { name, apiKeyId, from, subject, ...metadata.value, text, html, design, audienceType, audienceId } };
 }
 
 export function parseBroadcastDesign(value: string | null | undefined): EmailDesign | null {

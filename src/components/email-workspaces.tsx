@@ -23,8 +23,8 @@ type Segment = { id: string; name: string; filters: { tags_all?: string[]; tags_
 type Topic = { id: string; name: string; slug: string; description: string | null; subscribers_count: number; created_at: string; updated_at: string };
 type BroadcastKey = { id: string; name: string; permission: 'full_access' | 'sending_access'; domain_id: string | null };
 type BroadcastDomain = { id: string; domain: string; verified_at: string | null };
-type Broadcast = { id: string; name: string; api_key_id: string; from_address: string; subject: string; text_body: string | null; html_body: string | null; design: EmailDesign | null; audience_type: 'segment' | 'topic'; audience_id: string; status: string; scheduled_at: string | null; recipient_count: number; sent_count: number; failed_count: number; suppressed_count: number; pending_count: number; folder_id?: string | null; created_at: string; updated_at: string };
-type BroadcastDraft = { name: string; api_key_id: string; from: string; subject: string; text: string; html: string; design: EmailDesign | null; audience_type: 'segment' | 'topic'; audience_id: string };
+type Broadcast = { id: string; name: string; api_key_id: string; from_address: string; subject: string; reply_to: string | null; preview_text: string | null; text_body: string | null; html_body: string | null; design: EmailDesign | null; audience_type: 'segment' | 'topic'; audience_id: string; status: string; scheduled_at: string | null; recipient_count: number; sent_count: number; failed_count: number; suppressed_count: number; pending_count: number; folder_id?: string | null; created_at: string; updated_at: string };
+type BroadcastDraft = { name: string; api_key_id: string; from: string; subject: string; reply_to: string; preview_text: string; text: string; html: string; design: EmailDesign | null; audience_type: 'segment' | 'topic'; audience_id: string };
 
 function toContactActivityItem(row: ContactActivityRow): ContactActivityItem | null {
   const email = row.email_id ? { id: row.email_id, subject: row.subject } : null;
@@ -671,7 +671,7 @@ export function BroadcastsWorkspace({ apiKeys, domains, canQueue }: { apiKeys: B
   const [editorMode, setEditorMode] = useState<'visual' | 'html'>('html');
   const [editorOpen, setEditorOpen] = useState(false);
   const [scheduleLocal, setScheduleLocal] = useState('');
-  const [draft, setDraft] = useState<BroadcastDraft>({ name: '', api_key_id: '', from: '', subject: '', text: '', html: '', design: null, audience_type: 'segment', audience_id: '' });
+  const [draft, setDraft] = useState<BroadcastDraft>({ name: '', api_key_id: '', from: '', subject: '', reply_to: '', preview_text: '', text: '', html: '', design: null, audience_type: 'segment', audience_id: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -713,10 +713,10 @@ export function BroadcastsWorkspace({ apiKeys, domains, canQueue }: { apiKeys: B
     setEditingId('');
     setEditorMode('html');
     setScheduleLocal('');
-    setDraft({ name: '', api_key_id: apiKeys[0]?.id ?? '', from: domains[0]?.domain ? `hello@${domains[0].domain}` : '', subject: '', text: '', html: '', design: null, audience_type: 'segment', audience_id: '' });
+    setDraft({ name: '', api_key_id: apiKeys[0]?.id ?? '', from: domains[0]?.domain ? `hello@${domains[0].domain}` : '', subject: '', reply_to: '', preview_text: '', text: '', html: '', design: null, audience_type: 'segment', audience_id: '' });
   }
   function inputPayload(value: BroadcastDraft = draft) {
-    return { name: value.name, api_key_id: value.api_key_id, from: value.from, subject: value.subject, ...(value.text ? { text: value.text } : {}), ...(value.html ? { html: value.html } : {}), design: value.design, audience_type: value.audience_type, audience_id: value.audience_id };
+    return { name: value.name, api_key_id: value.api_key_id, from: value.from, subject: value.subject, reply_to: value.reply_to || null, preview_text: value.preview_text || null, ...(value.text ? { text: value.text } : {}), ...(value.html ? { html: value.html } : {}), design: value.design, audience_type: value.audience_type, audience_id: value.audience_id };
   }
   async function saveVisualBroadcast(blocks: Block[], theme: EmailTheme) {
     const nextDesign = editorToDesign(blocks, theme, draft.design ?? createClaudeStarterDesign());
@@ -767,7 +767,7 @@ export function BroadcastsWorkspace({ apiKeys, domains, canQueue }: { apiKeys: B
     setEditingId(broadcast.id);
     setEditorMode(broadcast.design ? 'visual' : 'html');
     setScheduleLocal('');
-    setDraft({ name: broadcast.name, api_key_id: broadcast.api_key_id, from: broadcast.from_address, subject: broadcast.subject, text: broadcast.text_body ?? '', html: broadcast.html_body ?? '', design: broadcast.design ?? null, audience_type: broadcast.audience_type, audience_id: broadcast.audience_id });
+    setDraft({ name: broadcast.name, api_key_id: broadcast.api_key_id, from: broadcast.from_address, subject: broadcast.subject, reply_to: broadcast.reply_to ?? '', preview_text: broadcast.preview_text ?? '', text: broadcast.text_body ?? '', html: broadcast.html_body ?? '', design: broadcast.design ?? null, audience_type: broadcast.audience_type, audience_id: broadcast.audience_id });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
   const broadcastEditorModel = draft.design ? designToEditor(draft.design) : null;
