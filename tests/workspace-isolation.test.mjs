@@ -131,6 +131,8 @@ test('API key and domain routes isolate two workspaces', async (context) => {
     const domains = await request(domainCollection.GET, workspace);
     assert.equal(domains.status, 200);
     assert.deepEqual((await domains.json()).data.map(({ id }) => id), [ownDomainId]);
+    const rateLimit = await database.queryOne('SELECT workspace_id FROM api_request_limits');
+    assert.equal(rateLimit?.workspace_id, workspace);
 
     const keys = await request(keyCollection.GET, workspace, 'GET', 'http://send-thanks.test/api/v1/api-keys');
     assert.equal(keys.status, 200);

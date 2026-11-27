@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 import { neon, type NeonQueryFunction } from '@neondatabase/serverless';
 import { DatabaseSync } from 'node:sqlite';
 import { API_RATE_LIMIT_WINDOW_MS, apiRateLimitState } from './rate-limit.ts';
+import { DEFAULT_WORKSPACE_ID } from './workspaces.ts';
 
 type PostgresSql = NeonQueryFunction<false, true>;
 type GlobalWithDatabases = typeof globalThis & {
@@ -864,12 +865,12 @@ async function consumeLimit(statement: string, key: string, perMinute: number) {
   return count <= perMinute;
 }
 
-export async function consumeApiRequestLimit(_apiKeyId: string, perSecond = 10, nowMs = Date.now()) {
+export async function consumeApiRequestLimit(workspaceId = DEFAULT_WORKSPACE_ID, perSecond = 10, nowMs = Date.now()) {
   const windowStarted = Math.floor(nowMs / API_RATE_LIMIT_WINDOW_MS);
   const result = await query<{ request_count: number }>(`INSERT INTO api_request_limits(workspace_id,window_started,request_count) VALUES(?,?,1)
     ON CONFLICT(workspace_id) DO UPDATE SET window_started=excluded.window_started,
     request_count=CASE WHEN api_request_limits.window_started=excluded.window_started THEN api_request_limits.request_count+1 ELSE 1 END
-    RETURNING request_count`, ['default', windowStarted]);
+    RETURNING request_count`, [workspaceId, windowStarted]);
   return apiRateLimitState(Number(result.rows[0]?.request_count ?? 0), perSecond, windowStarted * API_RATE_LIMIT_WINDOW_MS);
 }
 

@@ -22,24 +22,22 @@ test('API request limits are shared across keys and reset each second', async (c
   });
 
   const database = await import('../src/lib/database.ts');
-  const now = new Date().toISOString();
-  await database.execute('INSERT INTO api_keys(id,name,prefix,secret_hash,created_at) VALUES(?,?,?,?,?)', ['key_a', 'First key', 'eg_live_a', 'hash_a', now]);
-  await database.execute('INSERT INTO api_keys(id,name,prefix,secret_hash,created_at) VALUES(?,?,?,?,?)', ['key_b', 'Second key', 'eg_live_b', 'hash_b', now]);
-
   const window = 1_700_000_000_000;
   let state;
-  for (let index = 0; index < 5; index += 1) state = await database.consumeApiRequestLimit('key_a', 10, window + 250);
-  for (let index = 0; index < 5; index += 1) state = await database.consumeApiRequestLimit('key_b', 10, window + 250);
+  for (let index = 0; index < 5; index += 1) state = await database.consumeApiRequestLimit('default', 10, window + 250);
+  for (let index = 0; index < 5; index += 1) state = await database.consumeApiRequestLimit('default', 10, window + 250);
   assert.deepEqual(state, { limit: 10, remaining: 0, resetAtMs: window + 1_000, allowed: true });
 
-  state = await database.consumeApiRequestLimit('key_a', 10, window + 250);
+  state = await database.consumeApiRequestLimit('workspace_b', 10, window + 250);
+  assert.deepEqual(state, { limit: 10, remaining: 9, resetAtMs: window + 1_000, allowed: true });
+  state = await database.consumeApiRequestLimit('default', 10, window + 250);
   assert.deepEqual(state, { limit: 10, remaining: 0, resetAtMs: window + 1_000, allowed: false });
-  state = await database.consumeApiRequestLimit('key_b', 10, window + 1_000);
+  state = await database.consumeApiRequestLimit('workspace_b', 10, window + 1_000);
   assert.deepEqual(state, { limit: 10, remaining: 9, resetAtMs: window + 2_000, allowed: true });
 
-  const rows = await database.query('SELECT workspace_id,window_started,request_count FROM api_request_limits');
-  assert.equal(rows.rows.length, 1);
-  assert.equal(rows.rows[0].workspace_id, 'default');
-  assert.equal(rows.rows[0].window_started, Math.floor((window + 1_000) / 1_000));
-  assert.equal(rows.rows[0].request_count, 1);
+  const rows = await database.query('SELECT workspace_id,window_started,request_count FROM api_request_limits ORDER BY workspace_id');
+  assert.deepEqual(rows.rows.map((row) => ({ ...row })), [
+    { workspace_id: 'default', window_started: Math.floor((window + 250) / 1_000), request_count: 11 },
+    { workspace_id: 'workspace_b', window_started: Math.floor((window + 1_000) / 1_000), request_count: 1 },
+  ]);
 });

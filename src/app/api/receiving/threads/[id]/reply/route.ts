@@ -95,8 +95,9 @@ export async function POST(request: Request, context: Context) {
   if (body.subject !== undefined && (typeof body.subject !== 'string' || body.subject.length > 998 || /[\r\n\u0000-\u001f\u007f]/.test(body.subject))) return error('subject must be 998 characters or fewer on one line.', 400);
   if (body.from !== undefined && !extractMailboxAddress(body.from)) return error('from must be a valid email address.', 400);
   const { id: threadId } = await context.params;
-  const thread = await queryOne<{ id: string; api_key_id: string; subject: string; inbox_address: string | null; folder: string }>(
-    'SELECT id,api_key_id,subject,inbox_address,folder FROM inbox_threads WHERE id=?', [threadId],
+  const thread = await queryOne<{ id: string; api_key_id: string; workspace_id: string | null; subject: string; inbox_address: string | null; folder: string }>(
+    `SELECT t.id,t.api_key_id,k.workspace_id,t.subject,t.inbox_address,t.folder
+      FROM inbox_threads t LEFT JOIN api_keys k ON k.id=t.api_key_id WHERE t.id=?`, [threadId],
   );
   if (!thread) return error('Thread not found.', 404);
 
@@ -156,7 +157,7 @@ export async function POST(request: Request, context: Context) {
     if (previous.request_hash !== requestHash) return error('This Idempotency-Key was already used for a different message.', 409);
     return replayResponse(previous);
   }
-  const rateLimit = await consumeApiRequestLimit(thread.api_key_id);
+  const rateLimit = await consumeApiRequestLimit(thread.workspace_id ?? undefined);
   const withRateLimit = (response: Response) => withApiRateLimitHeaders(response, rateLimit);
   if (!rateLimit.allowed) return withRateLimit(error('The sending limit has been reached. Retry after the period in the retry-after header.', 429));
 

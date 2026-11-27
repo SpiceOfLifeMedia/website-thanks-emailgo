@@ -98,7 +98,7 @@ export function withApiRequestLog<Args extends unknown[]>(handler: (request: Req
     const requestBody = await captureJsonBody(request);
     try {
       const apiKey = await authorizeApiKey(request);
-      const rateLimit = apiKey ? await consumeApiRequestLimit(apiKey.id) : null;
+      const rateLimit = apiKey ? await consumeApiRequestLimit(apiKey.workspaceId) : null;
       const response = rateLimit && !rateLimit.allowed
         ? Response.json({ error: { message: 'Rate limit exceeded. Retry after the period in the retry-after header.' } }, { status: 429, headers: { 'Cache-Control': 'private, no-store' } })
         : await handler(request, ...args);
