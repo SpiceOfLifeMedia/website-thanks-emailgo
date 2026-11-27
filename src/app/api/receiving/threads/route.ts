@@ -108,7 +108,8 @@ export async function GET(request: Request) {
   }
   if (search) {
     const clause = searchClause(search);
-    conditions.push(`EXISTS (SELECT 1 FROM messages message_match WHERE message_match.thread_id=ranked.thread_id AND ${clause.sql})`);
+    if (clause.error) return NextResponse.json({ error: clause.error }, { status: 400, headers: privateHeaders });
+    conditions.push(clause.sql);
     params.push(...clause.params);
   }
   const where = conditions.join(' AND ');

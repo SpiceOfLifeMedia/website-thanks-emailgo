@@ -410,11 +410,14 @@ export function SharedInboxWorkspace(p: SharedInboxWorkspaceProps) {
 
   const searchForm = (
     <form role="search" onSubmit={submitSearch} className={mobile ? styles.searchM : styles.search}>
-      <label className={styles.searchLabel}><span className={styles.srOnly}>Search conversations</span>
-        <Svg d={I.search} size={18} className={styles.searchIcon} />
-        <input type="search" value={draft} onChange={e => setDraft(e.target.value)} placeholder={mobile ? 'Search mail' : 'Search sender, subject or text'} className={styles.searchInput} />
-      </label>
-      {query && <button type="button" className={styles.btn} onClick={clearSearch}>Clear</button>}
+      <div className={styles.searchRow}>
+        <label className={styles.searchLabel}><span className={styles.srOnly}>Search conversations</span>
+          <Svg d={I.search} size={18} className={styles.searchIcon} />
+          <input type="search" value={draft} onChange={e => setDraft(e.target.value)} placeholder={mobile ? 'Search mail' : 'Search sender, subject or text'} className={styles.searchInput} aria-describedby={`${uid}-search-help`} />
+        </label>
+        {query && <button type="button" className={styles.btn} onClick={clearSearch}>Clear</button>}
+      </div>
+      <p id={`${uid}-search-help`} className={styles.searchHint}>Try from:, to:, subject:, before:, after:, or is:unread</p>
     </form>
   );
 

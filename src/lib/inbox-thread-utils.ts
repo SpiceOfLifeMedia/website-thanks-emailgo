@@ -163,16 +163,154 @@ export function safeLabels(value: unknown): string[] | null {
 }
 
 export function searchClause(search: string) {
-  const clean = search.trim().slice(0, 200).toLowerCase();
-  const escaped = clean.replace(/[!%_]/g, '!$&');
-  const term = `%${escaped}%`;
-  return {
-    sql: `(${[
-      'LOWER(COALESCE(sender,\'\')) LIKE ? ESCAPE \'!\'',
-      'LOWER(COALESCE(recipients_json,\'\')) LIKE ? ESCAPE \'!\'',
-      'LOWER(COALESCE(subject,\'\')) LIKE ? ESCAPE \'!\'',
-      'LOWER(COALESCE(preview,\'\')) LIKE ? ESCAPE \'!\'',
-    ].join(' OR ')})`,
-    params: [term, term, term, term],
+  const parsed = parseInboxSearch(search);
+  if (parsed.error) return { sql: '', params: [] as string[], error: parsed.error };
+
+  const clauses: string[] = [];
+  const messageFilters: string[] = [];
+  const params: string[] = [];
+  const searchableFields = [
+    'sender', 'recipients_json', 'subject', 'preview',
+  ].map((field) => `LOWER(COALESCE(message_match.${field},'')) LIKE ? ESCAPE '!'`);
+
+  for (const term of parsed.terms) {
+    messageFilters.push(`(${searchableFields.join(' OR ')})`);
+    params.push(...searchableFields.map(() => likeTerm(term)));
+  }
+  for (const value of parsed.from) {
+    messageFilters.push("LOWER(COALESCE(message_match.sender,'')) LIKE ? ESCAPE '!'");
+    params.push(likeTerm(value));
+  }
+  for (const value of parsed.to) {
+    messageFilters.push("LOWER(COALESCE(message_match.recipients_json,'')) LIKE ? ESCAPE '!'");
+    params.push(likeTerm(value));
+  }
+  for (const value of parsed.subject) {
+    messageFilters.push("LOWER(COALESCE(message_match.subject,'')) LIKE ? ESCAPE '!'");
+    params.push(likeTerm(value));
+  }
+  if (messageFilters.length) {
+    clauses.push(`EXISTS (SELECT 1 FROM messages message_match WHERE message_match.thread_id=ranked.thread_id
+      AND ${messageFilters.join(' AND ')})`);
+  }
+  for (const value of parsed.before) {
+    clauses.push('ranked.updated_at<?');
+    params.push(`${value}T00:00:00.000Z`);
+  }
+  for (const value of parsed.after) {
+    clauses.push('ranked.updated_at>=?');
+    params.push(`${value}T00:00:00.000Z`);
+  }
+  if (parsed.readState === 'unread') clauses.push('COALESCE(threads.is_read,0)=0');
+  if (parsed.readState === 'read') clauses.push('COALESCE(threads.is_read,0)=1');
+
+  return { sql: clauses.length ? `(${clauses.join(' AND ')})` : '1=1', params, error: null };
+}
+
+type ParsedInboxSearch = {
+  terms: string[];
+  from: string[];
+  to: string[];
+  subject: string[];
+  before: string[];
+  after: string[];
+  readState: 'read' | 'unread' | null;
+  error: string | null;
+};
+
+function tokenizeInboxSearch(search: string): { tokens: string[]; error: string | null } {
+  const tokens: string[] = [];
+  let token = '';
+  let quoted = false;
+  let escaped = false;
+
+  for (const character of search.trim().slice(0, 200)) {
+    if (escaped) {
+      token += character;
+      escaped = false;
+      continue;
+    }
+    if (quoted && character === '\\') {
+      escaped = true;
+      continue;
+    }
+    if (character === '"') {
+      quoted = !quoted;
+      continue;
+    }
+    if (/\s/.test(character) && !quoted) {
+      if (token) tokens.push(token);
+      token = '';
+      continue;
+    }
+    token += character;
+  }
+
+  if (quoted) return { tokens: [], error: 'Add a closing quote to finish this search.' };
+  if (escaped) token += '\\';
+  if (token) tokens.push(token);
+  return { tokens, error: null };
+}
+
+function validSearchDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+function parseInboxSearch(search: string): ParsedInboxSearch {
+  const tokenized = tokenizeInboxSearch(search);
+  const parsed: ParsedInboxSearch = {
+    terms: [], from: [], to: [], subject: [], before: [], after: [], readState: null, error: tokenized.error,
   };
+  if (parsed.error) return parsed;
+
+  for (const token of tokenized.tokens) {
+    const operator = /^(from|to|subject|before|after|is):(.*)$/i.exec(token);
+    if (!operator) {
+      parsed.terms.push(token);
+      continue;
+    }
+    const [, name, rawValue] = operator;
+    const rawValueTrimmed = rawValue.trim();
+    const key = name.toLowerCase();
+    if (key === 'is') {
+      const value = rawValueTrimmed.toLowerCase();
+      if (value !== 'read' && value !== 'unread') {
+        parsed.error = 'Use is:read or is:unread to filter read state.';
+        return parsed;
+      }
+      if (parsed.readState && parsed.readState !== value) {
+        parsed.error = 'Choose either is:read or is:unread for this search.';
+        return parsed;
+      }
+      parsed.readState = value;
+      continue;
+    }
+    if (!rawValueTrimmed) {
+      parsed.error = `Add a value after ${key}: to finish this search.`;
+      return parsed;
+    }
+    if (key === 'before' || key === 'after') {
+      if (!validSearchDate(rawValueTrimmed)) {
+        parsed.error = `${key}: needs a valid date in YYYY-MM-DD format.`;
+        return parsed;
+      }
+      if (key === 'before') parsed.before.push(rawValueTrimmed);
+      else parsed.after.push(rawValueTrimmed);
+      continue;
+    }
+    if (key === 'from') parsed.from.push(rawValueTrimmed);
+    else if (key === 'to') parsed.to.push(rawValueTrimmed);
+    else parsed.subject.push(rawValueTrimmed);
+  }
+  if (!parsed.terms.length && !parsed.from.length && !parsed.to.length && !parsed.subject.length
+    && !parsed.before.length && !parsed.after.length && !parsed.readState) {
+    parsed.error = 'Add a word or filter to search conversations.';
+  }
+  return parsed;
+}
+
+function likeTerm(value: string) {
+  return `%${value.toLowerCase().replace(/[!%_]/g, '!$&')}%`;
 }

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { DatabaseSync } from 'node:sqlite';
 import { boundedMessageReferences, composeRequestHash, composeSubject, extractMailboxAddress, makeMessagePreview, normalizeFolder, normalizeInboxRecipients, parseInboxRecipientText, parseMessageIds, replyAllRecipients, replyReferences, replyRequestHash, safeLabels, searchClause } from '../src/lib/inbox-thread-utils.ts';
 
 test('parses bounded message IDs without turning header newlines into references', () => {
@@ -84,4 +85,76 @@ test('escapes LIKE metacharacters in inbox search', () => {
   const clause = searchClause('A_100%');
   assert.match(clause.sql, /ESCAPE '!'/);
   assert.deepEqual(clause.params, ['%a!_100!%%', '%a!_100!%%', '%a!_100!%%', '%a!_100!%%']);
+  assert.equal(clause.error, null);
+});
+
+test('parses quoted phrases and structured inbox filters', () => {
+  const clause = searchClause('from:"Taylor Lee" to:inbox@example.test subject:"invoice 100%_!" after:2026-11-01 before:2026-12-01 is:unread');
+  assert.equal(clause.error, null);
+  assert.match(clause.sql, /ranked\.updated_at>=\?/);
+  assert.match(clause.sql, /ranked\.updated_at<\?/);
+  assert.match(clause.sql, /COALESCE\(threads\.is_read,0\)=0/);
+  assert.deepEqual(clause.params, [
+    '%taylor lee%', '%inbox@example.test%', '%invoice 100!%!_!!%',
+    '2026-12-01T00:00:00.000Z', '2026-11-01T00:00:00.000Z',
+  ]);
+});
+
+test('returns a clear search error for unmatched quotes, empty filters, and invalid dates', () => {
+  assert.equal(searchClause('""').error, 'Add a word or filter to search conversations.');
+  assert.equal(searchClause('subject:"unfinished phrase').error, 'Add a closing quote to finish this search.');
+  assert.equal(searchClause('from:').error, 'Add a value after from: to finish this search.');
+  assert.equal(searchClause('after:2026-02-30').error, 'after: needs a valid date in YYYY-MM-DD format.');
+  assert.equal(searchClause('is:important').error, 'Use is:read or is:unread to filter read state.');
+});
+
+test('searches unknown operators as text and supports read filters', () => {
+  const unknown = searchClause('has:attachment');
+  assert.equal(unknown.error, null);
+  assert.deepEqual(unknown.params, ['%has:attachment%', '%has:attachment%', '%has:attachment%', '%has:attachment%']);
+  assert.match(searchClause('is:read').sql, /COALESCE\(threads\.is_read,0\)=1/);
+  assert.match(searchClause('IS:UNREAD').sql, /COALESCE\(threads\.is_read,0\)=0/);
+  assert.equal(searchClause('is:read is:unread').error, 'Choose either is:read or is:unread for this search.');
+});
+
+test('uses the same structured search predicate for inbox results, counts, unread totals, and cursor pages', () => {
+  const database = new DatabaseSync(':memory:');
+  database.exec(`
+    CREATE TABLE messages(thread_id TEXT, sender TEXT, recipients_json TEXT, subject TEXT, preview TEXT);
+    CREATE TABLE inbox_threads(id TEXT PRIMARY KEY, is_read INTEGER);
+    CREATE TABLE ranked(thread_id TEXT, updated_at TEXT, latest_rank INTEGER);
+  `);
+  const insertMessage = database.prepare('INSERT INTO messages VALUES(?,?,?,?,?)');
+  const insertThread = database.prepare('INSERT INTO inbox_threads VALUES(?,?)');
+  const insertRanked = database.prepare('INSERT INTO ranked VALUES(?,?,1)');
+  const fixtures = [
+    { id: 'thread_a', date: '2026-11-20T10:00:00.000Z', read: 0, sender: 'Alice <alice@example.test>', subject: 'Invoice 41', preview: 'Please review it' },
+    { id: 'thread_b', date: '2026-11-19T10:00:00.000Z', read: 1, sender: 'Bob <bob@example.test>', subject: 'Invoice question', preview: 'A reply is here' },
+    { id: 'thread_c', date: '2026-10-01T10:00:00.000Z', read: 0, sender: 'Casey <casey@example.test>', subject: 'Project update', preview: 'No match' },
+  ];
+  for (const row of fixtures) {
+    insertThread.run(row.id, row.read);
+    insertRanked.run(row.id, row.date);
+    insertMessage.run(row.id, row.sender, '["inbox@example.test"]', row.subject, row.preview);
+  }
+
+  const clause = searchClause('invoice after:2026-11-01 before:2026-11-22');
+  const joins = 'FROM ranked LEFT JOIN inbox_threads threads ON threads.id=ranked.thread_id';
+  const where = `ranked.latest_rank=1 AND ${clause.sql}`;
+  const parameters = clause.params;
+  const listed = database.prepare(`SELECT ranked.thread_id,ranked.updated_at ${joins} WHERE ${where} ORDER BY ranked.updated_at DESC,ranked.thread_id DESC`).all(...parameters);
+  const total = database.prepare(`SELECT COUNT(*) AS count ${joins} WHERE ${where}`).get(...parameters).count;
+  const unread = database.prepare(`SELECT COUNT(*) AS count ${joins} WHERE ${where} AND COALESCE(threads.is_read,0)=0`).get(...parameters).count;
+  const firstPage = database.prepare(`SELECT ranked.thread_id,ranked.updated_at ${joins} WHERE ${where} ORDER BY ranked.updated_at DESC,ranked.thread_id DESC LIMIT 1`).all(...parameters);
+  const cursor = firstPage[0];
+  const nextPage = database.prepare(`SELECT ranked.thread_id,ranked.updated_at ${joins} WHERE ${where} AND (ranked.updated_at<? OR (ranked.updated_at=? AND ranked.thread_id<?)) ORDER BY ranked.updated_at DESC,ranked.thread_id DESC LIMIT 1`).all(
+    ...parameters, cursor.updated_at, cursor.updated_at, cursor.thread_id,
+  );
+
+  assert.deepEqual(listed.map((row) => row.thread_id), ['thread_a', 'thread_b']);
+  assert.equal(total, 2);
+  assert.equal(unread, 1);
+  assert.equal(firstPage[0].thread_id, 'thread_a');
+  assert.equal(nextPage[0].thread_id, 'thread_b');
+  database.close();
 });
