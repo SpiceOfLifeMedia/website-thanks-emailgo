@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { hasTrustedBrowserOrigin } from '@/lib/auth';
-import { verifyContactPreferenceToken } from '@/lib/contact-preferences';
+import { contactTopicPreferenceWebhookEvents } from '@/lib/contact-preference-events';
+import { contactPreferenceWebhookStatements, unsubscribeContact, verifyContactPreferenceToken } from '@/lib/contact-preferences';
 import { nowIso, query, queryOne, transaction } from '@/lib/database';
-import { unsubscribeContact } from '@/lib/contact-preferences';
 import { readJsonLimited } from '@/lib/request-json';
 
 export const runtime = 'nodejs';
@@ -62,6 +62,13 @@ export async function POST(request: Request, context: PreferenceContext) {
   const existing = await query<{ topic_id: string; subscribed_at: string | null; unsubscribed_at: string | null; consent_source: string | null; consented_at: string | null }>('SELECT topic_id,subscribed_at,unsubscribed_at,consent_source,consented_at FROM contact_topics WHERE contact_id=?', [contact.id]);
   const selected = new Set(topicIds);
   const timestamp = nowIso();
+  const subscribedTopicIds = topicIds.filter((topicId) => {
+    const previous = existing.rows.find((topic) => topic.topic_id === topicId);
+    return !previous?.subscribed_at || Boolean(previous.unsubscribed_at) || Boolean(contact.unsubscribed_at) || contact.consent_status !== 'opted_in';
+  });
+  const unsubscribedTopicIds = existing.rows
+    .filter((topic) => topic.unsubscribed_at === null && !selected.has(topic.topic_id))
+    .map((topic) => topic.topic_id);
   const statements: Array<{ sql: string; params: readonly unknown[] }> = [];
   for (const topic of existing.rows) {
     if (!selected.has(topic.topic_id) && topic.unsubscribed_at === null) statements.push({ sql: 'UPDATE contact_topics SET unsubscribed_at=? WHERE contact_id=? AND topic_id=? AND unsubscribed_at IS NULL', params: [timestamp, contact.id, topic.topic_id] });
@@ -78,6 +85,18 @@ export async function POST(request: Request, context: PreferenceContext) {
   }
   if (topicIds.length) statements.push({ sql: "UPDATE contacts SET unsubscribed_at=NULL,consent_status='opted_in',consent_source=CASE WHEN consent_status='opted_in' AND unsubscribed_at IS NULL THEN consent_source ELSE 'email_preference_center' END,consented_at=CASE WHEN consent_status='opted_in' AND unsubscribed_at IS NULL THEN consented_at ELSE ? END,updated_at=? WHERE id=?", params: [timestamp, timestamp, contact.id] });
   else statements.push({ sql: 'UPDATE contacts SET updated_at=? WHERE id=?', params: [timestamp, contact.id] });
-  await transaction(statements);
+  const webhookEvents = identity.emailId
+    ? contactTopicPreferenceWebhookEvents({
+      contactId: contact.id,
+      email: contact.email,
+      emailId: identity.emailId,
+      changedAt: timestamp,
+      subscribedTopicIds,
+      unsubscribedTopicIds,
+      consentSource: 'email_preference_center',
+    })
+    : [];
+  const webhookStatements = await contactPreferenceWebhookStatements(identity.emailId, webhookEvents);
+  await transaction([...statements, ...webhookStatements]);
   return NextResponse.json({ updated: true, unsubscribed: false }, { headers: privateHeaders });
 }
