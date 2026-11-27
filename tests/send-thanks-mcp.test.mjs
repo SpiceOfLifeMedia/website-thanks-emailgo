@@ -70,6 +70,46 @@ test('MCP returns CSV export data as readable sanitized text', async () => {
   });
 });
 
+test('MCP downloads small inbound attachments as embedded resources', async () => {
+  const payload = Buffer.from('invoice, amount\n1, 42\n');
+  let downloaded = false;
+  const api = {
+    emails: {
+      receiving: {
+        attachments: async () => ({ data: { data: [{ id: 'att_1', filename: 'invoice.csv', content_type: 'text/csv', size: payload.byteLength }] }, error: null }),
+        downloadAttachment: async () => { downloaded = true; return { data: payload.buffer.slice(payload.byteOffset, payload.byteOffset + payload.byteLength), error: null }; },
+      },
+    },
+  };
+  await withMcpClient(api, async (client) => {
+    const result = await client.callTool({ name: 'download_received_email_attachment', arguments: { id: 're_123', attachment_id: 'att_1' } });
+    assert.equal(result.isError, undefined);
+    assert.equal(downloaded, true);
+    const resource = result.content.find((item) => item.type === 'resource');
+    assert.equal(resource.resource.mimeType, 'text/csv');
+    assert.equal(Buffer.from(resource.resource.blob, 'base64').toString('utf8'), payload.toString('utf8'));
+    assert.match(responseText(result), /invoice\.csv/);
+  });
+});
+
+test('MCP refuses oversized inbound attachments before downloading bytes', async () => {
+  let downloaded = false;
+  const api = {
+    emails: {
+      receiving: {
+        attachments: async () => ({ data: { data: [{ id: 'att_big', filename: 'large.bin', content_type: 'application/octet-stream', size: 4 * 1024 * 1024 + 1 }] }, error: null }),
+        downloadAttachment: async () => { downloaded = true; return { data: new ArrayBuffer(0), error: null }; },
+      },
+    },
+  };
+  await withMcpClient(api, async (client) => {
+    const result = await client.callTool({ name: 'download_received_email_attachment', arguments: { id: 're_123', attachment_id: 'att_big' } });
+    assert.equal(result.isError, true);
+    assert.match(responseText(result), /4 MiB/);
+    assert.equal(downloaded, false);
+  });
+});
+
 test('MCP deletion requires an explicit confirmation field', async () => {
   let deleted = false;
   const api = { contacts: { delete: async () => { deleted = true; return { data: { deleted: true }, error: null }; } } };

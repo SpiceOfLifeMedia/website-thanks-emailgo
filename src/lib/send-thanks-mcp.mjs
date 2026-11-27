@@ -7,6 +7,7 @@ const jsonObject = z.record(z.string(), z.unknown());
 const filterValue = z.union([z.string(), z.number(), z.boolean(), z.array(z.union([z.string(), z.number(), z.boolean()]))]);
 const filters = z.record(z.string(), filterValue).optional();
 const exportFilters = z.object({ resource: z.enum(['emails', 'received_emails', 'broadcasts', 'contacts', 'domains', 'logs', 'api_keys']), search: z.string().optional(), status: z.string().optional() });
+const maxMcpAttachmentBytes = 4 * 1024 * 1024;
 const idSchema = z.object({ id: z.string().min(1).max(200) });
 const deleteSchema = z.object({ id: z.string().min(1).max(200), confirm: z.literal(true).describe('Set true only after the user explicitly confirmed this deletion.') });
 const sendAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true };
@@ -60,6 +61,13 @@ export function createSendThanksMcpServer(options = {}) {
     });
   }
 
+  function registerRaw(name, description, inputSchema, run, annotations = readAnnotations) {
+    server.registerTool(name, { description, inputSchema, annotations }, async (args) => {
+      try { return await run(args); }
+      catch (cause) { return toolError(cause); }
+    });
+  }
+
   register('send_email', 'Send one transactional email. This contacts real recipients; call only after the user asked to send and supplied a valid sender, recipients, subject, and content.', z.object({ body: jsonObject, idempotency_key: z.string().min(1).max(256).optional() }), ({ body, idempotency_key }) => api.emails.send(body, { idempotencyKey: idempotency_key }), sendAnnotations);
   register('send_email_batch', 'Send a batch of transactional emails. This contacts real recipients; call only after the user explicitly requested the batch.', z.object({ emails: z.array(jsonObject).min(1).max(100), idempotency_key: z.string().min(1).max(256).optional() }), ({ emails, idempotency_key }) => api.emails.sendBatch(emails, { idempotencyKey: idempotency_key }), sendAnnotations);
   register('list_emails', 'List sent and scheduled emails with optional supported filters and pagination.', z.object({ filters }), ({ filters }) => api.emails.list(filters), readAnnotations);
@@ -71,6 +79,24 @@ export function createSendThanksMcpServer(options = {}) {
   register('list_received_emails', 'List inbound emails accepted through the configured receiving bridge.', z.object({ filters }), ({ filters }) => api.emails.receiving.list(filters), readAnnotations);
   register('get_received_email', 'Retrieve one inbound email by its ID.', idSchema, ({ id }) => api.emails.receiving.get(id), readAnnotations);
   register('list_received_email_attachments', 'List attachment metadata for one inbound email. File contents are not returned by this tool.', idSchema, ({ id }) => api.emails.receiving.attachments(id), readAnnotations);
+  registerRaw('download_received_email_attachment', 'Retrieve an inbound email attachment into the agent context. This exposes private file contents; call only when the user requested the file. Attachments larger than 4 MiB are refused.', z.object({ id: z.string().min(1), attachment_id: z.string().min(1) }), async ({ id, attachment_id }) => {
+    const listed = await api.emails.receiving.attachments(id);
+    if (listed?.error) return toolError(listed.error);
+    const attachment = listed?.data?.data?.find((item) => item.id === attachment_id);
+    if (!attachment) return toolError(new Error('Received email attachment not found.'));
+    const size = Number(attachment.size);
+    if (!Number.isFinite(size) || size < 0 || size > maxMcpAttachmentBytes) return toolError(new Error('This attachment is larger than the 4 MiB MCP download limit.'));
+    const downloaded = await api.emails.receiving.downloadAttachment(id, attachment_id);
+    if (downloaded?.error) return toolError(downloaded.error);
+    const bytes = Buffer.from(downloaded?.data ?? new ArrayBuffer(0));
+    if (bytes.byteLength > maxMcpAttachmentBytes) return toolError(new Error('This attachment is larger than the 4 MiB MCP download limit.'));
+    const metadata = redactSecrets({ id: attachment.id, filename: attachment.filename, content_type: attachment.content_type, size: bytes.byteLength });
+    const mimeType = /^[a-z0-9.+-]+\/[a-z0-9.+-]+$/i.test(metadata.content_type ?? '') ? metadata.content_type : 'application/octet-stream';
+    return { content: [
+      { type: 'text', text: JSON.stringify(metadata, null, 2) },
+      { type: 'resource', resource: { uri: `send-thanks://received-emails/${encodeURIComponent(id)}/attachments/${encodeURIComponent(attachment_id)}`, mimeType, blob: bytes.toString('base64') } },
+    ] };
+  });
   register('get_usage', 'Retrieve current daily and monthly usage counts, configured limits, and API request rate limit.', z.object({}), () => api.usage.get(), readAnnotations);
 
   register('list_domains', 'List sender domains in the account.', z.object({}), () => api.domains.list(), readAnnotations);
