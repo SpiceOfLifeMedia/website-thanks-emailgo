@@ -5,6 +5,7 @@ import { authorizeApiKey } from '@/lib/auth';
 import { consumeSendLimit } from '@/lib/database';
 import { readJsonLimited } from '@/lib/request-json';
 import { sendEmailRequest } from '../route';
+import { withSendRateLimitHeaders } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -40,7 +41,8 @@ async function __emailgo_POST_handler(request: Request) {
     const key = (email as BatchItem).idempotency_key;
     if (key !== undefined && !validIdempotencyKey(key)) return errorResponse(`emails[${index}].idempotency_key must be 1 to 256 visible ASCII characters.`, 400);
   }
-  if (!await consumeSendLimit(apiKey.id)) return errorResponse('Rate limit exceeded. Try again in the next minute.', 429);
+  const rateLimit = await consumeSendLimit(apiKey.id);
+  if (!rateLimit.allowed) return withSendRateLimitHeaders(errorResponse('Rate limit exceeded. Try again in the next minute.', 429), rateLimit);
 
   const authorization = request.headers.get('authorization') ?? '';
   const results: Array<Record<string, unknown>> = new Array(emails.length);
@@ -58,7 +60,7 @@ async function __emailgo_POST_handler(request: Request) {
       if (idempotencyKey) headers.set('idempotency-key', idempotencyKey as string);
       const singleRequest = new Request(new URL('/api/v1/emails', request.url), { method: 'POST', headers, body: JSON.stringify(email) });
       try {
-        const response = await sendEmailRequest(singleRequest, { countRateLimit: false });
+        const response = await sendEmailRequest(singleRequest, { countRateLimit: false, apiKey });
         const payload = await response.json().catch(() => ({}));
         results[index] = { index, http_status: response.status, ...payload };
       } catch {
@@ -69,7 +71,7 @@ async function __emailgo_POST_handler(request: Request) {
   await Promise.all(workers);
 
   const hasFailures = results.some((result) => typeof result.http_status === 'number' && (result.http_status < 200 || result.http_status >= 300));
-  return NextResponse.json({ data: results, has_failures: hasFailures }, { status: hasFailures ? 207 : 200 });
+  return withSendRateLimitHeaders(NextResponse.json({ data: results, has_failures: hasFailures }, { status: hasFailures ? 207 : 200 }), rateLimit);
 }
 
 export const POST = withApiRequestLog(__emailgo_POST_handler);

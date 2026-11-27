@@ -14,6 +14,7 @@ import { normalizeScheduledAt } from '@/lib/scheduled-time';
 import { relayMessageIdFromResponse } from '@/lib/ses-events';
 import { recordEmailSentActivity } from '@/lib/email-activity';
 import { resolvePlainText } from '@/lib/plain-text';
+import { withSendRateLimitHeaders } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -61,6 +62,7 @@ type StoredEmail = {
 type EmailTemplate = { id?: string; subject: string; html: string | null; text: string | null; from?: string | null; reply_to?: string | null; variables?: Array<{ key: string; type: 'string' | 'number'; fallback_value: string | number | null }> };
 type EmailTag = { name: string; value: string };
 type AttachmentMetadata = { filename: string; contentType?: string; contentId?: string };
+type AuthorizedEmailApiKey = NonNullable<Awaited<ReturnType<typeof authorizeApiKey>>>;
 
 const emailPattern = /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/;
 const headerNamePattern = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
@@ -254,10 +256,17 @@ async function __emailgo_GET_handler(request: Request) {
   return NextResponse.json({ object: 'list', data: data.map((row) => emailResponse(row)), has_more: hasMore, ...(hasMore ? { next_after: data[data.length - 1]?.id } : {}) }, { headers: { 'Cache-Control': 'private, no-store' } });
 }
 
-export async function sendEmailRequest(request: Request, options: { countRateLimit?: boolean } = {}) {
-  const apiKey = await authorizeApiKey(request);
+export async function sendEmailRequest(request: Request, options: { countRateLimit?: boolean; apiKey?: AuthorizedEmailApiKey } = {}) {
+  const apiKey = options.apiKey ?? await authorizeApiKey(request);
   if (!apiKey) return responseError('Invalid or revoked API key.', 401);
-  if (options.countRateLimit !== false && !await consumeSendLimit(apiKey.id)) return responseError('Rate limit exceeded. Try again in the next minute.', 429);
+  if (options.countRateLimit === false) return sendEmailRequestCore(request, apiKey);
+
+  const rateLimit = await consumeSendLimit(apiKey.id);
+  if (!rateLimit.allowed) return withSendRateLimitHeaders(responseError('Rate limit exceeded. Try again in the next minute.', 429), rateLimit);
+  return withSendRateLimitHeaders(await sendEmailRequestCore(request, apiKey), rateLimit);
+}
+
+async function sendEmailRequestCore(request: Request, apiKey: AuthorizedEmailApiKey) {
   const parsed = await readJsonLimited(request, 1_000_000);
   if (!parsed.ok) return responseError(parsed.error, parsed.status);
   if (!parsed.value || typeof parsed.value !== 'object' || Array.isArray(parsed.value)) return responseError('Request body must be a JSON object.', 400);

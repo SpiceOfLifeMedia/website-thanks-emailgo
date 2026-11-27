@@ -8,6 +8,7 @@ import { relayMessageIdFromResponse } from '@/lib/ses-events';
 import { emitWebhookEvent } from '@/lib/webhooks';
 import { recordEmailSentActivity } from '@/lib/email-activity';
 import { boundedMessageReferences, parseMessageIds, replyRequestHash } from '@/lib/inbox-threads';
+import { withSendRateLimitHeaders } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -115,7 +116,9 @@ export async function POST(request: Request, context: Context) {
     ...(inReplyTo ? { 'In-Reply-To': inReplyTo } : {}),
     ...(references ? { References: references } : {}),
   };
-  if (!await consumeSendLimit(thread.api_key_id)) return error('The sending limit has been reached. Try again in a minute.', 429);
+  const rateLimit = await consumeSendLimit(thread.api_key_id);
+  const withRateLimit = (response: Response) => withSendRateLimitHeaders(response, rateLimit);
+  if (!rateLimit.allowed) return withRateLimit(error('The sending limit has been reached. Try again in a minute.', 429));
 
   const emailId = randomId('em');
   const createdAt = nowIso();
@@ -129,10 +132,10 @@ export async function POST(request: Request, context: Context) {
     const replay = await queryOne<Replay>(`SELECT i.request_hash,e.id,e.status,e.message_id,e.subject,e.created_at FROM idempotency_keys i
       JOIN emails e ON e.id=i.email_id WHERE i.api_key_id=? AND i.idempotency_key=? AND i.expires_at>?`, [thread.api_key_id, idempotencyKey, nowIso()]);
     if (replay) {
-      if (replay.request_hash !== requestHash) return error('This Idempotency-Key was already used for a different reply.', 409);
-      return replayResponse(replay);
+      if (replay.request_hash !== requestHash) return withRateLimit(error('This Idempotency-Key was already used for a different reply.', 409));
+      return withRateLimit(replayResponse(replay));
     }
-    return error('Could not save this reply.', 500);
+    return withRateLimit(error('Could not save this reply.', 500));
   }
 
   let result: Awaited<ReturnType<typeof sendThroughSmtp>>;
@@ -141,7 +144,7 @@ export async function POST(request: Request, context: Context) {
   } catch {
     try { await execute("UPDATE emails SET status='failed',error_message='Reply handoff failed.' WHERE id=?", [emailId]); } catch { /* Keep the durable processing state if status recording is unavailable. */ }
     try { await emitWebhookEvent(thread.api_key_id, 'email.failed', { email_id: emailId, error: 'Reply handoff failed.' }); } catch { /* The reply result is independent of event delivery. */ }
-    return error('The reply could not be handed off. Check the message details before trying again.', 502);
+    return withRateLimit(error('The reply could not be handed off. Check the message details before trying again.', 502));
   }
 
   const sentAt = nowIso();
@@ -149,11 +152,11 @@ export async function POST(request: Request, context: Context) {
     await execute("UPDATE emails SET status='sent',provider_id=?,message_id=?,relay_message_id=? WHERE id=?", [result.response.slice(0, 500), result.messageId, relayMessageIdFromResponse(result.response), emailId]);
   } catch {
     // The receiving server accepted the message. Keep the idempotent record processing so a retry cannot send it twice.
-    return NextResponse.json({ id: emailId, object: 'email', status: 'processing', subject, created_at: createdAt }, { status: 202, headers: privateHeaders });
+    return withRateLimit(NextResponse.json({ id: emailId, object: 'email', status: 'processing', subject, created_at: createdAt }, { status: 202, headers: privateHeaders }));
   }
 
   try { await execute('UPDATE inbox_threads SET is_read=1,updated_at=? WHERE id=? AND api_key_id=?', [sentAt, thread.id, thread.api_key_id]); } catch { /* Sending succeeded; thread bookkeeping can be repaired later. */ }
   try { await recordEmailSentActivity(emailId, sentAt); } catch { /* Activity history must not turn an accepted message into a failed reply. */ }
   try { await emitWebhookEvent(thread.api_key_id, 'email.sent', { email_id: emailId, from: inboxAddress, to: [recipient], subject, message_id: result.messageId }); } catch { /* Event delivery is independent of the SMTP handoff. */ }
-  return NextResponse.json({ id: emailId, object: 'email', status: 'sent', message_id: result.messageId, subject, created_at: createdAt }, { headers: privateHeaders });
+  return withRateLimit(NextResponse.json({ id: emailId, object: 'email', status: 'sent', message_id: result.messageId, subject, created_at: createdAt }, { headers: privateHeaders }));
 }
