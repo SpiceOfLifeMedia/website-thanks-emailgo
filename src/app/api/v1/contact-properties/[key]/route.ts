@@ -18,7 +18,7 @@ async function __emailgo_GET_handler(request: Request, context: { params: Promis
   const auth = await authorize(request);
   if (auth.error) return auth.error;
   const { key } = await context.params;
-  const row = await getContactProperty(key);
+  const row = await getContactProperty(key, auth.key.workspaceId);
   return row ? NextResponse.json(contactPropertyResponse(row), { headers: privateHeaders }) : error('Contact property not found.', 404);
 }
 
@@ -26,7 +26,7 @@ async function __emailgo_PATCH_handler(request: Request, context: { params: Prom
   const auth = await authorize(request);
   if (auth.error) return auth.error;
   const { key } = await context.params;
-  const current = await getContactProperty(key);
+  const current = await getContactProperty(key, auth.key.workspaceId);
   if (!current) return error('Contact property not found.', 404);
   const parsed = await readJsonLimited(request, 10_000);
   if (!parsed.ok) return error(parsed.error, parsed.status);
@@ -43,7 +43,7 @@ async function __emailgo_PATCH_handler(request: Request, context: { params: Prom
   }
   const fallback = parseContactPropertyValue(fallbackValue, type as ContactPropertyType, 'fallback_value');
   if (!fallback.ok) return error(fallback.error, 400);
-  const updated = await updateContactProperty(key, type as ContactPropertyType, fallback.value);
+  const updated = await updateContactProperty(key, type as ContactPropertyType, fallback.value, auth.key.workspaceId);
   return updated ? NextResponse.json(contactPropertyResponse(updated), { headers: privateHeaders }) : error('Contact property not found.', 404);
 }
 
@@ -51,7 +51,7 @@ async function __emailgo_DELETE_handler(request: Request, context: { params: Pro
   const auth = await authorize(request);
   if (auth.error) return auth.error;
   const { key } = await context.params;
-  if (!await deleteContactProperty(key)) return error('Contact property not found.', 404);
+  if (!await deleteContactProperty(key, auth.key.workspaceId)) return error('Contact property not found.', 404);
   return NextResponse.json({ id: key, object: 'contact_property', deleted: true, contact_values_preserved: true }, { headers: privateHeaders });
 }
 

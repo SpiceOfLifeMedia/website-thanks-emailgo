@@ -16,7 +16,7 @@ async function authorize(request: Request) {
 async function __emailgo_GET_handler(request: Request) {
   const auth = await authorize(request);
   if (auth.error) return auth.error;
-  const rows = await listContactProperties();
+  const rows = await listContactProperties(auth.key.workspaceId);
   return NextResponse.json({ object: 'list', data: rows.map(contactPropertyResponse), has_more: false }, { headers: { 'Cache-Control': 'private, no-store' } });
 }
 
@@ -34,7 +34,7 @@ async function __emailgo_POST_handler(request: Request) {
   const fallback = parseContactPropertyValue(body.fallback_value, type, 'fallback_value');
   if (!fallback.ok) return error(fallback.error, 400);
   try {
-    const row = await createContactProperty(key, type, fallback.value);
+    const row = await createContactProperty(key, type, fallback.value, auth.key.workspaceId);
     return row ? NextResponse.json(contactPropertyResponse(row), { status: 201 }) : error('The contact property could not be read after creation.', 500);
   } catch {
     return error('A contact property with that key already exists.', 409);

@@ -68,6 +68,10 @@ test('SQLite backfills legacy keys, domains and contacts once and scopes unique 
       FOREIGN KEY(contact_id) REFERENCES contacts(id) ON DELETE CASCADE,
       FOREIGN KEY(topic_id) REFERENCES topics(id) ON DELETE CASCADE
     );
+    CREATE TABLE contact_properties (
+      property_key TEXT PRIMARY KEY, type TEXT NOT NULL, fallback_value_json TEXT,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
     CREATE TABLE segment_contacts (
       segment_id TEXT NOT NULL, contact_id TEXT NOT NULL, created_at TEXT NOT NULL,
       PRIMARY KEY(segment_id,contact_id),
@@ -87,6 +91,8 @@ test('SQLite backfills legacy keys, domains and contacts once and scopes unique 
       VALUES('legacy_segment','legacy_contact','2026-01-01T00:00:00.000Z');
     INSERT INTO contact_topics(contact_id,topic_id,subscribed_at,consent_source,consented_at)
       VALUES('legacy_contact','legacy_topic','2026-01-01T00:00:00.000Z','legacy import','2026-01-01T00:00:00.000Z');
+    INSERT INTO contact_properties(property_key,type,fallback_value_json,created_at,updated_at)
+      VALUES('legacy_profile','string','"legacy"','2026-01-01T00:00:00.000Z','2026-01-01T00:00:00.000Z');
   `);
   legacy.close();
 
@@ -98,6 +104,7 @@ test('SQLite backfills legacy keys, domains and contacts once and scopes unique 
   const legacySegmentMembership = await database.queryOne('SELECT segment_id,contact_id FROM segment_contacts WHERE segment_id=? AND contact_id=?', ['legacy_segment', 'legacy_contact']);
   const legacyTopic = await database.queryOne('SELECT id,name,slug,workspace_id,disabled_at FROM topics WHERE id=?', ['legacy_topic']);
   const legacyTopicMembership = await database.queryOne('SELECT contact_id,topic_id,consent_source FROM contact_topics WHERE contact_id=? AND topic_id=?', ['legacy_contact', 'legacy_topic']);
+  const legacyProperty = await database.queryOne('SELECT property_key,type,fallback_value_json,workspace_id FROM contact_properties WHERE property_key=?', ['legacy_profile']);
   assert.equal(legacyKey?.id, 'legacy_key');
   assert.equal(legacyKey?.workspace_id, 'default');
   assert.equal(legacyDomain?.id, 'legacy_domain');
@@ -119,6 +126,10 @@ test('SQLite backfills legacy keys, domains and contacts once and scopes unique 
   assert.equal(legacyTopicMembership?.contact_id, 'legacy_contact');
   assert.equal(legacyTopicMembership?.topic_id, 'legacy_topic');
   assert.equal(legacyTopicMembership?.consent_source, 'legacy import');
+  assert.equal(legacyProperty?.property_key, 'legacy_profile');
+  assert.equal(legacyProperty?.type, 'string');
+  assert.equal(legacyProperty?.fallback_value_json, '"legacy"');
+  assert.equal(legacyProperty?.workspace_id, 'default');
 
   await database.execute("INSERT INTO workspaces(id,name,created_at) VALUES(?,?,?)", ['workspace_b', 'Workspace B', '2026-01-01T00:00:00.000Z']);
   await database.execute(`INSERT INTO domains(id,domain,verification_token,created_at,workspace_id)
@@ -129,6 +140,8 @@ test('SQLite backfills legacy keys, domains and contacts once and scopes unique 
     VALUES(?,?,?,?,?,?)`, ['workspace_b_segment', 'Legacy segment', '{"tags_all":["legacy"]}', '2026-01-02T00:00:00.000Z', '2026-01-02T00:00:00.000Z', 'workspace_b']);
   await database.execute(`INSERT INTO topics(id,name,slug,description,created_at,updated_at,workspace_id)
     VALUES(?,?,?,?,?,?,?)`, ['workspace_b_topic', 'Legacy topic', 'legacy-topic', null, '2026-01-02T00:00:00.000Z', '2026-01-02T00:00:00.000Z', 'workspace_b']);
+  await database.execute(`INSERT INTO contact_properties(property_key,type,fallback_value_json,created_at,updated_at,workspace_id)
+    VALUES(?,?,?,?,?,?)`, ['legacy_profile', 'number', '42', '2026-01-02T00:00:00.000Z', '2026-01-02T00:00:00.000Z', 'workspace_b']);
 
   const handle = globalThis.emailgoSqlite;
   handle.close();
@@ -149,6 +162,8 @@ test('SQLite backfills legacy keys, domains and contacts once and scopes unique 
     VALUES(?,?,?,?,?,?)`, ['duplicate_default_segment', 'Legacy segment', '{"tags_all":["legacy"]}', '2026-01-03T00:00:00.000Z', '2026-01-03T00:00:00.000Z', 'default']));
   await assert.rejects(database.execute(`INSERT INTO topics(id,name,slug,created_at,updated_at,workspace_id)
     VALUES(?,?,?,?,?,?)`, ['duplicate_default_topic', 'Legacy topic', 'another-topic', '2026-01-03T00:00:00.000Z', '2026-01-03T00:00:00.000Z', 'default']));
+  await assert.rejects(database.execute(`INSERT INTO contact_properties(property_key,type,created_at,updated_at,workspace_id)
+    VALUES(?,?,?,?,?)`, ['legacy_profile', 'number', '2026-01-03T00:00:00.000Z', '2026-01-03T00:00:00.000Z', 'default']));
   assert.deepEqual(globalThis.emailgoSqlite.prepare('PRAGMA foreign_key_check').all(), []);
 });
 
@@ -251,7 +266,7 @@ test('API key and domain routes isolate two workspaces', async (context) => {
 test('API contact collection and item routes isolate two workspaces', async (context) => {
   setupTemporaryDatabase(context, 'send-thanks-workspace-contacts-');
   const database = await import('../src/lib/database.ts');
-  const [contactCollection, contactItem, contactTopics, contactSegments, contactSegment, eventSend, segmentCollection, segmentItem, segmentContacts, segmentMetrics, topicCollection, topicItem, preferencesRoute, broadcasts, contactImports] = await Promise.all([
+  const [contactCollection, contactItem, contactTopics, contactSegments, contactSegment, eventSend, segmentCollection, segmentItem, segmentContacts, segmentMetrics, topicCollection, topicItem, preferencesRoute, broadcasts, contactImports, propertyCollection, propertyItem] = await Promise.all([
     import('../src/app/api/v1/contacts/route.ts'),
     import('../src/app/api/v1/contacts/[id]/route.ts'),
     import('../src/app/api/v1/contacts/[id]/topics/route.ts'),
@@ -267,6 +282,8 @@ test('API contact collection and item routes isolate two workspaces', async (con
     import('../src/app/api/preferences/[token]/route.ts'),
     import('../src/lib/broadcasts.ts'),
     import('../src/app/api/v1/contacts/imports/route.ts'),
+    import('../src/app/api/v1/contact-properties/route.ts'),
+    import('../src/app/api/v1/contact-properties/[key]/route.ts'),
   ]);
   const originalPreferencesSecret = process.env.EMAILGO_PREFERENCES_SECRET;
   process.env.EMAILGO_PREFERENCES_SECRET = 'workspace-preferences-secret-at-least-32-chars';
@@ -406,10 +423,12 @@ test('API contact collection and item routes isolate two workspaces', async (con
   assert.equal(validTopicAudience.key.workspace_id, 'workspace_a');
   const foreignTopicAudience = await broadcasts.validateBroadcastInput({ apiKeyId: 'key_a', audienceType: 'topic', audienceId: 'shared_topic_b', from: 'hello@shared.example.test' });
   assert.equal(foreignTopicAudience.status, 404);
-  async function importWithTopic(topicId, email) {
+  async function importWithTopic(topicId, email, property = undefined) {
     const form = new FormData();
-    form.set('file', new Blob([`email,consent_status,consent_source,consented_at\n${email},opted_in,signup form,${timestamp}\n`], { type: 'text/csv' }), 'contacts.csv');
-    form.set('column_map', JSON.stringify({ email: 'email' }));
+    const propertyColumn = property ? `,${property.key}` : '';
+    const propertyValue = property ? `,${property.value}` : '';
+    form.set('file', new Blob([`email,consent_status,consent_source,consented_at${propertyColumn}\n${email},opted_in,signup form,${timestamp}${propertyValue}\n`], { type: 'text/csv' }), 'contacts.csv');
+    form.set('column_map', JSON.stringify({ email: 'email', ...(property ? { properties: { [property.key]: { column: property.key, type: property.type } } } : {}) }));
     form.set('topics', JSON.stringify([{ id: topicId, subscription: 'opt_in' }]));
     return contactImports.POST(new Request('http://send-thanks.test/api/v1/contacts/imports', {
       method: 'POST',
@@ -419,10 +438,34 @@ test('API contact collection and item routes isolate two workspaces', async (con
   }
   const foreignTopicImport = await importWithTopic('shared_topic_b', 'foreign-topic-import@example.test');
   assert.equal(foreignTopicImport.status, 404);
-  const validTopicImport = await importWithTopic('shared_topic_a', 'topic-import@example.test');
+  const validTopicImport = await importWithTopic('shared_topic_a', 'topic-import@example.test', { key: 'loyalty_band', value: 'gold', type: 'string' });
   assert.equal(validTopicImport.status, 201);
   assert.equal((await database.queryOne(`SELECT c.workspace_id,ct.topic_id FROM contacts c JOIN contact_topics ct ON ct.contact_id=c.id WHERE c.email=?`, ['topic-import@example.test']))?.topic_id, 'shared_topic_a');
   assert.equal((await database.queryOne('SELECT workspace_id FROM contacts WHERE email=?', ['topic-import@example.test']))?.workspace_id, 'workspace_a');
+  assert.equal((await database.queryOne('SELECT type,workspace_id FROM contact_properties WHERE property_key=? AND workspace_id=?', ['loyalty_band', 'workspace_a']))?.type, 'string');
+  const propertyA = await request(propertyCollection.POST, 'workspace_a', 'POST', 'http://send-thanks.test/api/v1/contact-properties', { key: 'profile_level', type: 'string', fallback_value: 'Workspace A' });
+  const propertyB = await request(propertyCollection.POST, 'workspace_b', 'POST', 'http://send-thanks.test/api/v1/contact-properties', { key: 'profile_level', type: 'number', fallback_value: 42 });
+  assert.equal(propertyA.status, 201);
+  assert.equal(propertyB.status, 201);
+  assert.equal((await propertyA.json()).fallback_value, 'Workspace A');
+  assert.equal((await propertyB.json()).fallback_value, 42);
+  const importedPropertyB = await request(propertyCollection.POST, 'workspace_b', 'POST', 'http://send-thanks.test/api/v1/contact-properties', { key: 'loyalty_band', type: 'number', fallback_value: 5 });
+  assert.equal(importedPropertyB.status, 201);
+  const propertyListA = await request(propertyCollection.GET, 'workspace_a', 'GET', 'http://send-thanks.test/api/v1/contact-properties');
+  const propertyListB = await request(propertyCollection.GET, 'workspace_b', 'GET', 'http://send-thanks.test/api/v1/contact-properties');
+  assert.deepEqual((await propertyListA.json()).data.map(({ key }) => key), ['loyalty_band', 'profile_level']);
+  assert.deepEqual((await propertyListB.json()).data.map(({ key }) => key), ['loyalty_band', 'profile_level']);
+  const ownProperty = await request(propertyItem.GET, 'workspace_a', 'GET', 'http://send-thanks.test/api/v1/contact-properties/profile_level', undefined, { params: Promise.resolve({ key: 'profile_level' }) });
+  assert.equal(ownProperty.status, 200);
+  assert.equal((await ownProperty.json()).fallback_value, 'Workspace A');
+  const updateOwnProperty = await request(propertyItem.PATCH, 'workspace_a', 'PATCH', 'http://send-thanks.test/api/v1/contact-properties/profile_level', { fallback_value: 'Changed A' }, { params: Promise.resolve({ key: 'profile_level' }) });
+  assert.equal(updateOwnProperty.status, 200);
+  const deleteOwnProperty = await request(propertyItem.DELETE, 'workspace_a', 'DELETE', 'http://send-thanks.test/api/v1/contact-properties/profile_level', undefined, { params: Promise.resolve({ key: 'profile_level' }) });
+  assert.equal(deleteOwnProperty.status, 200);
+  const propertyBAfterAttempt = await database.queryOne('SELECT type,fallback_value_json FROM contact_properties WHERE property_key=? AND workspace_id=?', ['profile_level', 'workspace_b']);
+  assert.equal(propertyBAfterAttempt?.type, 'number');
+  assert.equal(propertyBAfterAttempt?.fallback_value_json, '42');
+  assert.equal((await database.queryOne('SELECT type,workspace_id FROM contact_properties WHERE property_key=? AND workspace_id=?', ['loyalty_band', 'workspace_b']))?.type, 'number');
   const sameNameTopicA = await request(topicCollection.POST, 'workspace_a', 'POST', 'http://send-thanks.test/api/v1/topics', { name: 'Separate topic', slug: 'separate-topic' });
   const sameNameTopicB = await request(topicCollection.POST, 'workspace_b', 'POST', 'http://send-thanks.test/api/v1/topics', { name: 'Separate topic', slug: 'separate-topic' });
   assert.equal(sameNameTopicA.status, 201);

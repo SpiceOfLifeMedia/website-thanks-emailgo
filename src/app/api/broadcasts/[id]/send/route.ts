@@ -71,7 +71,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       await execute("UPDATE broadcasts SET status='draft',updated_at=? WHERE id=? AND status='queuing'", [nowIso(), id]);
       return NextResponse.json({ error: 'A broadcast is limited to 1,000 recipients per send. Narrow the saved audience and create another broadcast for the remaining contacts.' }, { status: 413, headers: privateHeaders });
     }
-    const propertyFallbacks = (await query<{ property_key: string; fallback_value_json: string | null }>('SELECT property_key,fallback_value_json FROM contact_properties WHERE fallback_value_json IS NOT NULL')).rows;
+    const propertyWorkspace = await queryOne<{ workspace_id: string }>('SELECT workspace_id FROM api_keys WHERE id=? AND revoked_at IS NULL', [campaign.apiKeyId]);
+    if (!propertyWorkspace) throw new Error('The broadcast API key is no longer active.');
+    const propertyFallbacks = (await query<{ property_key: string; fallback_value_json: string | null }>('SELECT property_key,fallback_value_json FROM contact_properties WHERE workspace_id=? AND fallback_value_json IS NOT NULL', [propertyWorkspace.workspace_id])).rows;
     const baseStatements: Array<{ sql: string; params: readonly unknown[] }> = [];
     const scheduledEvents: WebhookEventInput[] = [];
     for (const recipient of recipients) {

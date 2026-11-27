@@ -150,7 +150,7 @@ async function __emailgo_POST_handler(request: Request) {
     propertyMaps.push({ key: propertyKey, column, type: type as 'string' | 'number' | 'boolean' });
   }
   const existingProperties = propertyMaps.length
-    ? (await query<{ property_key: string; type: string }>(`SELECT property_key,type FROM contact_properties WHERE property_key IN (${propertyMaps.map(() => '?').join(',')})`, propertyMaps.map(({ key }) => key))).rows
+    ? (await query<{ property_key: string; type: string }>(`SELECT property_key,type FROM contact_properties WHERE workspace_id=? AND property_key IN (${propertyMaps.map(() => '?').join(',')})`, [key.workspaceId, ...propertyMaps.map(({ key: propertyKey }) => propertyKey)])).rows
     : [];
   const propertyPlan = planContactPropertyDefinitions(propertyMaps, existingProperties);
   if (!propertyPlan.ok) return errorResponse(propertyPlan.error, 409);
@@ -238,8 +238,8 @@ async function __emailgo_POST_handler(request: Request) {
       const timestamp = nowIso();
       for (const property of propertyPlan.create) {
         statements.push({
-          sql: 'INSERT INTO contact_properties(property_key,type,fallback_value_json,created_at,updated_at) VALUES(?,?,NULL,?,?) ON CONFLICT(property_key) DO NOTHING',
-          params: [property.key, property.type, timestamp, timestamp],
+          sql: 'INSERT INTO contact_properties(property_key,type,fallback_value_json,created_at,updated_at,workspace_id) VALUES(?,?,NULL,?,?,?) ON CONFLICT(workspace_id,property_key) DO NOTHING',
+          params: [property.key, property.type, timestamp, timestamp, key.workspaceId],
         });
       }
       if (segmentIds.length) {
