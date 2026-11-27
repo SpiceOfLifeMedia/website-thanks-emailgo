@@ -6,6 +6,7 @@ import { trackedHtml } from '@/lib/tracking';
 import { emitEmailSuppressed, findSuppressedAddresses, normalizeSuppressionAddress } from '@/lib/suppressions';
 import { deliverDueWebhooks, emitWebhookEvent } from '@/lib/webhooks';
 import { processAutomationRuns } from '@/lib/automations';
+import { processContactImportJobs } from '@/lib/contact-import-jobs';
 import { relayMessageIdFromResponse } from '@/lib/ses-events';
 import { recordEmailSentActivity } from '@/lib/email-activity';
 
@@ -150,7 +151,8 @@ export async function POST(request: Request) {
       WHEN EXISTS(SELECT 1 FROM emails e WHERE e.broadcast_id=broadcasts.id AND e.status='scheduled') THEN 'scheduled'
       ELSE 'sent' END,updated_at=?
     WHERE status IN ('queued','scheduled','sending') AND recipient_count>0`, [now, now, nowIso()]);
+  const contactImports = await processContactImportJobs(1);
   const webhooks = await deliverDueWebhooks();
   const automations = await processAutomationRuns(5);
-  return NextResponse.json({ ok: true, checked: due.rows.length, sent, failed, suppressed, deferred, webhooks, automations, smtp_configured: smtpConfigured(), checked_at: now });
+  return NextResponse.json({ ok: true, checked: due.rows.length, sent, failed, suppressed, deferred, contact_imports: contactImports, webhooks, automations, smtp_configured: smtpConfigured(), checked_at: now });
 }

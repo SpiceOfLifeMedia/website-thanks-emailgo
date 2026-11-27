@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server';
 import { authorizeApiKey, hasFullApiAccess } from '@/lib/auth';
-import { importContactsCsv } from '@/lib/contact-import';
 import { nowIso, execute, query, queryOne, randomId } from '@/lib/database';
 import { parseCsv, stringifyCsv } from '@/lib/csv';
 import { readBytesLimited } from '@/lib/request-json';
-import { emitWebhookEvent } from '@/lib/webhooks';
 import { withApiRequestLog } from '@/lib/request-logs';
 import { planContactPropertyDefinitions } from '@/lib/contact-import-properties';
 
@@ -112,7 +110,10 @@ async function __emailgo_POST_handler(request: Request) {
   catch { return errorResponse('The CSV file must use valid UTF-8 text.', 400); }
 
   const parsedCsv = parseCsv(csv);
-  if (!parsedCsv.ok) return errorResponse(parsedCsv.error, 400);
+  if (!parsedCsv.ok) {
+    const exceedsRowLimit = parsedCsv.error === 'CSV may contain at most 2000 contact rows.';
+    return errorResponse(exceedsRowLimit ? 'CSV imports are limited to 2,000 data rows.' : parsedCsv.error, exceedsRowLimit ? 413 : 400);
+  }
   if (parsedCsv.rows.length < 2) return errorResponse('CSV must include a header row and at least one contact.', 400);
   const originalHeaders = parsedCsv.rows[0].map((header) => header.trim());
   const normalizedHeaders = originalHeaders.map(headerKey);
@@ -228,100 +229,19 @@ async function __emailgo_POST_handler(request: Request) {
   const startedAt = nowIso();
   const importId = randomId('imp');
   const initialCounts = { total, created: 0, updated: 0, skipped: 0, failed: 0 };
-  await execute('INSERT INTO contact_imports(id,api_key_id,status,counts_json,errors_json,created_at,completed_at) VALUES(?,?,?,?,?,?,NULL)', [importId, key.id, 'in_progress', JSON.stringify(initialCounts), '[]', startedAt]);
-
-  try {
-    const imported = await importContactsCsv(normalizedCsv, onConflict, true, async (appliedEmails) => {
-      if (!appliedEmails.length) return [];
-      const emailPlaceholders = appliedEmails.map(() => '?').join(',');
-      const statements: Array<{ sql: string; params: readonly unknown[] }> = [];
-      const timestamp = nowIso();
-      for (const property of propertyPlan.create) {
-        statements.push({
-          sql: 'INSERT INTO contact_properties(property_key,type,fallback_value_json,created_at,updated_at,workspace_id) VALUES(?,?,NULL,?,?,?) ON CONFLICT(workspace_id,property_key) DO NOTHING',
-          params: [property.key, property.type, timestamp, timestamp, key.workspaceId],
-        });
-      }
-      if (segmentIds.length) {
-        const segmentPlaceholders = segmentIds.map(() => '?').join(',');
-        statements.push({
-          sql: `DELETE FROM segment_contact_exclusions WHERE segment_id IN (${segmentPlaceholders})
-            AND contact_id IN (SELECT id FROM contacts WHERE workspace_id=? AND lower(email) IN (${emailPlaceholders}))`,
-          params: [...segmentIds, key.workspaceId, ...appliedEmails],
-        });
-        statements.push({
-          sql: `INSERT INTO segment_contacts(segment_id,contact_id,created_at)
-            SELECT s.id,c.id,? FROM segments s CROSS JOIN contacts c
-            WHERE s.id IN (${segmentPlaceholders}) AND s.workspace_id=? AND c.workspace_id=? AND lower(c.email) IN (${emailPlaceholders})
-            ON CONFLICT(segment_id,contact_id) DO NOTHING`,
-          params: [timestamp, ...segmentIds, key.workspaceId, key.workspaceId, ...appliedEmails],
-        });
-      }
-      for (const subscription of ['opt_in', 'opt_out'] as const) {
-        const topicIds = topics.filter((topic) => topic.subscription === subscription).map((topic) => topic.id);
-        if (!topicIds.length) continue;
-        const topicPlaceholders = topicIds.map(() => '?').join(',');
-        const consentFilter = subscription === 'opt_in'
-          ? "AND c.unsubscribed_at IS NULL AND c.consent_status='opted_in' AND c.consent_source IS NOT NULL AND c.consented_at IS NOT NULL"
-          : '';
-        statements.push({
-          sql: subscription === 'opt_in'
-            ? `INSERT INTO contact_topics(contact_id,topic_id,subscribed_at,unsubscribed_at,consent_source,consented_at)
-              SELECT c.id,t.id,?,NULL,c.consent_source,c.consented_at FROM contacts c CROSS JOIN topics t
-              WHERE c.workspace_id=? AND lower(c.email) IN (${emailPlaceholders}) AND t.workspace_id=? AND t.id IN (${topicPlaceholders}) AND t.disabled_at IS NULL ${consentFilter}
-              ON CONFLICT(contact_id,topic_id) DO UPDATE SET
-                subscribed_at=CASE WHEN contact_topics.unsubscribed_at IS NULL THEN contact_topics.subscribed_at ELSE excluded.subscribed_at END,
-                unsubscribed_at=NULL,consent_source=excluded.consent_source,consented_at=excluded.consented_at`
-            : `INSERT INTO contact_topics(contact_id,topic_id,subscribed_at,unsubscribed_at,consent_source,consented_at)
-              SELECT c.id,t.id,NULL,?,NULL,NULL FROM contacts c CROSS JOIN topics t
-              WHERE c.workspace_id=? AND lower(c.email) IN (${emailPlaceholders}) AND t.workspace_id=? AND t.id IN (${topicPlaceholders}) AND t.disabled_at IS NULL
-              ON CONFLICT(contact_id,topic_id) DO UPDATE SET unsubscribed_at=excluded.unsubscribed_at`,
-          params: [timestamp, key.workspaceId, ...appliedEmails, key.workspaceId, ...topicIds],
-        });
-      }
-      return statements;
-    }, key.workspaceId);
-    const importBody = await imported.json() as { counts?: { total?: number; created?: number; updated?: number; skipped?: number }; errors?: Array<{ row: number; message: string }>; applied_emails?: string[]; error?: string | { message?: string } };
-    if (!imported.ok) {
-      const message = typeof importBody.error === 'string' ? importBody.error : importBody.error?.message ?? 'Contact import failed.';
-      const failedCounts = { ...initialCounts, failed: total };
-      await execute("UPDATE contact_imports SET status='failed',counts_json=?,errors_json=?,completed_at=? WHERE id=? AND api_key_id=?", [JSON.stringify(failedCounts), JSON.stringify([{ row: 0, message }]), nowIso(), importId, key.id]);
-      return errorResponse(message, imported.status);
-    }
-    const counts = { total, created: Number(importBody.counts?.created ?? 0), updated: Number(importBody.counts?.updated ?? 0), skipped: Number(importBody.counts?.skipped ?? 0), failed: 0 };
-    const errors = Array.isArray(importBody.errors) ? importBody.errors.slice(0, 20) : [];
-    const appliedEmails = Array.isArray(importBody.applied_emails) ? [...new Set(importBody.applied_emails.filter((email): email is string => typeof email === 'string'))] : [];
-    const webhookErrors: Array<{ row: number; message: string }> = [];
-    if (appliedEmails.length && topics.length) {
-      const placeholders = appliedEmails.map(() => '?').join(',');
-      const contacts = (await query<{ id: string; email: string; unsubscribed_at: string | null; consent_status: string; consent_source: string | null; consented_at: string | null }>(`SELECT id,email,unsubscribed_at,consent_status,consent_source,consented_at FROM contacts WHERE workspace_id=? AND lower(email) IN (${placeholders})`, [key.workspaceId, ...appliedEmails])).rows;
-      const topicIds = [...new Set(topics.map(({ id }) => id))];
-      const activeTopics = new Set((await query<{ id: string }>(`SELECT id FROM topics WHERE workspace_id=? AND disabled_at IS NULL AND id IN (${topicIds.map(() => '?').join(',')})`, [key.workspaceId, ...topicIds])).rows.map(({ id }) => id));
-      const timestamp = nowIso();
-      for (const contact of contacts) {
-        const optedInTopics = topics.filter(({ id, subscription }) => subscription === 'opt_in' && activeTopics.has(id)).map(({ id }) => id);
-        const optedOutTopics = topics.filter(({ id, subscription }) => subscription === 'opt_out' && activeTopics.has(id)).map(({ id }) => id);
-        try {
-          if (optedInTopics.length && !contact.unsubscribed_at && contact.consent_status === 'opted_in' && contact.consent_source && contact.consented_at) {
-            await emitWebhookEvent(key.id, 'contact.subscribed', { contact_id: contact.id, email: contact.email, topic_ids: optedInTopics, consent_source: contact.consent_source, consented_at: contact.consented_at });
-          }
-          if (optedOutTopics.length) await emitWebhookEvent(key.id, 'contact.unsubscribed', { contact_id: contact.id, email: contact.email, topic_ids: optedOutTopics, unsubscribed_at: timestamp });
-        } catch {
-          webhookErrors.push({ row: 0, message: 'A contact subscription webhook could not be queued.' });
-        }
-      }
-    }
-    errors.push(...webhookErrors.slice(0, Math.max(0, 20 - errors.length)));
-    const completedAt = nowIso();
-    await execute("UPDATE contact_imports SET status='completed',counts_json=?,errors_json=?,completed_at=? WHERE id=? AND api_key_id=?", [JSON.stringify(counts), JSON.stringify(errors), completedAt, importId, key.id]);
-    const summary: ImportSummary = { id: importId, object: 'contact_import', status: 'completed', created_at: startedAt, completed_at: completedAt, counts, ...(errors.length ? { errors } : {}) };
-    return NextResponse.json(summary, { status: 201, headers: { 'Cache-Control': 'private, no-store' } });
-  } catch (cause) {
-    const message = 'Contact import could not be completed.';
-    const failedCounts = { ...initialCounts, failed: total };
-    await execute("UPDATE contact_imports SET status='failed',counts_json=?,errors_json=?,completed_at=? WHERE id=? AND api_key_id=?", [JSON.stringify(failedCounts), JSON.stringify([{ row: 0, message }]), nowIso(), importId, key.id]);
-    return errorResponse(message, 500);
-  }
+  const payload = {
+    workspaceId: key.workspaceId,
+    normalizedCsv,
+    onConflict,
+    propertyDefinitions: propertyPlan.create,
+    segmentIds,
+    topics,
+  };
+  await execute('INSERT INTO contact_imports(id,api_key_id,status,counts_json,errors_json,created_at,completed_at,payload_json,processing_started_at) VALUES(?,?,?,?,?,?,NULL,?,NULL)',
+    [importId, key.id, 'in_progress', JSON.stringify(initialCounts), '[]', startedAt, JSON.stringify(payload)]);
+  const summary: ImportSummary = { id: importId, object: 'contact_import', status: 'in_progress', created_at: startedAt, completed_at: null, counts: initialCounts };
+  const statusUrl = new URL(`/api/v1/contacts/imports/${encodeURIComponent(importId)}`, request.url).toString();
+  return NextResponse.json(summary, { status: 202, headers: { 'Cache-Control': 'private, no-store', Location: statusUrl } });
 }
 
 export const GET = withApiRequestLog(__emailgo_GET_handler);

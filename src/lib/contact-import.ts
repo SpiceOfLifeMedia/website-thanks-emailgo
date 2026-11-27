@@ -3,8 +3,11 @@ import { nowIso, query, randomId, transaction } from '@/lib/database';
 import { parseCsv } from '@/lib/csv';
 import { DEFAULT_WORKSPACE_ID } from '@/lib/workspaces';
 
-type ExistingContact = { email: string; name: string | null; properties_json: string; tags_json: string; unsubscribed_at: string | null; consent_status: 'unknown' | 'opted_in'; consent_source: string | null; consented_at: string | null };
+type ExistingContact = { id: string; email: string; name: string | null; properties_json: string; tags_json: string; unsubscribed_at: string | null; consent_status: 'unknown' | 'opted_in'; consent_source: string | null; consented_at: string | null };
 type ImportStatement = { sql: string; params: readonly unknown[] };
+export type ContactImportCounts = { total: number; created: number; updated: number; skipped: number; failed: number };
+export type AppliedContact = { id: string; email: string; unsubscribed_at: string | null; consent_status: 'unknown' | 'opted_in'; consent_source: string | null; consented_at: string | null };
+type ImportFinalizer = (result: { counts: ContactImportCounts; errors: Array<{ row: number; message: string }> }) => Promise<ImportStatement[]> | ImportStatement[];
 const emailPattern = /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/;
 const trueValues = new Set(['true', 'yes', '1', 'unsubscribed', 'opted_out']);
 
@@ -32,8 +35,9 @@ export async function importContactsCsv(
   csv: string,
   mode: 'skip' | 'upsert' = 'skip',
   includeAppliedEmails = false,
-  additionalStatements?: (appliedEmails: readonly string[]) => Promise<ImportStatement[]>,
+  additionalStatements?: (appliedEmails: readonly string[], appliedContacts: readonly AppliedContact[]) => Promise<ImportStatement[]>,
   workspaceId = DEFAULT_WORKSPACE_ID,
+  finalizer?: ImportFinalizer,
 ) {
   const parsed = parseCsv(csv);
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
@@ -156,20 +160,26 @@ export async function importContactsCsv(
     records.push({ email, name: fullName || null, properties, tags, unsubscribed: unsubscribed || rawConsent === 'opted_out', consentStatus, consentSource, consentedAt: consentedDate?.toISOString() ?? null });
   }
 
-  if (!records.length) return NextResponse.json({ counts: { total: parsed.rows.length - 1, created: 0, updated: 0, skipped }, errors, ...(includeAppliedEmails ? { applied_emails: [] } : {}), message: 'No valid contact rows were found.' }, { status: 200 });
+  if (!records.length) {
+    const result = { counts: { total: parsed.rows.length - 1, created: 0, updated: 0, skipped, failed: 0 }, errors };
+    const finalStatements = finalizer ? await finalizer(result) : [];
+    if (finalStatements.length) await transaction(finalStatements);
+    return NextResponse.json({ counts: { total: result.counts.total, created: 0, updated: 0, skipped }, errors, ...(includeAppliedEmails ? { applied_emails: [] } : {}), message: 'No valid contact rows were found.' }, { status: 200 });
+  }
 
   const uniqueEmails = [...new Set(records.map(({ email }) => email))];
   const existingByEmail = new Map<string, ExistingContact>();
   for (let offset = 0; offset < uniqueEmails.length; offset += 400) {
     const batch = uniqueEmails.slice(offset, offset + 400);
     const placeholders = batch.map(() => '?').join(',');
-    const existing = await query<ExistingContact>(`SELECT email,name,properties_json,tags_json,unsubscribed_at,consent_status,consent_source,consented_at FROM contacts WHERE workspace_id=? AND email IN (${placeholders})`, [workspaceId, ...batch]);
+    const existing = await query<ExistingContact>(`SELECT id,email,name,properties_json,tags_json,unsubscribed_at,consent_status,consent_source,consented_at FROM contacts WHERE workspace_id=? AND email IN (${placeholders})`, [workspaceId, ...batch]);
     for (const contact of existing.rows) existingByEmail.set(contact.email, contact);
   }
 
   const statements: Array<{ sql: string; params: readonly unknown[] }> = [];
   const seen = new Set<string>();
   const appliedEmails: string[] = [];
+  const appliedContacts: AppliedContact[] = [];
   let created = 0;
   let updated = 0;
   for (const record of records) {
@@ -198,15 +208,18 @@ export async function importContactsCsv(
       params: [contactId, record.email, name, JSON.stringify(properties), JSON.stringify(tags), unsubscribedAt, record.consentStatus, record.consentSource, record.consentedAt, timestamp, timestamp, workspaceId],
     });
     appliedEmails.push(record.email);
-    existingByEmail.set(record.email, { email: record.email, name, properties_json: JSON.stringify(properties), tags_json: JSON.stringify(tags), unsubscribed_at: unsubscribedAt, consent_status: consentStatus, consent_source: consentSource, consented_at: consentedAt });
+    appliedContacts.push({ id: previous?.id ?? contactId, email: record.email, unsubscribed_at: unsubscribedAt, consent_status: consentStatus, consent_source: consentSource, consented_at: consentedAt });
+    existingByEmail.set(record.email, { id: previous?.id ?? contactId, email: record.email, name, properties_json: JSON.stringify(properties), tags_json: JSON.stringify(tags), unsubscribed_at: unsubscribedAt, consent_status: consentStatus, consent_source: consentSource, consented_at: consentedAt });
   }
-  const extraStatements = additionalStatements ? await additionalStatements(appliedEmails) : [];
-  if (statements.length || extraStatements.length) await transaction([...statements, ...extraStatements]);
+  const extraStatements = additionalStatements ? await additionalStatements(appliedEmails, appliedContacts) : [];
+  const result = { counts: { total: parsed.rows.length - 1, created, updated, skipped, failed: 0 }, errors };
+  const finalStatements = finalizer ? await finalizer(result) : [];
+  if (statements.length || extraStatements.length || finalStatements.length) await transaction([...statements, ...extraStatements, ...finalStatements]);
 
   return NextResponse.json({
     object: 'contact_import',
     status: 'completed',
-    counts: { total: parsed.rows.length - 1, created, updated, skipped },
+    counts: { total: result.counts.total, created, updated, skipped },
     errors,
     ...(includeAppliedEmails ? { applied_emails: appliedEmails } : {}),
   });

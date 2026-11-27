@@ -302,9 +302,13 @@ const postgresSchema = [
   `CREATE TABLE IF NOT EXISTS contact_imports (
     id TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, status TEXT NOT NULL,
     counts_json TEXT NOT NULL, errors_json TEXT NOT NULL, created_at TEXT NOT NULL, completed_at TEXT,
+    payload_json TEXT, processing_started_at TEXT,
     FOREIGN KEY(api_key_id) REFERENCES api_keys(id) ON DELETE CASCADE
   )`,
+  'ALTER TABLE contact_imports ADD COLUMN IF NOT EXISTS payload_json TEXT',
+  'ALTER TABLE contact_imports ADD COLUMN IF NOT EXISTS processing_started_at TEXT',
   'CREATE INDEX IF NOT EXISTS contact_imports_key_created ON contact_imports(api_key_id,created_at DESC,id DESC)',
+  'CREATE INDEX IF NOT EXISTS contact_imports_queue ON contact_imports(status,processing_started_at,created_at,id)',
   `CREATE TABLE IF NOT EXISTS contact_properties (
     property_key TEXT NOT NULL, type TEXT NOT NULL, fallback_value_json TEXT,
     created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
@@ -623,6 +627,7 @@ function getSqlite() {
     CREATE TABLE IF NOT EXISTS contact_imports (
       id TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, status TEXT NOT NULL,
       counts_json TEXT NOT NULL, errors_json TEXT NOT NULL, created_at TEXT NOT NULL, completed_at TEXT,
+      payload_json TEXT, processing_started_at TEXT,
       FOREIGN KEY(api_key_id) REFERENCES api_keys(id) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS contact_imports_key_created ON contact_imports(api_key_id,created_at DESC,id DESC);
@@ -689,6 +694,10 @@ function getSqlite() {
     CREATE INDEX IF NOT EXISTS contact_topics_topic ON contact_topics(topic_id,subscribed_at DESC);
   `);
   db.prepare("INSERT OR IGNORE INTO workspaces(id,name,created_at) VALUES('default','Default workspace',?)").run(new Date().toISOString());
+  const contactImportColumns = new Set((db.prepare('PRAGMA table_info(contact_imports)').all() as Array<{ name: string }>).map(({ name }) => name));
+  if (!contactImportColumns.has('payload_json')) db.exec('ALTER TABLE contact_imports ADD COLUMN payload_json TEXT');
+  if (!contactImportColumns.has('processing_started_at')) db.exec('ALTER TABLE contact_imports ADD COLUMN processing_started_at TEXT');
+  db.exec('CREATE INDEX IF NOT EXISTS contact_imports_queue ON contact_imports(status,processing_started_at,created_at,id)');
   const apiKeyColumns = db.prepare('PRAGMA table_info(api_keys)').all() as Array<{ name: string }>;
   if (!apiKeyColumns.some(({ name }) => name === 'workspace_id')) {
     db.exec("ALTER TABLE api_keys ADD COLUMN workspace_id TEXT NOT NULL DEFAULT 'default'");

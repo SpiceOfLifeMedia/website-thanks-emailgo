@@ -302,7 +302,7 @@ test('API key and domain routes isolate two workspaces', async (context) => {
 test('API contact collection and item routes isolate two workspaces', async (context) => {
   setupTemporaryDatabase(context, 'send-thanks-workspace-contacts-');
   const database = await import('../src/lib/database.ts');
-  const [contactCollection, contactItem, contactTopics, contactSegments, contactSegment, eventSend, segmentCollection, segmentItem, segmentContacts, segmentMetrics, topicCollection, topicItem, preferencesRoute, broadcasts, contactImports, propertyCollection, propertyItem, suppressionLib] = await Promise.all([
+  const [contactCollection, contactItem, contactTopics, contactSegments, contactSegment, eventSend, segmentCollection, segmentItem, segmentContacts, segmentMetrics, topicCollection, topicItem, preferencesRoute, broadcasts, contactImports, contactImportItem, propertyCollection, propertyItem, suppressionLib] = await Promise.all([
     import('../src/app/api/v1/contacts/route.ts'),
     import('../src/app/api/v1/contacts/[id]/route.ts'),
     import('../src/app/api/v1/contacts/[id]/topics/route.ts'),
@@ -318,6 +318,7 @@ test('API contact collection and item routes isolate two workspaces', async (con
     import('../src/app/api/preferences/[token]/route.ts'),
     import('../src/lib/broadcasts.ts'),
     import('../src/app/api/v1/contacts/imports/route.ts'),
+    import('../src/app/api/v1/contacts/imports/[id]/route.ts'),
     import('../src/app/api/v1/contact-properties/route.ts'),
     import('../src/app/api/v1/contact-properties/[key]/route.ts'),
     import('../src/lib/suppressions.ts'),
@@ -475,11 +476,76 @@ test('API contact collection and item routes isolate two workspaces', async (con
   }
   const foreignTopicImport = await importWithTopic('shared_topic_b', 'foreign-topic-import@example.test');
   assert.equal(foreignTopicImport.status, 404);
+  const oversizedForm = new FormData();
+  oversizedForm.set('file', new Blob([`email\n${Array.from({ length: 2001 }, (_, index) => `row-${index}@example.test`).join('\n')}\n`], { type: 'text/csv' }), 'contacts.csv');
+  oversizedForm.set('column_map', JSON.stringify({ email: 'email' }));
+  const oversizedImport = await contactImports.POST(new Request('http://send-thanks.test/api/v1/contacts/imports', {
+    method: 'POST', headers: { authorization: `Bearer ${secrets.workspace_a}` }, body: oversizedForm,
+  }));
+  assert.equal(oversizedImport.status, 413);
   const validTopicImport = await importWithTopic('shared_topic_a', 'topic-import@example.test', { key: 'loyalty_band', value: 'gold', type: 'string' });
-  assert.equal(validTopicImport.status, 201);
+  assert.equal(validTopicImport.status, 202);
+  const queuedImport = await validTopicImport.json();
+  assert.equal(queuedImport.status, 'in_progress');
+  assert.equal((await database.queryOne('SELECT id FROM contacts WHERE email=? AND workspace_id=?', ['topic-import@example.test', 'workspace_a'])), undefined);
+  await database.execute('UPDATE contact_imports SET processing_started_at=? WHERE id=?', [new Date(Date.now() - 10 * 60_000).toISOString(), queuedImport.id]);
+  const originalCronSecret = process.env.CRON_SECRET;
+  process.env.CRON_SECRET = 'workspace-isolation-cron-test-secret';
+  context.after(() => {
+    if (originalCronSecret === undefined) delete process.env.CRON_SECRET;
+    else process.env.CRON_SECRET = originalCronSecret;
+  });
+  const { POST: runWorker } = await import('../src/app/api/internal/worker/route.ts');
+  const workerRequest = () => runWorker(new Request('http://send-thanks.test/api/internal/worker', {
+    method: 'POST', headers: { authorization: 'Bearer workspace-isolation-cron-test-secret' },
+  }));
+  const workerResponses = await Promise.all([workerRequest(), workerRequest()]);
+  assert.deepEqual(workerResponses.map((response) => response.status), [200, 200]);
+  const workerResults = await Promise.all(workerResponses.map((response) => response.json()));
+  assert.equal(workerResults.reduce((total, result) => total + result.contact_imports.completed, 0), 1);
+  const completedImport = await database.queryOne('SELECT status,payload_json,processing_started_at,counts_json FROM contact_imports WHERE id=?', [queuedImport.id]);
+  assert.equal(completedImport?.status, 'completed');
+  assert.equal(completedImport?.payload_json, null);
+  assert.equal(completedImport?.processing_started_at, null);
+  assert.equal(JSON.parse(completedImport?.counts_json ?? '{}').created, 1);
+  const ownedImport = await request(contactImportItem.GET, 'workspace_a', 'GET', `http://send-thanks.test/api/v1/contacts/imports/${queuedImport.id}`, undefined, { params: Promise.resolve({ id: queuedImport.id }) });
+  const hiddenImport = await request(contactImportItem.GET, 'workspace_b', 'GET', `http://send-thanks.test/api/v1/contacts/imports/${queuedImport.id}`, undefined, { params: Promise.resolve({ id: queuedImport.id }) });
+  assert.equal(ownedImport.status, 200);
+  assert.equal((await ownedImport.json()).status, 'completed');
+  assert.equal(hiddenImport.status, 404);
   assert.equal((await database.queryOne(`SELECT c.workspace_id,ct.topic_id FROM contacts c JOIN contact_topics ct ON ct.contact_id=c.id WHERE c.email=?`, ['topic-import@example.test']))?.topic_id, 'shared_topic_a');
   assert.equal((await database.queryOne('SELECT workspace_id FROM contacts WHERE email=?', ['topic-import@example.test']))?.workspace_id, 'workspace_a');
   assert.equal((await database.queryOne('SELECT type,workspace_id FROM contact_properties WHERE property_key=? AND workspace_id=?', ['loyalty_band', 'workspace_a']))?.type, 'string');
+
+  await database.execute('INSERT INTO webhooks(id,api_key_id,endpoint,events_json,secret_generation,created_at,updated_at) VALUES(?,?,?,?,?,?,?)',
+    ['import_topic_webhook', 'key_a', 'https://hooks.example.test/events', '["contact.subscribed"]', 1, timestamp, timestamp]);
+  const webhookImportResponse = await importWithTopic('shared_topic_a', 'topic-webhook@example.test');
+  assert.equal(webhookImportResponse.status, 202);
+  const webhookImport = await webhookImportResponse.json();
+  assert.equal(webhookImport.status, 'in_progress');
+  const { processContactImportJobs } = await import('../src/lib/contact-import-jobs.ts');
+  const webhookJobResult = await processContactImportJobs();
+  assert.equal(webhookJobResult.completed, 1);
+  const queuedWebhookEvents = (await database.query('SELECT event_type,payload_json FROM webhook_deliveries WHERE webhook_id=?', ['import_topic_webhook'])).rows;
+  assert.equal(queuedWebhookEvents.length, 1);
+  assert.equal(queuedWebhookEvents[0].event_type, 'contact.subscribed');
+  assert.equal(JSON.parse(queuedWebhookEvents[0].payload_json).data.email, 'topic-webhook@example.test');
+  await processContactImportJobs();
+  assert.equal((await database.query('SELECT id FROM webhook_deliveries WHERE webhook_id=?', ['import_topic_webhook'])).rows.length, 1);
+
+  const failedImportResponse = await importWithTopic('shared_topic_a', 'topic-fail@example.test');
+  assert.equal(failedImportResponse.status, 202);
+  const failedImportAccepted = await failedImportResponse.json();
+  await database.execute('UPDATE topics SET disabled_at=? WHERE id=?', [timestamp, 'shared_topic_a']);
+  const failedWorkerResult = await processContactImportJobs();
+  assert.equal(failedWorkerResult.failed, 1);
+  await database.execute('UPDATE topics SET disabled_at=NULL WHERE id=?', ['shared_topic_a']);
+  const failedImport = await database.queryOne('SELECT status,payload_json,errors_json,counts_json FROM contact_imports WHERE id=?', [failedImportAccepted.id]);
+  assert.equal(failedImport?.status, 'failed');
+  assert.equal(failedImport?.payload_json, null);
+  assert.equal(JSON.parse(failedImport?.counts_json ?? '{}').failed, 1);
+  assert.equal(failedImport?.errors_json.includes('topic-fail@example.test'), false);
+  assert.equal(await database.queryOne('SELECT id FROM contacts WHERE email=? AND workspace_id=?', ['topic-fail@example.test', 'workspace_a']), undefined);
   const propertyA = await request(propertyCollection.POST, 'workspace_a', 'POST', 'http://send-thanks.test/api/v1/contact-properties', { key: 'profile_level', type: 'string', fallback_value: 'Workspace A' });
   const propertyB = await request(propertyCollection.POST, 'workspace_b', 'POST', 'http://send-thanks.test/api/v1/contact-properties', { key: 'profile_level', type: 'number', fallback_value: 42 });
   assert.equal(propertyA.status, 201);
@@ -507,7 +573,8 @@ test('API contact collection and item routes isolate two workspaces', async (con
   const afterWorkspaceASuppression = await broadcasts.eligibleBroadcastContacts({ apiKeyId: 'key_a', audienceType: 'topic', audienceId: 'shared_topic_a' });
   const unaffectedWorkspaceB = await broadcasts.eligibleBroadcastContacts({ apiKeyId: 'key_b', audienceType: 'topic', audienceId: 'shared_topic_b' });
   const importedTopicContact = await database.queryOne('SELECT id FROM contacts WHERE email=? AND workspace_id=?', ['topic-import@example.test', 'workspace_a']);
-  assert.deepEqual(afterWorkspaceASuppression.map(({ id }) => id), [importedTopicContact?.id]);
+  const webhookTopicContact = await database.queryOne('SELECT id FROM contacts WHERE email=? AND workspace_id=?', ['topic-webhook@example.test', 'workspace_a']);
+  assert.deepEqual(afterWorkspaceASuppression.map(({ id }) => id).sort(), [importedTopicContact?.id, webhookTopicContact?.id].sort());
   assert.deepEqual(unaffectedWorkspaceB.map(({ id }) => id), ['contact_b']);
   const sameNameTopicA = await request(topicCollection.POST, 'workspace_a', 'POST', 'http://send-thanks.test/api/v1/topics', { name: 'Separate topic', slug: 'separate-topic' });
   const sameNameTopicB = await request(topicCollection.POST, 'workspace_b', 'POST', 'http://send-thanks.test/api/v1/topics', { name: 'Separate topic', slug: 'separate-topic' });
@@ -534,7 +601,7 @@ test('API contact collection and item routes isolate two workspaces', async (con
   const hiddenSegmentMetrics = await request(segmentMetrics.GET, 'workspace_a', 'GET', 'http://send-thanks.test/api/v1/segments/metrics?segment_id=shared_segment_b');
   assert.equal(hiddenSegmentMetrics.status, 404);
   const isolatedMetrics = await request(segmentMetrics.GET, 'workspace_a', 'GET', 'http://send-thanks.test/api/v1/segments/metrics');
-  assert.equal((await isolatedMetrics.json()).totals.all_contacts, 3);
+  assert.equal((await isolatedMetrics.json()).totals.all_contacts, 4);
   const sameNameInA = await request(segmentCollection.POST, 'workspace_a', 'POST', 'http://send-thanks.test/api/v1/segments', { name: 'Separate name', filters: { tags_all: ['active'] } });
   const sameNameInB = await request(segmentCollection.POST, 'workspace_b', 'POST', 'http://send-thanks.test/api/v1/segments', { name: 'Separate name', filters: { tags_all: ['active'] } });
   assert.equal(sameNameInA.status, 201);
@@ -721,4 +788,21 @@ test('usage API returns only the authenticated key workspace totals', async (con
     { contacts: usageB.contacts.used, segments: usageB.segments.used, broadcasts: usageB.broadcasts.used, domains: usageB.domains.used, automationRuns: usageB.automation_runs.used },
     { contacts: 1, segments: 1, broadcasts: 1, domains: 2, automationRuns: 1 },
   );
+});
+
+test('SQLite adds contact import queue columns to existing history tables', async (context) => {
+  const dataDirectory = setupTemporaryDatabase(context, 'send-thanks-contact-import-migration-');
+  const legacy = new DatabaseSync(join(dataDirectory, 'emailgo.sqlite'));
+  legacy.exec(`CREATE TABLE contact_imports (
+    id TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, status TEXT NOT NULL,
+    counts_json TEXT NOT NULL, errors_json TEXT NOT NULL, created_at TEXT NOT NULL, completed_at TEXT
+  )`);
+  legacy.close();
+
+  const database = await import('../src/lib/database.ts');
+  const columns = (await database.query('PRAGMA table_info(contact_imports)')).rows.map((column) => column.name);
+  assert.ok(columns.includes('payload_json'));
+  assert.ok(columns.includes('processing_started_at'));
+  const queueIndex = await database.query("PRAGMA index_list('contact_imports')");
+  assert.ok(queueIndex.rows.some((index) => index.name === 'contact_imports_queue'));
 });
