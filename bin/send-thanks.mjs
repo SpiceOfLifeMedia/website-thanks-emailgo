@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 
 const usage = `Send, thanks CLI
 
@@ -38,6 +38,7 @@ Common commands:
   usage get
   logs list [--limit 20] [--after id|--before id]
   logs get <log_id>
+  exports download --resource emails|received_emails|broadcasts|contacts|domains|logs|api_keys [--search text] [--status value] [--output ./export.csv]
   templates list [--limit 20] [--after id|--before id]
   templates create --data '{"name":"welcome","html":"<p>Hello {{{NAME}}}</p>"}'
   templates get|update|delete|publish|duplicate <id_or_alias> [--data JSON|--file PATH]
@@ -69,7 +70,7 @@ const apiKey = process.env.EMAILGO_API_KEY;
 if (!apiKey) fail('Set EMAILGO_API_KEY in the current shell. The CLI does not save credentials.');
 const baseUrl = (process.env.EMAILGO_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '');
 const query = new URLSearchParams();
-for (const key of ['limit', 'after', 'before', 'search', 'status', 'type', 'cursor', 'format', 'start-date', 'end-date', 'timezone', 'granularity', 'metrics', 'dimensions', 'domain-id', 'email-id', 'broadcast-id', 'segment-id']) {
+for (const key of ['limit', 'after', 'before', 'search', 'status', 'type', 'cursor', 'format', 'resource', 'start-date', 'end-date', 'timezone', 'granularity', 'metrics', 'dimensions', 'domain-id', 'email-id', 'broadcast-id', 'segment-id']) {
   if (flags.has(key)) query.set(key.replaceAll('-', '_'), String(flags.get(key)));
 }
 const withQuery = (path) => query.size ? `${path}?${query}` : path;
@@ -165,6 +166,7 @@ const resourceRoutes = {
   },
   usage: { get: ['GET', '/api/v1/usage'] },
   logs: { list: ['GET', withQuery('/api/v1/logs')], get: ['GET', item('/api/v1/logs')] },
+  exports: { download: ['GET', withQuery('/api/v1/exports')] },
   templates: {
     list: ['GET', withQuery('/api/v1/templates')], create: ['POST', '/api/v1/templates'],
     get: ['GET', item('/api/v1/templates')], update: ['PATCH', item('/api/v1/templates')],
@@ -176,12 +178,13 @@ const resourceRoutes = {
 const route = resourceRoutes[resource]?.[action];
 if (!route) fail(`Unknown command: ${resource} ${action}. Run with --help for available commands.`, 2);
 if (resource === 'emails' && action === 'unshare' && !flags.get('share-id')) fail('emails unshare requires --share-id.', 2);
+if (resource === 'exports' && action === 'download' && !flags.has('resource')) fail('exports download requires --resource.', 2);
 if ((action === 'add-segment' || action === 'remove-segment') && !flags.get('segment-id')) fail(`${action} requires --segment-id.`, 2);
 let body;
 try { body = resource === 'contact-imports' && action === 'create' ? undefined : await jsonBody(); }
 catch (error) { fail(`Could not read JSON input: ${error instanceof Error ? error.message : 'invalid input'}`, 2); }
 const [method, path] = route;
-const headers = { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' };
+const headers = { Authorization: `Bearer ${apiKey}`, Accept: resource === 'exports' && action === 'download' ? 'text/csv' : 'application/json' };
 if (body !== undefined) headers['Content-Type'] = 'application/json';
 if (flags.has('idempotency-key')) headers['Idempotency-Key'] = String(flags.get('idempotency-key'));
 let response;
@@ -203,6 +206,20 @@ try {
   fail(`Request failed: ${error instanceof Error ? error.message : 'network error'}`);
 }
 const text = await response.text();
+if (resource === 'exports' && action === 'download') {
+  if (!response.ok) {
+    let result;
+    try { result = text ? JSON.parse(text) : null; } catch { result = { message: text || response.statusText }; }
+    const error = result?.error;
+    fail(typeof error === 'string' ? error : error?.message ?? result?.message ?? response.statusText);
+  }
+  if (flags.has('output')) {
+    const outputPath = String(flags.get('output'));
+    await writeFile(outputPath, text, { encoding: 'utf8', flag: 'wx' }).catch((error) => fail(`Could not write CSV to ${outputPath}: ${error instanceof Error ? error.message : 'write failed'}.`));
+    process.stderr.write(`Saved CSV to ${outputPath}\n`);
+  } else process.stdout.write(text);
+  process.exit(0);
+}
 let result;
 try { result = text ? JSON.parse(text) : null; }
 catch { result = { message: text }; }

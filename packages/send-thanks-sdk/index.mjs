@@ -168,6 +168,7 @@ export class SendThanks {
       list: (query) => request('GET', '/api/v1/logs', { query }),
       get: (id) => request('GET', `/api/v1/logs/${encodeURIComponent(id)}`),
     };
+    this.exports = { csv: (query) => this.downloadCsvExport(query) };
     this.templates = {
       list: (query) => request('GET', '/api/v1/templates', { query }),
       create: (body) => request('POST', '/api/v1/templates', { body }),
@@ -195,6 +196,27 @@ export class SendThanks {
       return { data: await response.arrayBuffer(), error: null };
     } catch (error) {
       return { data: null, error: error instanceof Error ? error : new Error('Send, thanks download failed.') };
+    }
+  }
+
+  async downloadCsvExport(query) {
+    const url = new URL(`${this.baseUrl}/api/v1/exports`);
+    for (const [key, value] of Object.entries(query ?? {})) {
+      if (value !== undefined && value !== null) url.searchParams.set(key, String(value));
+    }
+    try {
+      const response = await this.fetch(url, { method: 'GET', headers: new Headers({ Authorization: `Bearer ${this.apiKey}`, Accept: 'text/csv' }) });
+      if (!response.ok) {
+        const text = await response.text();
+        let details;
+        try { details = text ? JSON.parse(text) : null; } catch { details = { message: text || response.statusText }; }
+        const error = details?.error;
+        const message = typeof error === 'string' ? error : error?.message ?? details?.message ?? response.statusText;
+        return { data: null, error: new SendThanksApiError(message, response.status, details) };
+      }
+      return { data: await response.text(), error: null };
+    } catch (error) {
+      return { data: null, error: error instanceof Error ? error : new Error('Send, thanks export failed.') };
     }
   }
 

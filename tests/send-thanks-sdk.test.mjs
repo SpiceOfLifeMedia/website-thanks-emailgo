@@ -32,3 +32,20 @@ test('SDK revokes a share link by its share ID', async () => {
   assert.equal(calls[0].url, 'https://mail.example.test/api/v1/emails/em%20123/share/share%2F456');
   assert.equal(calls[0].init.method, 'DELETE');
 });
+
+test('SDK downloads a filtered CSV export as text', async () => {
+  const calls = [];
+  const client = new SendThanks('st_live_example', {
+    baseUrl: 'https://mail.example.test',
+    fetch: async (url, init) => {
+      calls.push({ url: String(url), init });
+      return new Response('id,email\r\nct_1,sam@example.test\r\n', { status: 200, headers: { 'Content-Type': 'text/csv; charset=utf-8' } });
+    },
+  });
+  const result = await client.exports.csv({ resource: 'contacts', search: 'sam@example.test' });
+  assert.equal(result.error, null);
+  assert.equal(result.data, 'id,email\r\nct_1,sam@example.test\r\n');
+  assert.equal(calls[0].url, 'https://mail.example.test/api/v1/exports?resource=contacts&search=sam%40example.test');
+  assert.equal(calls[0].init.headers.get('accept'), 'text/csv');
+  assert.equal(calls[0].init.headers.get('authorization'), 'Bearer st_live_example');
+});

@@ -97,6 +97,7 @@ export interface SendThanksContactImportOptions {
   topics?: Array<{ id: string; subscription: 'opt_in' | 'opt_out' }>;
 }
 export interface SendThanksBroadcastRecipientsQuery extends SendThanksQuery { type: 'opened' | 'clicked' | 'bounced' | 'complained' | 'delivered' | 'unsubscribed' }
+export interface SendThanksExportQuery { resource: 'emails' | 'received_emails' | 'broadcasts' | 'contacts' | 'domains' | 'logs' | 'api_keys'; search?: string; status?: string }
 export declare class SendThanksApiError extends Error {
   status: number;
   details: unknown;
@@ -167,6 +168,7 @@ export declare class SendThanks {
   suppressions: { list(query?: SendThanksQuery): Promise<SendThanksResult<SendThanksList>>; add(email: string): Promise<SendThanksResult<JsonObject>>; batchAdd(emails: string[]): Promise<SendThanksResult<SendThanksList>>; get(identifier: string): Promise<SendThanksResult<JsonObject>>; remove(identifier: string): Promise<SendThanksResult<JsonObject>>; batchRemove(emails: string[]): Promise<SendThanksResult<SendThanksList>> };
   usage: { get(): Promise<SendThanksResult<JsonObject>> };
   logs: { list(query?: SendThanksQuery): Promise<SendThanksResult<SendThanksList<SendThanksLog>>>; get(id: string): Promise<SendThanksResult<SendThanksLog>> };
+  exports: { csv(query: SendThanksExportQuery): Promise<SendThanksResult<string>> };
   templates: {
     list(query?: SendThanksQuery): Promise<SendThanksResult<SendThanksList>>;
     create(body: SendThanksTemplateInput): Promise<SendThanksResult<JsonObject>>;
