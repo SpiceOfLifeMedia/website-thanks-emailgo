@@ -4,6 +4,7 @@ type ExportSpec = {
   cursorColumn: string;
   keyScoped?: boolean;
   workspaceScoped?: boolean;
+  workspaceKeyScoped?: boolean;
   fields: ExportField[];
   searchColumns: string[];
   statusColumn?: string;
@@ -45,7 +46,7 @@ const exportSpecs = {
     searchColumns: ['id', 'name', 'from_address', 'subject'], statusColumn: 'status', statusMode: 'text',
   },
   contacts: {
-    table: 'contacts', cursorColumn: 'created_at',
+    table: 'contacts', cursorColumn: 'created_at', workspaceScoped: true,
     fields: [
       { key: 'id', select: 'id' }, { key: 'email', select: 'email' }, { key: 'name', select: 'name' },
       { key: 'properties', select: 'properties_json' }, { key: 'tags', select: 'tags_json' },
@@ -66,7 +67,7 @@ const exportSpecs = {
     searchColumns: ['id', 'domain'],
   },
   logs: {
-    table: 'api_request_logs', cursorColumn: 'created_at',
+    table: 'api_request_logs', cursorColumn: 'created_at', workspaceKeyScoped: true,
     fields: [
       { key: 'id', select: 'id' }, { key: 'created_at', select: 'created_at' },
       { key: 'endpoint', select: 'endpoint' }, { key: 'method', select: 'method' },
@@ -114,6 +115,10 @@ export function buildExportPageQuery(
   if (!Number.isInteger(limit) || limit < 1 || limit > 1_000) return { error: 'Export page size is invalid.' };
   if (spec.keyScoped) { where.push('api_key_id=?'); params.push(apiKeyId); }
   if (spec.workspaceScoped) { where.push('workspace_id=?'); params.push(workspaceId); }
+  if (spec.workspaceKeyScoped) {
+    where.push('EXISTS (SELECT 1 FROM api_keys export_key WHERE export_key.id=api_request_logs.api_key_id AND export_key.workspace_id=?)');
+    params.push(workspaceId);
+  }
 
   if (filter.search) {
     where.push(`(${spec.searchColumns.map((column) => `${column} LIKE ?`).join(' OR ')})`);

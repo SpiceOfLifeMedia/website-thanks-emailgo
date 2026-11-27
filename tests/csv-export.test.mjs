@@ -48,6 +48,22 @@ test('domain and API key metadata exports bind their workspace', () => {
   }
 });
 
+test('contact and API log exports stay within the authenticated workspace', () => {
+  const contacts = buildExportPageQuery('contacts', 'key-owned', {}, null, 500, 'workspace_a');
+  assert.equal('error' in contacts, false);
+  if (!('error' in contacts)) {
+    assert.match(contacts.sql, /FROM contacts WHERE workspace_id=\?/);
+    assert.deepEqual(contacts.params, ['workspace_a', 500]);
+  }
+
+  const logs = buildExportPageQuery('logs', 'key-owned', {}, null, 500, 'workspace_a');
+  assert.equal('error' in logs, false);
+  if (!('error' in logs)) {
+    assert.match(logs.sql, /EXISTS \(SELECT 1 FROM api_keys export_key WHERE export_key\.id=api_request_logs\.api_key_id AND export_key\.workspace_id=\?\)/);
+    assert.deepEqual(logs.params, ['workspace_a', 500]);
+  }
+});
+
 test('log status filters accept error, success and bounded HTTP codes', () => {
   assert.equal('error' in buildExportPageQuery('logs', 'key', { status: 'errors' }, null, 500, 'default'), false);
   assert.equal('error' in buildExportPageQuery('logs', 'key', { status: 'success' }, null, 500, 'default'), false);
