@@ -1,6 +1,6 @@
-# Send, thanks · Share email: handoff
+# Email, thanks · Share email: handoff
 
-Continuation of the **2b Workbench** dashboard. Visual source of truth: the Design canvas **“Send, thanks Share Email”** (11 artboards: desktop detail + dialog ×3, phone ×3, states board, public desktop ×2, public phone ×2). Everything below uses the existing tokens, Schibsted Grotesk + IBM Plex Mono, the 2px ink / radius 18 / 3px offset-shadow card language and the single 760px breakpoint. Nothing was added to the palette; no provider names anywhere.
+Continuation of the **2b Workbench** dashboard. Visual source of truth: the Design canvas **“Email, thanks Share Email”** (11 artboards: desktop detail + dialog ×3, phone ×3, states board, public desktop ×2, public phone ×2). Everything below uses the existing tokens, Schibsted Grotesk + IBM Plex Mono, the 2px ink / radius 18 / 3px offset-shadow card language and the single 760px breakpoint. Nothing was added to the palette; no provider names anywhere.
 
 ## What the feature does
 
@@ -110,13 +110,13 @@ SharedEmailData  { subject; from; fromName?; to; sentAt; text: string | null; ex
 | Create error | **We couldn’t create the link.** Check your connection and try again. Your expiry choice is kept. |
 | Revoke error | **We couldn’t revoke the link.** Try again. |
 | Copy error | **Copy didn’t work.** Select the link and copy it yourself. |
-| Sharing card, none | NOT SHARED — This email hasn’t been shared. **Share email** creates a read-only link that expires on its own, so someone can read it without a Send, thanks account. |
+| Sharing card, none | NOT SHARED — This email hasn’t been shared. **Share email** creates a read-only link that expires on its own, so someone can read it without a Email, thanks account. |
 | Sharing card, active | LINK ACTIVE + badge *Link active* — expiry line, link, Copy link, Manage or revoke link |
 | Public badge | Shared email |
 | Public eyebrow | SHARED EMAIL · READ-ONLY COPY · Expires **{Sun 29 Nov, 12:52 pm}** |
 | Public meta | From · To · Date (the subject is the h1) |
 | Preview strip | Message · links shown as text · no images loaded (dashboard: Preview · …) |
-| Public footnote | This read-only copy was shared from the sender’s Send, thanks account. It stops working on {Sun 29 Nov, 12:52 pm}. |
+| Public footnote | This read-only copy was shared from the sender’s Email, thanks account. It stops working on {Sun 29 Nov, 12:52 pm}. |
 | Public notice | Only people with this link can see this page. It can’t be replied to or forwarded from here, and the person who shared it can turn it off at any time. |
 | Unavailable | badge *Link unavailable* — **This link isn’t available** — It may have expired, or the person who shared it may have turned it off. If you still need the email, ask them to share it again. — SHARED LINKS LAST 48 HOURS AT MOST |
 | Footer | Shared emails are read-only and expire on their own. |

@@ -1,4 +1,4 @@
-# Send, thanks: shared receiving inbox handoff
+# Email, thanks: shared receiving inbox handoff
 
 This is an addition. The logo, brand, app shell and existing exports are unchanged.
 
@@ -6,7 +6,7 @@ The project had no existing Receiving screen to work from, so the "Receiving" pa
 
 ## Exports
 - **`SendThanksInboxThreads.dc.html`:** the live design screen. Props: `mode` is `desktop` or `mobile`; `demo` is `default`, `long`, `reply`, `labels`, `unselected`, `empty`, `loading`, `error`, `noresults`, `list`, `thread` or `actions`. All records in it are fictional and stay in the design file.
-- **`Send, thanks Shared Inbox.dc.html`:** the review board, with desktop i1a–i1i and phone i2a–i2g.
+- **`Email, thanks Shared Inbox.dc.html`:** the review board, with desktop i1a–i1i and phone i2a–i2g.
 - **`export/SharedInboxWorkspace.tsx`:** the `'use client'` component. It holds no data; everything comes from props.
 - **`export/shared-inbox-workspace.module.css`:** a CSS module with the Website, thanks tokens.
 - **`export/HANDOFF-shared-inbox.md`:** this file.

@@ -1,6 +1,6 @@
 # Template folders design handoff
 
-The folder manager was designed in the existing Claude Design project using the Send, thanks cream, ink, tomato, and honey palette. The full component and stylesheet exports are preserved under `claude-export/`.
+The folder manager was designed in the existing Claude Design project using the Email, thanks cream, ink, tomato, and honey palette. The full component and stylesheet exports are preserved under `claude-export/`.
 
 ## Layout and interactions
 

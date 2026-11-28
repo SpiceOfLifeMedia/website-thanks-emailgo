@@ -1,4 +1,4 @@
-# Send, thanks: broadcast composer, Reply-to and Preview text
+# Email, thanks: broadcast composer, Reply-to and Preview text
 
 This package is new and lives in `broadcast-metadata/`. No other project file was changed.
 

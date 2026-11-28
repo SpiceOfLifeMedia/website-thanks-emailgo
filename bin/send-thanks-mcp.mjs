@@ -8,5 +8,5 @@ if (!process.env.EMAILGO_API_KEY?.trim()) {
 }
 
 serveStdio(() => createSendThanksMcpServer(), {
-  onerror: () => process.stderr.write('Send, thanks MCP protocol error.\n'),
+  onerror: () => process.stderr.write('Email, thanks MCP protocol error.\n'),
 });

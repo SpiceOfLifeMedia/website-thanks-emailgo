@@ -1,8 +1,8 @@
-# Send, thanks design rounds
+# Email, thanks design rounds
 
 ## Round 1, Claude Design
 
-Prompt: rebrand the email workspace using the Website Thanks theme and the selected companion wordmark reference 1a. Create the Send, thanks wordmark and comma icon, three dashboard directions, the sending domains, API keys, recent emails, block list and usage meter, plus phone versions. Avoid unrelated display fonts, status dots and generated looking decoration. Provide implementation code, CSS and handoff notes.
+Prompt: rebrand the email workspace using the Website Thanks theme and the selected companion wordmark reference 1a. Create the Email, thanks wordmark and comma icon, three dashboard directions, the sending domains, API keys, recent emails, block list and usage meter, plus phone versions. Avoid unrelated display fonts, status dots and generated looking decoration. Provide implementation code, CSS and handoff notes.
 
 ### Directions considered
 

@@ -96,7 +96,7 @@ export async function POST(request: Request) {
         }
         if (to.length + cc.length + bcc.length === 0) {
           await execute("UPDATE emails SET status='suppressed',error_message=?,processing_started_at=NULL,next_attempt_at=NULL,attachment_payload_json=NULL WHERE id=? AND status='processing'", [
-            'Every recipient was skipped because the address is on the Send, thanks suppression list.', email.id,
+            'Every recipient was skipped because the address is on the Email, thanks suppression list.', email.id,
           ]);
           suppressed += 1;
           continue;

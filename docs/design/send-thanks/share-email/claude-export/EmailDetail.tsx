@@ -1,6 +1,6 @@
 'use client';
 /**
- * Send, thanks · Email detail view with the Share email action.
+ * Email, thanks · Email detail view with the Share email action.
  * Renders INSIDE the existing dashboard shell (sidebar / top bar / usage strip / tab bar) in place of the
  * Overview grid: see HANDOFF-share-email.md § Wiring. Presentational only: pass the email from your loader
  * and the two share handlers. Leave `onCreateShareLink` undefined and the Share email action is not rendered.
@@ -151,7 +151,7 @@ export default function EmailDetail({ email, backHref = '/dashboard/emails', onC
               <>
                 <div className={s.cardHead}><div className={s.cardTitle}><h2 className={s.h2}>Sharing</h2><span className={s.mono}>NOT SHARED</span></div></div>
                 <div className={se.share}>
-                  <p>This email hasn’t been shared. <strong>Share email</strong> creates a read-only link that expires on its own, so someone can read it without a Send, thanks account.</p>
+                  <p>This email hasn’t been shared. <strong>Share email</strong> creates a read-only link that expires on its own, so someone can read it without a Email, thanks account.</p>
                 </div>
               </>
             )}

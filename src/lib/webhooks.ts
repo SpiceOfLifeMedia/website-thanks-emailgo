@@ -50,7 +50,7 @@ export async function emitWebhookEvents(apiKeyId: string, events: readonly Webho
     await commitWebhookEventStatements(await webhookEventStatements(apiKeyId, events));
     return true;
   } catch {
-    console.error('Send, thanks could not queue webhook events.', { types: [...new Set(events.map(({ type }) => type))] });
+    console.error('Email, thanks could not queue webhook events.', { types: [...new Set(events.map(({ type }) => type))] });
     return false;
   }
 }
@@ -68,7 +68,7 @@ export async function emitWebhookEventToAllSubscribers(workspaceId: string, type
     await commitWebhookEventStatements(statements);
     return true;
   } catch {
-    console.error('Send, thanks could not queue a webhook event.', { type });
+    console.error('Email, thanks could not queue a webhook event.', { type });
     return false;
   }
 }
@@ -132,7 +132,7 @@ function postWebhook(urlValue: string, payload: string, deliveryId: string, sign
       headers: {
         'content-type': 'application/json',
         'content-length': Buffer.byteLength(payload),
-        'user-agent': 'Send, thanks-Webhooks/1.0',
+        'user-agent': 'Email, thanks-Webhooks/1.0',
         'svix-id': deliveryId,
         'svix-timestamp': timestamp,
         'svix-signature': `v1,${signature}`,

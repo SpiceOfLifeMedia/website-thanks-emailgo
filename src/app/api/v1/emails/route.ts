@@ -329,7 +329,7 @@ async function sendEmailRequestCore(request: Request, apiKey: AuthorizedEmailApi
 
   let scheduledAt: string | null = null;
   if (body.scheduled_at !== undefined) {
-    if (!process.env.CRON_SECRET) return responseError('Scheduled sending is not configured on this Send, thanks deployment.', 503);
+    if (!process.env.CRON_SECRET) return responseError('Scheduled sending is not configured on this Email, thanks deployment.', 503);
     const schedule = normalizeScheduledAt(body.scheduled_at);
     if (!schedule.ok) return responseError(schedule.error, 400);
     scheduledAt = schedule.scheduledAt;
@@ -359,7 +359,7 @@ async function sendEmailRequestCore(request: Request, apiKey: AuthorizedEmailApi
   const senderDomainConfig = verifiedDomains
     .filter(({ domain }) => senderDomain === domain.toLowerCase() || senderDomain.endsWith(`.${domain.toLowerCase()}`))
     .sort((left, right) => right.domain.length - left.domain.length)[0];
-  if (!senderDomainConfig) return responseError('The sender domain must be verified in your Send, thanks dashboard.', 403);
+  if (!senderDomainConfig) return responseError('The sender domain must be verified in your Email, thanks dashboard.', 403);
   if (apiKey.permission === 'sending_access' && apiKey.domainId !== senderDomainConfig.id) return responseError('This sending-only API key is restricted to a different sender domain.', 403);
   const tracking = { openTracking: Boolean(senderDomainConfig.open_tracking), clickTracking: Boolean(senderDomainConfig.click_tracking) };
   if ((tracking.openTracking || tracking.clickTracking) && (!process.env.EMAILGO_PUBLIC_URL || !process.env.EMAILGO_TRACKING_SECRET)) return responseError('Tracking is enabled for this sender domain but its public URL or signing secret is not configured.', 503);
@@ -378,7 +378,7 @@ async function sendEmailRequestCore(request: Request, apiKey: AuthorizedEmailApi
     if (replay) {
       if (replay.request_hash !== requestHash) return responseError('This Idempotency-Key was already used with a different request.', 409);
       const headers = { 'Idempotency-Replayed': 'true' };
-      if (replay.status === 'failed') return NextResponse.json({ error: { message: 'Email delivery failed. Check the message details in your Send, thanks dashboard.' }, id: replay.id }, { status: 502, headers });
+      if (replay.status === 'failed') return NextResponse.json({ error: { message: 'Email delivery failed. Check the message details in your Email, thanks dashboard.' }, id: replay.id }, { status: 502, headers });
       return NextResponse.json(emailResponse(replay), { status: ['queued', 'scheduled', 'processing'].includes(replay.status) ? 202 : 200, headers });
     }
   }
@@ -412,7 +412,7 @@ async function sendEmailRequestCore(request: Request, apiKey: AuthorizedEmailApi
     parsedTags.tags.length ? JSON.stringify(parsedTags.tags) : null,
     parsedAttachments.metadata.length ? metadata : null, subject,
     allRecipientsSuppressed ? 'suppressed' : scheduledAt ? 'scheduled' : 'queued',
-    allRecipientsSuppressed ? 'Every recipient was skipped because the address is on the Send, thanks suppression list.' : null,
+    allRecipientsSuppressed ? 'Every recipient was skipped because the address is on the Email, thanks suppression list.' : null,
     outboundText ?? null, html ?? null,
     scheduledAt && parsedAttachments.attachments.length ? JSON.stringify(parsedAttachments.attachments) : null,
     allRecipientsSuppressed ? null : scheduledAt, tracking.openTracking ? 1 : 0, tracking.clickTracking ? 1 : 0, createdAt,
@@ -474,7 +474,7 @@ async function sendEmailRequestCore(request: Request, apiKey: AuthorizedEmailApi
     const message = error instanceof Error ? error.message.slice(0, 500) : 'SMTP delivery failed.';
     await execute('UPDATE emails SET status = ?, error_message = ? WHERE id = ?', ['failed', message, id]);
     await emitWebhookEvent(apiKey.id, 'email.failed', { email_id: id, error: 'SMTP handoff failed.' });
-    return NextResponse.json({ error: { message: 'Email delivery failed. Check the message details in your Send, thanks dashboard.' }, id }, { status: 502 });
+    return NextResponse.json({ error: { message: 'Email delivery failed. Check the message details in your Email, thanks dashboard.' }, id }, { status: 502 });
   }
 }
 

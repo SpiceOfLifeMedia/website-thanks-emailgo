@@ -1,4 +1,4 @@
-/* Send, thanks: thread composer (Reply, Reply all, Forward, drafts). Same tokens as shared-inbox-workspace.module.css. */
+/* Email, thanks: thread composer (Reply, Reply all, Forward, drafts). Same tokens as shared-inbox-workspace.module.css. */
 .composer, .closed, .openers {
   --paper: #F4EEE3; --chalk: #FBF9F5; --ink: #1C1916; --graphite: #3D3832; --pencil: #6B6359; --line: #E3DCD0;
   --tomato: #FF5A36; --honey: #F7D56E; --honey-pale: #FCEFC0; --danger-pale: #FFD6C9;

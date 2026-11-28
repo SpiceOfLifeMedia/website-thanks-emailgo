@@ -1,8 +1,8 @@
-# Send, thanks campaign folders
+# Email, thanks campaign folders
 
 ## Design source
 
-Claude Design project: Send, thanks, project 4e50820b-1ab2-45da-bd4c-3d8e8642dd94.
+Claude Design project: Email, thanks, project 4e50820b-1ab2-45da-bd4c-3d8e8642dd94.
 Campaign folder screen and review board are in the broadcast-folders folder. The React component and stylesheet were saved under export. The design uses the Website, thanks palette and type pairing and keeps the app shell intact.
 
 ## Behavior

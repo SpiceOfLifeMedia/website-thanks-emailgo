@@ -1,4 +1,4 @@
-# Send, thanks automation canvas integration
+# Email, thanks automation canvas integration
 
 The Claude Design source, prototype, archive, handoff and reference screenshots are saved in this directory. The application component is `src/components/SendThanksAutomationCanvas.tsx`, integrated by `src/components/automation-workspace.tsx`.
 

@@ -1,4 +1,4 @@
-# Send, thanks broadcast metadata integration
+# Email, thanks broadcast metadata integration
 
 The Claude Design export is preserved in `export/`. The app copies the exported component and CSS into `src/components/` and keeps the existing `reply_to` and `preview_text` draft fields, API payload, and database columns.
 

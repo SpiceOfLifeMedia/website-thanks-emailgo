@@ -1,6 +1,6 @@
 # Automation failed run recovery
 
-The design was created in the [Send, thanks Claude Design project](https://claude.ai/design/p/4e50820b-1ab2-45da-bd4c-3d8e8642dd94), in `automation-failed-run-retry/`. The React component and CSS module below were copied from Claude's export and integrated in `src/components/`.
+The design was created in the [Email, thanks Claude Design project](https://claude.ai/design/p/4e50820b-1ab2-45da-bd4c-3d8e8642dd94), in `automation-failed-run-retry/`. The React component and CSS module below were copied from Claude's export and integrated in `src/components/`.
 
 ## Implemented behavior
 

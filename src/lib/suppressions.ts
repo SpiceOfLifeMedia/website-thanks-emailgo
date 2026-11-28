@@ -99,7 +99,7 @@ export async function emitEmailSuppressed(apiKeyId: string, emailId: string, fro
     to: [recipient],
     subject,
     suppressed: {
-      message: 'Send, thanks skipped sending because the address is on the workspace suppression list.',
+      message: 'Email, thanks skipped sending because the address is on the workspace suppression list.',
       type: 'OnAccountSuppressionList',
     },
   });

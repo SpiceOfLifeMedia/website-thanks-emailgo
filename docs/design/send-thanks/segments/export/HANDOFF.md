@@ -1,4 +1,4 @@
-# Send, thanks: segment builder handoff
+# Email, thanks: segment builder handoff
 
 This package is new and lives in `segments/`. No other project file was changed.
 

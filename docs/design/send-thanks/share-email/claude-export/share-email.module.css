@@ -1,4 +1,4 @@
-/* Send, thanks · Share email. Extends send-thanks-dashboard.module.css (same tokens, same 760px breakpoint).
+/* Email, thanks · Share email. Extends send-thanks-dashboard.module.css (same tokens, same 760px breakpoint).
    Dashboard pieces (EmailDetail, ShareEmailDialog) render inside .root from the dashboard module and inherit its
    custom properties. The public page (SharedEmailPage) has no shell, so .pub declares the same tokens itself. */
 

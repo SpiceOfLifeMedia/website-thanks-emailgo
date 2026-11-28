@@ -1,5 +1,5 @@
 /**
- * Send, thanks · Public read-only shared email (no dashboard shell, no sign-in).
+ * Email, thanks · Public read-only shared email (no dashboard shell, no sign-in).
  * Server component friendly: no hooks. Pass `email: null` for an expired, revoked or unknown link;
  * all three render the same "isn’t available" page so a visitor can’t tell which it was.
  * Never pass BCC (or CC) here: the data shape doesn’t have them on purpose.
@@ -39,7 +39,7 @@ export default function SharedEmailPage({ email, loading = false, homeHref, form
   return (
     <div className={se.pub}>
       <header className={se.pubBar}>
-        {homeHref ? <a href={homeHref} className={se.logo} aria-label="Send, thanks">{lockup}</a> : <span className={se.logo}>{lockup}</span>}
+        {homeHref ? <a href={homeHref} className={se.logo} aria-label="Email, thanks">{lockup}</a> : <span className={se.logo}>{lockup}</span>}
         <span className={`${se.badge} ${se['b-shared']}`}><Glyph d={GLYPH.link} />Shared email</span>
       </header>
 
@@ -80,7 +80,7 @@ export default function SharedEmailPage({ email, loading = false, homeHref, form
                   )}
                 </div>
               </div>
-              <p className={se.pubFoot}>This read-only copy was shared from the sender’s Send, thanks account. It stops working on {fmt(email.expiresAt)}.</p>
+              <p className={se.pubFoot}>This read-only copy was shared from the sender’s Email, thanks account. It stops working on {fmt(email.expiresAt)}.</p>
             </article>
             <p className={se.pubNotice}><Glyph className={se.i} d={GLYPH.lock} /><span>Only people with this link can see this page. It can’t be replied to or forwarded from here, and the person who shared it can turn it off at any time.</span></p>
             {email.hasAttachments && <p className={se.pubNotice}>Attachment files aren’t included in this shared copy.</p>}

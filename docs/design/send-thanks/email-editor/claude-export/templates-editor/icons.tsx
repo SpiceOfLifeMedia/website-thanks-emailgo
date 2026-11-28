@@ -1,4 +1,4 @@
-// Inline stroke icons on the Send, thanks 24px grid. No icon font, no emoji.
+// Inline stroke icons on the Email, thanks 24px grid. No icon font, no emoji.
 import type { SVGProps } from 'react';
 
 const PATHS = {
@@ -47,7 +47,7 @@ export function Icon({ name, ...rest }: { name: IconName } & SVGProps<SVGSVGElem
   );
 }
 
-/** The Send, thanks mark: tomato tile, chalk comma. Pair it with the wordmark text. */
+/** The Email, thanks mark: tomato tile, chalk comma. Pair it with the wordmark text. */
 export function SendThanksMark(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false" {...props}>

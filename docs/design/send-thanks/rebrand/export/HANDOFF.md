@@ -1,4 +1,4 @@
-# Send, thanks: brand + dashboard handoff
+# Email, thanks: brand + dashboard handoff
 
 The Claude Design source and export files are preserved under `docs/design/send-thanks/rebrand/`. The app integration adapts the logo, dashboard layout and styles in `src/components` to keep its existing navigation, feature routes and live data handlers.
 

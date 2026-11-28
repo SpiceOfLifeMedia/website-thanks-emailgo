@@ -1,7 +1,7 @@
 {
   "name": "@send-thanks/sdk",
   "version": "0.1.0",
-  "description": "Node.js SDK for the Send, thanks email API",
+  "description": "Node.js SDK for the Email, thanks email API",
   "type": "module",
   "main": "./index.mjs",
   "types": "./index.d.ts",

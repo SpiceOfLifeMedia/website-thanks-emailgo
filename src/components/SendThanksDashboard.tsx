@@ -1,6 +1,6 @@
 'use client';
 /**
- * Send, thanks: dashboard shell + Overview (selected direction 2b "Workbench").
+ * Email, thanks: dashboard shell + Overview (selected direction 2b "Workbench").
  * Presentational only: pass data from your existing loaders and wire actions to your
  * EXISTING handlers. Any action prop left undefined is not rendered. This adds no new
  * backend operations.

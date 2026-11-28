@@ -95,9 +95,9 @@ export async function POST(request: Request) {
     attachments.push({ id: randomId('att'), filename, contentType, contentDisposition, contentId, byteLength: bytes.byteLength, contentBase64 });
   }
   const receivingApiKeyId = process.env.EMAILGO_RECEIVING_API_KEY_ID;
-  if (!receivingApiKeyId) return error('Set EMAILGO_RECEIVING_API_KEY_ID to an active full-access Send, thanks key ID.', 503);
+  if (!receivingApiKeyId) return error('Set EMAILGO_RECEIVING_API_KEY_ID to an active full-access Email, thanks key ID.', 503);
   const ownerKey = await queryOne<{ id: string }>("SELECT id FROM api_keys WHERE id=? AND permission='full_access' AND revoked_at IS NULL", [receivingApiKeyId]);
-  if (!ownerKey) return error('EMAILGO_RECEIVING_API_KEY_ID must reference an active full-access Send, thanks key.', 503);
+  if (!ownerKey) return error('EMAILGO_RECEIVING_API_KEY_ID must reference an active full-access Email, thanks key.', 503);
   const existing = await queryOne<{
     id: string; api_key_id: string; from_address: string; to_json: string; cc_json: string | null; bcc_json: string | null;
     subject: string; message_id: string | null;

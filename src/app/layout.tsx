@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './styles.css';
 
 export const metadata: Metadata = {
-  title: 'Send, thanks',
+  title: 'Email, thanks',
   description: 'A friendly workspace for sending and managing email.',
   icons: { icon: '/favicon.svg', apple: '/apple-touch-icon.svg' },
 };

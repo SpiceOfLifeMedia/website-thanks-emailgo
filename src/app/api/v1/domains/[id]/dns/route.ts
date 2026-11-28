@@ -36,7 +36,7 @@ async function __emailgo_GET_handler(request: Request, context: { params: Promis
       spf: { status: spf.length === 1 ? 'found' : spf.length > 1 ? 'multiple' : 'missing', host: domain.domain, values: spf },
       dmarc: { status: dmarc.length === 1 ? 'found' : dmarc.length > 1 ? 'multiple' : 'missing', host: `_dmarc.${domain.domain}`, values: dmarc },
       mx: { status: mxRecords.length ? 'found' : 'missing', values: mxRecords.map(({ exchange, priority }) => ({ host: exchange, priority })) },
-      dkim: { status: 'relay_managed', message: 'Publish the DKIM record supplied by the configured SMTP relay. Send, thanks does not generate or sign DKIM keys yet.' },
+      dkim: { status: 'relay_managed', message: 'Publish the DKIM record supplied by the configured SMTP relay. Email, thanks does not generate or sign DKIM keys yet.' },
     },
   }, { headers: privateHeaders });
 }

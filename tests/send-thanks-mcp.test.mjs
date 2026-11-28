@@ -19,7 +19,7 @@ function responseText(result) {
   return result.content.filter((item) => item.type === 'text').map((item) => item.text).join('\n');
 }
 
-test('MCP exposes the Send, thanks API surface as local tools', async () => {
+test('MCP exposes the Email, thanks API surface as local tools', async () => {
   await withMcpClient({}, async (client) => {
     const { tools } = await client.listTools();
     const names = new Set(tools.map((tool) => tool.name));

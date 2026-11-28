@@ -1,4 +1,4 @@
-// Send, thanks · Templates — visual email editor.
+// Email, thanks · Templates — visual email editor.
 // React 18 + TypeScript + CSS modules. No other dependencies.
 import {
   useCallback,
@@ -786,9 +786,9 @@ export function TemplatesEditor({
 
 function Wordmark({ small = false }: { small?: boolean }) {
   return (
-    <a className={cx(s.logo, small && s.logoSmall)} href="#" aria-label="Send, thanks — Overview">
+    <a className={cx(s.logo, small && s.logoSmall)} href="#" aria-label="Email, thanks — Overview">
       <SendThanksMark />
-      <span>Send<span className={s.comma}>,</span> thanks</span>
+      <span>Email<span className={s.comma}>,</span> thanks</span>
     </a>
   );
 }

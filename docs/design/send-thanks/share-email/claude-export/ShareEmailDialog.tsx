@@ -1,6 +1,6 @@
 'use client';
 /**
- * Send, thanks · Share email dialog (desktop) / bottom sheet (phone).
+ * Email, thanks · Share email dialog (desktop) / bottom sheet (phone).
  * Presentational. Wire `onCreateLink` and `onRevokeLink` to your handlers; the dialog shows the
  * busy, error, created, copied and revoked states itself. Native <dialog> + showModal() gives the
  * focus trap, inert page, Esc and focus return for free.

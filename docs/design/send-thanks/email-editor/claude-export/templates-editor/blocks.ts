@@ -1,4 +1,4 @@
-// Send, thanks · Templates editor — data model, tokens and the demo template.
+// Email, thanks · Templates editor — data model, tokens and the demo template.
 // No runtime dependencies.
 
 export type BlockKind =

@@ -1,6 +1,6 @@
 # @send-thanks/sdk
 
-Small dependency-free Node.js client for the Send, thanks REST API.
+Small dependency-free Node.js client for the Email, thanks REST API.
 
 ```js
 import { SendThanks } from '@send-thanks/sdk';

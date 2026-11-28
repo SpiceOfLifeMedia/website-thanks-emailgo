@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 
-/* Send, thanks brand: logo 1a "Tomato comma". Bold Schibsted Grotesk wordmark, the comma alone in tomato,
+/* Email, thanks brand: logo 1a "Tomato comma". Bold Schibsted Grotesk wordmark, the comma alone in tomato,
    and a comma-only icon: a round dot plus a separate tapered tail on a tomato tile with an ink outline. */
 
 export const SEND_THANKS_TOMATO = '#FF5A36';
@@ -46,9 +46,9 @@ export function SendThanksLogo({ size = 21, withIcon = false, iconSize = 32, ton
     letterSpacing: '-0.035em', whiteSpace: 'nowrap', color: tone === 'ink' ? SEND_THANKS_INK : SEND_THANKS_CHALK,
   };
   return (
-    <span className={className} style={wrap} role="img" aria-label="Send, thanks">
+    <span className={className} style={wrap} role="img" aria-label="Email, thanks">
       {withIcon && <CommaIcon size={iconSize} />}
-      <span style={word} aria-hidden="true">Send<span style={{ color: SEND_THANKS_TOMATO }}>,</span> thanks</span>
+      <span style={word} aria-hidden="true">Email<span style={{ color: SEND_THANKS_TOMATO }}>,</span> thanks</span>
     </span>
   );
 }

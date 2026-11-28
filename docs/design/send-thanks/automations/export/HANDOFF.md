@@ -1,4 +1,4 @@
-# Send, thanks: automation canvas handoff
+# Email, thanks: automation canvas handoff
 
 This package is new and lives in `automations/`. No other project file was changed. It's front-end only: saving and activating are callbacks, and nothing runs in the design.
 

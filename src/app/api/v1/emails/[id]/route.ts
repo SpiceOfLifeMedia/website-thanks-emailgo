@@ -43,7 +43,7 @@ async function __emailgo_GET_handler(request: Request, context: { params: Promis
     ...(row.message_id ? { messageId: row.message_id } : {}),
     ...(row.provider_id ? { relayResponse: sanitizeCustomerCopy(row.provider_id) } : {}),
     ...(row.scheduled_at ? { scheduled_at: row.scheduled_at } : {}),
-    ...(row.status === 'failed' ? { error: 'Email delivery failed. Check the message details in your Send, thanks workspace.' } : {}),
+    ...(row.status === 'failed' ? { error: 'Email delivery failed. Check the message details in your Email, thanks workspace.' } : {}),
     ...(row.status === 'suppressed' ? { error: row.error_message ? sanitizeCustomerCopy(row.error_message) : 'Email was not sent because every recipient is on the workspace suppression list.' } : {}),
   }, { headers: privateHeaders });
 }
@@ -52,7 +52,7 @@ async function __emailgo_PATCH_handler(request: Request, context: { params: Prom
   const apiKey = await authorizeApiKey(request);
   if (!apiKey) return NextResponse.json({ error: { message: 'Invalid or revoked API key.' } }, { status: 401 });
   if (!hasFullApiAccess(apiKey)) return NextResponse.json({ error: { message: 'This API key has sending-only access.' } }, { status: 403 });
-  if (!process.env.CRON_SECRET) return NextResponse.json({ error: { message: 'Scheduled sending is not configured for this Send, thanks workspace.' } }, { status: 503 });
+  if (!process.env.CRON_SECRET) return NextResponse.json({ error: { message: 'Scheduled sending is not configured for this Email, thanks workspace.' } }, { status: 503 });
   const { id } = await context.params;
   const parsed = await readJsonLimited(request, 5_000);
   if (!parsed.ok) return NextResponse.json({ error: { message: parsed.error } }, { status: parsed.status });

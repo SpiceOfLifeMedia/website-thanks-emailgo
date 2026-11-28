@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, type KeyboardEvent } from 'react';
 import s from './send-thanks-api-key-bulk-revocation.module.css';
 
 /**
- * Send, thanks: API key list with single and bulk revocation.
+ * Email, thanks: API key list with single and bulk revocation.
  * Fully controlled: the parent owns selection, step, confirm phrase and pending single revoke.
  * This component never revokes anything itself; it calls onRevokeKey / onRevokeKeys.
  */

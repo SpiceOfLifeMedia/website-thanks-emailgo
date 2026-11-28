@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 import { readFile, writeFile } from 'node:fs/promises';
 
-const usage = `Send, thanks CLI
+const usage = `Email, thanks CLI
 
 Usage:
   npm run send-thanks -- <resource> <action> [id] [options]
 
 Environment:
   EMAILGO_BASE_URL  API origin, defaults to http://localhost:3000
-  EMAILGO_API_KEY   Full-access or sending-only Send, thanks key
+  EMAILGO_API_KEY   Full-access or sending-only Email, thanks key
 
 Common commands:
   emails list [--limit 20] [--after id|--before id]

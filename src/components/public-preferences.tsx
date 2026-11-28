@@ -44,7 +44,7 @@ export function PublicPreferences({ token }: { token: string }) {
 
   return <><meta name="referrer" content="no-referrer" /><main className="publicPreferencesShell">
     <section className="publicPreferencesCard">
-      <a className="wordmark" href="/"><span className="mark">e</span><span>Send, thanks<small>EMAIL DELIVERY</small></span></a>
+      <a className="wordmark" href="/"><span className="mark">e</span><span>Email, thanks<small>EMAIL DELIVERY</small></span></a>
       {loading ? <p className="publicPreferencesMessage">Loading your preferences…</p> : error && !data ? <div className="publicPreferencesMessage" role="alert">{error}</div> : data && <>
         <div className="eyebrow">EMAIL PREFERENCES</div>
         <h1>Choose what you receive</h1>

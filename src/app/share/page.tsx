@@ -4,7 +4,7 @@ import SharedEmailLoader from '@/components/SharedEmailLoader';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'Shared email · Send, thanks',
+  title: 'Shared email · Email, thanks',
   robots: { index: false, follow: false, noarchive: true },
 };
 

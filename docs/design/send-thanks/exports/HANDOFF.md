@@ -1,4 +1,4 @@
-# Send, thanks dashboard: handoff
+# Email, thanks dashboard: handoff
 
 Selected direction: **2b Workbench**. Source of truth for visuals: `SendThanksApp.dc.html` (live, responsive).
 

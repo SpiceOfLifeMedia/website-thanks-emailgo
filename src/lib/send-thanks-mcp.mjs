@@ -49,7 +49,7 @@ export function createSendThanksMcpServer(options = {}) {
     ...(options.fetchImpl ? { fetch: options.fetchImpl } : {}),
   });
   const server = new McpServer({
-    name: 'Send, thanks',
+    name: 'Email, thanks',
     version: '0.2.0',
     instructions: 'Use these tools only for actions the user requested. Sending email, triggering events, changing suppression state, publishing templates, and cancelling campaigns can affect real recipients. Deletion tools require confirm=true. Never reveal API keys or one-time signing secrets.',
   });

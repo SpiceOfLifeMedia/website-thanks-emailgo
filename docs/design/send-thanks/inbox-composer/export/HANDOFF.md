@@ -1,4 +1,4 @@
-# Send, thanks: thread composer handoff
+# Email, thanks: thread composer handoff
 
 This package extends the selected-conversation composer from `SharedInboxWorkspace` (shared inbox). It adds Reply, Reply all and Forward, persistent drafts, Cc and Bcc fields, and a discard confirmation. It's a front-end component only: nothing is sent and nothing is stored.
 

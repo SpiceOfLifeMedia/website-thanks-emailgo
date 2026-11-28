@@ -1,8 +1,8 @@
-# Send, thanks brand reference
+# Email, thanks brand reference
 
 ## Source and direction
 
-Source system: Website Thanks brand tokens and the selected companion wordmark reference 1a. The bold wordmark uses a tomato comma. Send, thanks keeps that treatment and adds the comma only icon from the Claude Design export.
+Source system: Website Thanks brand tokens and the selected companion wordmark reference 1a. The bold wordmark uses a tomato comma. Email, thanks keeps that treatment and adds the comma only icon from the Claude Design export.
 
 The selected dashboard direction is **2b Workbench** from the Claude Design project. The dashboard and five 390 pixel phone views are stored alongside this reference. The exported TSX and CSS are the implementation source for the main application shell.
 

@@ -23,7 +23,7 @@ async function __emailgo_GET_handler(request: Request, context: { params: Promis
   if (!type) return errorResponse('type is required. Supported values are opened and clicked.', 400);
   if (type !== 'opened' && type !== 'clicked') {
     const unavailable = ['bounced', 'complained', 'delivered', 'unsubscribed'];
-    if (unavailable.includes(type)) return errorResponse(`Recipient type "${type}" is unavailable because Send, thanks has no provider event source for it.`, 422, { unavailable_types: unavailable });
+    if (unavailable.includes(type)) return errorResponse(`Recipient type "${type}" is unavailable because Email, thanks has no provider event source for it.`, 422, { unavailable_types: unavailable });
     return errorResponse('type must be opened or clicked.', 400);
   }
   const limitValue = params.get('limit');

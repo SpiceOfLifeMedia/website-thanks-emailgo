@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import s from './send-thanks-automation-run-retry.module.css';
 
 /**
- * Send, thanks: Automations run history with failed step recovery.
+ * Email, thanks: Automations run history with failed step recovery.
  * Drop-in for the `openId === automation.id && <div className="automationRuns">…` block of
  * AutomationWorkspace. Keeps its list → run summary → run detail → step history structure.
  * Never retries anything itself; it calls onRetryFailedStep.

@@ -9,7 +9,7 @@ export class SendThanksApiError extends Error {
 
 export class SendThanks {
   constructor(apiKey, options = {}) {
-    if (typeof apiKey !== 'string' || !apiKey.trim()) throw new TypeError('A Send, thanks API key is required.');
+    if (typeof apiKey !== 'string' || !apiKey.trim()) throw new TypeError('A Email, thanks API key is required.');
     this.apiKey = apiKey;
     this.baseUrl = (options.baseUrl ?? 'http://localhost:3000').replace(/\/+$/, '');
     this.fetch = options.fetch ?? globalThis.fetch;
@@ -196,7 +196,7 @@ export class SendThanks {
       }
       return { data: await response.arrayBuffer(), error: null };
     } catch (error) {
-      return { data: null, error: error instanceof Error ? error : new Error('Send, thanks download failed.') };
+      return { data: null, error: error instanceof Error ? error : new Error('Email, thanks download failed.') };
     }
   }
 
@@ -217,7 +217,7 @@ export class SendThanks {
       }
       return { data: await response.text(), error: null };
     } catch (error) {
-      return { data: null, error: error instanceof Error ? error : new Error('Send, thanks export failed.') };
+      return { data: null, error: error instanceof Error ? error : new Error('Email, thanks export failed.') };
     }
   }
 
@@ -244,7 +244,7 @@ export class SendThanks {
       }
       return { data, error: null };
     } catch (error) {
-      return { data: null, error: error instanceof Error ? error : new Error('Send, thanks request failed.') };
+      return { data: null, error: error instanceof Error ? error : new Error('Email, thanks request failed.') };
     }
   }
 }

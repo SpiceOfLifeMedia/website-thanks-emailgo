@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { publicVerificationToken, verificationRecordHosts } from '../src/lib/domain-verification.ts';
 
-test('new verification tokens use the Send, thanks record name', () => {
+test('new verification tokens use the Email, thanks record name', () => {
   assert.equal(publicVerificationToken('send-thanks-verify=abc123'), 'send-thanks-verify=abc123');
   assert.deepEqual(verificationRecordHosts('example.com', 'send-thanks-verify=abc123'), ['_send-thanks.example.com']);
 });

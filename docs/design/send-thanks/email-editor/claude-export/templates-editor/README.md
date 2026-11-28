@@ -1,12 +1,12 @@
-# Send, thanks · Templates editor (code export)
+# Email, thanks · Templates editor (code export)
 
 React 18 + TypeScript + CSS modules. No other runtime dependencies.
 
 Files
 - `TemplatesEditor.tsx` — the screen: app shell (sidebar / phone top bar and tab bar), Templates page head with Draft status words, block tray, email canvas (Visual / Code, Desktop / Phone, Insert variable), Style inspector, phone Blocks and Style bottom sheets.
-- `TemplatesEditor.module.css` — the Send, thanks tokens and every style, including the 759px phone breakpoint.
+- `TemplatesEditor.module.css` — the Email, thanks tokens and every style, including the 759px phone breakpoint.
 - `blocks.ts` — block model, tokens, demo Good Yarn Co. welcome email, `toEmailHtml()` for the Code view and sending.
-- `icons.tsx` — inline stroke icons and the Send, thanks mark.
+- `icons.tsx` — inline stroke icons and the Email, thanks mark.
 
 Usage
 ```tsx
