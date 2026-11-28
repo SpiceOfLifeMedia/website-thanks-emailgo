@@ -6,7 +6,7 @@ import { consumeLoginAttempt } from '@/lib/database';
 export const runtime = 'nodejs';
 export async function POST(request: Request) {
   if (!hasTrustedBrowserOrigin(request)) return NextResponse.json({ error: 'Request origin is not allowed.' }, { status: 403 });
-  if (!hasAdminSetup()) return NextResponse.json({ error: 'Set EMAILGO_ADMIN_PASSWORD and EMAILGO_SESSION_SECRET before signing in.' }, { status: 503 });
+  if (!hasAdminSetup()) return NextResponse.json({ error: 'Email, thanks is not configured for sign in.' }, { status: 503 });
   let body: unknown;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Invalid JSON.' }, { status: 400 }); }
   const source = request.headers.get('x-real-ip') ?? request.headers.get('x-forwarded-for')?.split(',').at(-1)?.trim() ?? 'local';

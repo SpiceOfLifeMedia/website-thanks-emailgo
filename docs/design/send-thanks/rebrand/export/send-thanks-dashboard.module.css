@@ -1,0 +1,121 @@
+/* Email, thanks: dashboard shell + Overview. Website, thanks palette. */
+.shell, .shellM {
+  --paper: #F4EEE3; --chalk: #FBF9F5; --ink: #1C1916; --graphite: #3D3832; --pencil: #6B6359; --line: #E3DCD0;
+  --tomato: #FF5A36; --honey: #F7D56E; --danger-pale: #FFD6C9; --basil: #2E6B4B;
+  --ctl: 44px;
+  font-family: 'Schibsted Grotesk', system-ui, sans-serif; color: var(--ink); background: var(--paper); -webkit-font-smoothing: antialiased;
+  display: flex; height: 100dvh; min-height: 0; overflow: hidden;
+}
+.shellM { --ctl: 52px; flex-direction: column; }
+.shell button, .shellM button { font: inherit; color: inherit; }
+.shell :focus, .shellM :focus { outline: none; }
+.shell :focus-visible, .shellM :focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; box-shadow: 0 0 0 6px var(--honey); }
+.svg, .svgBold { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.svgBold { stroke-width: 2.5; }
+.grow { flex: 1; }
+.mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; font-weight: 500; color: var(--graphite); overflow-wrap: anywhere; }
+.monoLabel { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: var(--pencil); }
+.muted { font-size: 15px; color: var(--graphite); }
+.stack { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.stackTight { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.on, .on:hover { border-color: var(--ink) !important; background: var(--honey) !important; font-weight: 800 !important; }
+
+/* Shell */
+.sidebar { width: 248px; flex-shrink: 0; border-right: 2px solid var(--ink); background: var(--chalk); padding: 24px 16px; display: flex; flex-direction: column; gap: 28px; box-sizing: border-box; }
+.brand { padding: 0 8px; }
+.account { display: flex; flex-direction: column; gap: 4px; padding: 12px; border: 2px solid var(--line); border-radius: 12px; }
+.accountName { font-size: 15px; font-weight: 700; }
+.nav { display: flex; flex-direction: column; gap: 4px; }
+.navItem { display: flex; align-items: center; gap: 12px; width: 100%; height: 44px; padding: 0 12px; border-radius: 12px; border: 2px solid transparent; background: transparent; font-size: 15px; font-weight: 600; cursor: pointer; text-align: left; }
+.navItem:hover { background: var(--paper); }
+.main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.topbar { flex-shrink: 0; height: 56px; padding: 0 16px; background: var(--chalk); border-bottom: 2px solid var(--ink); display: flex; align-items: center; padding-top: env(safe-area-inset-top); }
+.bottomNav { flex-shrink: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; padding: 6px 4px max(10px, env(safe-area-inset-bottom)); background: var(--chalk); border-top: 2px solid var(--ink); }
+.tab { height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border-radius: 12px; border: 2px solid transparent; background: transparent; font-size: 11px; font-weight: 600; cursor: pointer; padding: 0; min-width: 0; overflow: hidden; white-space: nowrap; }
+.scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 32px 32px 40px; }
+.shellM .scroll { padding: 18px 14px 24px; }
+.content { max-width: 1160px; display: flex; flex-direction: column; gap: 20px; }
+.shellM .content { gap: 16px; }
+
+/* Header */
+.head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.shellM .head { flex-direction: column; align-items: stretch; }
+.h1 { margin: 0; font-size: 40px; font-weight: 800; letter-spacing: -.035em; line-height: 1.05; }
+.shellM .h1 { font-size: 30px; }
+.lead { margin: 0; font-size: 15px; line-height: 1.45; color: var(--graphite); }
+.notice { display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 14px; border: 2px dashed var(--ink); border-radius: 12px; background: var(--chalk); font-size: 14px; min-width: 0; overflow-wrap: anywhere; }
+
+/* Buttons */
+.btn, .btnPrimary { height: var(--ctl); padding: 0 12px; border-radius: 10px; border: 2px solid var(--ink); background: var(--chalk); font-size: 14px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex-shrink: 0; }
+.btn:hover { background: var(--paper); }
+.btnPrimary { background: var(--tomato); font-weight: 800; }
+.btnDanger:hover { background: var(--danger-pale); }
+
+/* Grid */
+.top { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; align-items: start; }
+.bottom { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.shellM .top, .shellM .bottom { grid-template-columns: minmax(0, 1fr); }
+.shellM .recent { order: 2; }
+.shellM .side { order: 1; }
+.side { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.card { background: var(--chalk); border: 2px solid var(--ink); border-radius: 18px; box-shadow: 0 3px 0 var(--ink); overflow: hidden; min-width: 0; }
+.cardHead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px 14px 20px; border-bottom: 2px solid var(--ink); flex-wrap: wrap; }
+.cardHeadSm { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 12px 12px 20px; border-bottom: 2px solid var(--ink); }
+.titleLine { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.h2 { margin: 0; font-size: 19px; font-weight: 800; }
+.h2sm { margin: 0; font-size: 17px; font-weight: 800; }
+.list { list-style: none; margin: 0; padding: 0; }
+.li { border-bottom: 1px solid var(--line); }
+.empty { margin: 16px; padding: 14px 16px; border: 2px dashed var(--ink); border-radius: 12px; font-size: 15px; color: var(--graphite); }
+.error { margin: 16px; padding: 12px 14px; border: 2px solid var(--ink); border-radius: 12px; background: var(--danger-pale); font-size: 14px; font-weight: 600; }
+
+/* Badges */
+.badge { display: inline-flex; align-items: center; gap: 6px; height: 28px; box-sizing: border-box; line-height: 1; padding: 0 10px; border-radius: 999px; border: 2px solid var(--ink); font-size: 13px; font-weight: 700; white-space: nowrap; flex-shrink: 0; align-self: flex-start; }
+.badgeSm { height: 26px; padding: 0 9px; font-size: 12px; }
+.tQueued { background: var(--paper); border-style: dashed; }
+.tSent { background: var(--chalk); }
+.tDelivered { background: var(--basil); color: var(--chalk); }
+.tBounced { background: var(--tomato); }
+.tComplained { background: var(--ink); color: var(--chalk); }
+.tFailed { background: var(--danger-pale); border-style: dashed; }
+.tPending { background: var(--honey); }
+
+/* Recent emails */
+.filters { display: grid; grid-template-columns: repeat(4, max-content); gap: 6px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.shellM .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.filter { height: var(--ctl); min-width: 0; padding: 0 12px; border-radius: 12px; border: 2px solid var(--line); background: var(--chalk); font-size: 14px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+.tableHead, .emailRow { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr) 136px 92px; gap: 14px; padding: 10px 20px; }
+.tableHead { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; letter-spacing: .06em; color: var(--graphite); border-bottom: 1px solid var(--line); }
+.emailRow { width: 100%; align-items: center; min-height: 52px; border: 0; background: transparent; text-align: left; cursor: pointer; }
+.emailRow:hover, .emailCard:hover, .domainRow:hover { background: var(--paper); }
+.emailCard { width: 100%; display: flex; flex-direction: column; gap: 6px; padding: 12px 16px; min-height: 52px; border: 0; background: transparent; text-align: left; cursor: pointer; }
+.emailTop { display: flex; align-items: baseline; gap: 10px; width: 100%; min-width: 0; }
+.to { flex: 1; min-width: 0; font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shellM .to { font-size: 15px; }
+.subject { font-size: 14px; color: var(--graphite); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.subjectWrap { width: 100%; font-size: 14px; color: var(--graphite); overflow-wrap: anywhere; }
+.when { flex-shrink: 0; font-size: 13px; color: var(--graphite); white-space: nowrap; }
+.emailRow .when { font-size: 14px; }
+
+/* Usage */
+.usage { padding: 16px 20px 18px; display: flex; flex-direction: column; gap: 10px; }
+.usageLine { display: flex; align-items: baseline; gap: 4px 8px; flex-wrap: wrap; }
+.usageLine .muted { white-space: nowrap; line-height: 1.3; }
+.big { font-size: 36px; font-weight: 800; letter-spacing: -.03em; line-height: 1; }
+.meter { height: 18px; border: 2px solid var(--ink); border-radius: 999px; background: #FFFFFF; overflow: hidden; box-sizing: border-box; }
+.meterFill { height: 100%; background: var(--honey); border-right: 2px solid var(--ink); box-sizing: border-box; }
+.usageFoot { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--graphite); }
+.usageFoot strong { color: var(--ink); }
+
+/* Domains, keys, block list */
+.domainRow { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 16px 10px 20px; min-height: var(--ctl); border: 0; background: transparent; text-align: left; cursor: pointer; }
+.domain { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 14px; font-weight: 500; min-width: 0; overflow-wrap: anywhere; }
+.keyRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px 12px 20px; min-height: var(--ctl); box-sizing: border-box; }
+.keyName { font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
+.blockRow { display: flex; align-items: center; gap: 10px; padding: 10px 12px 10px 20px; }
+.address { font-size: 14px; font-weight: 700; overflow-wrap: anywhere; }
+.blockMeta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+@media (prefers-reduced-motion: reduce) {
+  .shell *, .shellM * { animation: none !important; transition: none !important; }
+}

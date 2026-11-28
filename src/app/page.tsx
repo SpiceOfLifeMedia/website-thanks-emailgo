@@ -1,128 +1,353 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import SendThanksDashboard, { type ApiKeyRow, type BlockRow, type DomainRow, type EmailRow, type View } from '@/components/SendThanksDashboard';
+import SendThanksOverview, { type EmailFilter } from '@/components/SendThanksOverview';
+import { SendThanksLogo } from '@/components/SendThanksLogo';
+import EmailDetail from '@/components/EmailDetail';
+import { BroadcastsWorkspace, ContactsWorkspace, TemplatesWorkspace, TopicsWorkspace } from '@/components/email-workspaces';
+import { SegmentsWorkspace } from '@/components/segments/SegmentsWorkspace';
+import { WebhooksWorkspace } from '@/components/webhook-workspace';
+import { ReceivingWorkspace } from '@/components/receiving-workspace';
+import { AutomationWorkspace } from '@/components/automation-workspace';
+import { SuppressionsWorkspace } from '@/components/suppression-workspace';
+import { RequestLogsWorkspace } from '@/components/request-logs-workspace';
+import { publicVerificationToken } from '@/lib/domain-verification';
+import styles from './styles.module.css';
 
-type Email = { id: string; from: string; to: string[]; subject: string; status: string; error_message: string | null; provider_id: string | null; created_at: string };
-type ApiKey = { id: string; name: string; prefix: string; created_at: string; last_used_at: string | null };
-type Domain = { id: string; domain: string; verification_token: string; created_at: string; verified_at: string | null };
-type Dashboard = { smtpConfigured: boolean; emails: Email[]; keys: ApiKey[]; domains: Domain[]; metrics: { total: number; sent: number; failed: number; bounced?: number } };
-type View = 'Overview' | 'Emails' | 'Domains' | 'API keys' | 'Quickstart' | 'Settings';
+type EmailRecord = { id: string; from: string; to: string[]; subject: string; status: string; created_at: string };
+type DashboardData = {
+  authenticated: boolean;
+  setupRequired?: boolean;
+  smtpConfigured: boolean;
+  scheduledSendsEnabled: boolean;
+  preferencesConfigured: boolean;
+  webhookSigningConfigured: boolean;
+  emails: EmailRecord[];
+  keys: Array<{ id: string; name: string; prefix: string; permission: 'full_access' | 'sending_access'; domain_id: string | null; created_at: string; last_used_at: string | null }>;
+  domains: Array<{ id: string; domain: string; verification_token: string; created_at: string; verified_at: string | null }>;
+  blockedAddresses: Array<{ address: string; reason: string; added_at: string; removable?: boolean }>;
+  metrics: { total: number; sent: number; bounced?: number; failed: number; monthToDate: number };
+};
+type EmailDetailResponse = {
+  id: string;
+  from_address: string;
+  from_name?: string;
+  to: string[];
+  subject: string;
+  text: string | null;
+  has_attachments: boolean;
+  status: string;
+  created_at: string;
+  events: Array<{ status: string; at: string; note: string }>;
+};
+
+const viewByHash: Record<string, View> = {
+  overview: 'overview', emails: 'emails', domains: 'domains', block: 'block', keys: 'keys', logs: 'logs', suppressions: 'suppressions', receiving: 'receiving',
+  broadcasts: 'broadcasts', automations: 'automations', templates: 'templates', contacts: 'contacts', segments: 'segments', topics: 'topics', webhooks: 'webhooks', quickstart: 'quickstart', settings: 'settings',
+};
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, { ...init, headers: { ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers } });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data?.error?.message ?? data?.error ?? `Request failed (${response.status})`);
+  const response = await fetch(path, {
+    ...init,
+    headers: { ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers },
+  });
+  const data = await response.json().catch(() => ({})) as { error?: { message?: unknown } | string };
+  if (!response.ok) {
+    const error = typeof data.error === 'string' ? data.error : data.error?.message;
+    throw new Error(typeof error === 'string' ? error : `Request failed (${response.status}).`);
+  }
   return data as T;
 }
-function formatDate(value: string) { return new Intl.DateTimeFormat('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(value)); }
-function shortStatus(status: string) { return status.charAt(0).toUpperCase() + status.slice(1); }
-function Icon({ name }: { name: string }) {
-  const paths: Record<string, string> = {
-    overview: 'M3 3h8v8H3z M14 3h7v5h-7z M14 11h7v10h-7z M3 14h8v7H3z',
-    emails: 'M3 5h18v14H3z M3 6l9 7 9-7',
-    domains: 'M12 3v18 M3 12h18 M5.6 5.6l12.8 12.8 M18.4 5.6 5.6 18.4 M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z',
-    keys: 'M7 14a5 5 0 1 1 3.9-1.9L21 22 M15 17l3 3 M18 14l3 3',
-    docs: 'M6 3h9l5 5v13H6z M14 3v6h6 M9 13h8 M9 17h8',
-    settings: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-1.7 2.9-.2-.1a1.7 1.7 0 0 0-1.8.5l-.1.2h-3.4l-.1-.2a1.7 1.7 0 0 0-1.8-.5l-.2.1-1.7-2.9.1-.1a1.7 1.7 0 0 0 .3-1.9l-.1-.2-3.2-1.7v-3.4l.2-.1a1.7 1.7 0 0 0 .5-1.8l-.1-.2 2.9-1.7.1.1a1.7 1.7 0 0 0 1.9.3l.2-.1 1.7-3.2h3.4l.1.2a1.7 1.7 0 0 0 1.8.5l.2-.1 1.7 2.9-.1.1a1.7 1.7 0 0 0-.3 1.9l.1.2 3.2 1.7v3.4l-.2.1a1.7 1.7 0 0 0-.5 1.8l.1.2-2.9 1.7-.1-.1a1.7 1.7 0 0 0-1.9-.3z',
+
+function formatDate(value: string | null) {
+  if (!value) return 'Never';
+  return new Intl.DateTimeFormat('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(value));
+}
+
+function emailStatus(status: string): EmailRow['status'] {
+  const known: Record<string, EmailRow['status']> = {
+    delivered: 'Delivered', bounced: 'Bounced', complained: 'Complained', deferred: 'Deferred', sent: 'Sent', queued: 'Queued', failed: 'Failed',
   };
-  return <svg aria-hidden="true" viewBox="0 0 24 24" className="icon"><path d={paths[name] ?? paths.overview} /></svg>;
+  return known[status.toLowerCase()] ?? 'Queued';
+}
+
+function AuthFrame({ children }: { children: ReactNode }) {
+  return <main className={styles.auth}><div className={styles.authBrand}><SendThanksLogo withIcon size={25} /></div>{children}<p className={styles.authFoot}>A little less noise. A lot more thanks.</p></main>;
 }
 
 export default function Home() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [setupRequired, setSetupRequired] = useState(false);
-  const [dashboard, setDashboard] = useState<Dashboard | null>(null);
-  const [view, setView] = useState<View>('Overview');
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [view, setView] = useState<View>('overview');
+  const [overviewFilter, setOverviewFilter] = useState<EmailFilter>('all');
+  const [mobileLayout, setMobileLayout] = useState(false);
+  const [selectedEmailId, setSelectedEmailId] = useState('');
+  const [emailDetail, setEmailDetail] = useState<EmailDetailResponse | null>(null);
+  const [emailDetailLoading, setEmailDetailLoading] = useState(false);
+  const [emailDetailError, setEmailDetailError] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [password, setPassword] = useState('');
-  const [keyName, setKeyName] = useState('Production');
-  const [newKey, setNewKey] = useState('');
-  const [domainName, setDomainName] = useState('');
-  const [search, setSearch] = useState('');
-  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 760px)');
+    const update = () => setMobileLayout(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+
+  useEffect(() => {
+    const readHash = () => {
+      const hash = window.location.hash.slice(1);
+      const detail = /^emails\/(.+)$/.exec(hash);
+      if (detail) {
+        setView('detail');
+        try { setSelectedEmailId(decodeURIComponent(detail[1])); } catch { setSelectedEmailId(''); }
+      } else {
+        setSelectedEmailId('');
+        setView(viewByHash[hash] ?? 'overview');
+      }
+    };
+    readHash();
+    window.addEventListener('hashchange', readHash);
+    return () => window.removeEventListener('hashchange', readHash);
+  }, []);
 
   const loadDashboard = useCallback(async () => {
     try {
-      const data = await api<Dashboard & { authenticated: boolean }>('/api/dashboard');
+      const data = await api<DashboardData>('/api/dashboard');
       setDashboard(data);
       setAuthenticated(true);
+      setSetupRequired(false);
+      setError('');
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : 'Could not load dashboard.';
-      if (message.includes('EMAILGO_ADMIN_PASSWORD')) { setSetupRequired(true); setAuthenticated(false); }
-      else if (message.includes('Sign in') || message.includes('401')) setAuthenticated(false);
-      else setError(message);
+      if (cause instanceof Error && cause.message.includes('not configured for sign in')) {
+        setSetupRequired(true);
+        setAuthenticated(false);
+      } else if (cause instanceof Error && (cause.message.includes('Sign in') || cause.message.includes('401'))) {
+        setAuthenticated(false);
+      } else {
+        setError('We could not load your workspace. Please try again.');
+      }
     }
   }, []);
 
   useEffect(() => { void loadDashboard(); }, [loadDashboard]);
 
-  const filteredEmails = useMemo(() => dashboard?.emails.filter((email) => [email.to.join(' '), email.from, email.subject, email.status].join(' ').toLowerCase().includes(search.toLowerCase())) ?? [], [dashboard, search]);
+  useEffect(() => {
+    if (view !== 'detail' || !selectedEmailId) { setEmailDetail(null); setEmailDetailError(''); setEmailDetailLoading(false); return; }
+    let active = true;
+    setEmailDetail(null);
+    setEmailDetailLoading(true);
+    setEmailDetailError('');
+    api<EmailDetailResponse>(`/api/emails/${encodeURIComponent(selectedEmailId)}`)
+      .then(value => { if (active) setEmailDetail(value); })
+      .catch(cause => { if (active) setEmailDetailError(cause instanceof Error ? cause.message : 'Could not load this email.'); })
+      .finally(() => { if (active) setEmailDetailLoading(false); });
+    return () => { active = false; };
+  }, [selectedEmailId, view]);
 
-  async function login(event: FormEvent) {
-    event.preventDefault(); setBusy(true); setError('');
-    try { await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ password }) }); setPassword(''); await loadDashboard(); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not sign in.'); }
-    finally { setBusy(false); }
+  async function login(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ password }) });
+      setPassword('');
+      await loadDashboard();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not sign in.');
+    } finally { setBusy(false); }
   }
-  async function createKey(event: FormEvent) {
-    event.preventDefault(); setBusy(true); setError('');
-    try { const result = await api<{ secret: string }>('/api/keys', { method: 'POST', body: JSON.stringify({ name: keyName }) }); setNewKey(result.secret); setKeyName(''); await loadDashboard(); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not create API key.'); }
-    finally { setBusy(false); }
-  }
-  async function revokeKey(id: string) {
-    if (!window.confirm('Revoke this API key? Applications using it will stop sending email.')) return;
-    setBusy(true); setError('');
-    try { await api(`/api/keys/${encodeURIComponent(id)}`, { method: 'DELETE' }); await loadDashboard(); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not revoke key.'); }
-    finally { setBusy(false); }
-  }
-  async function addDomain(event: FormEvent) {
-    event.preventDefault(); setBusy(true); setError('');
-    try { await api('/api/domains', { method: 'POST', body: JSON.stringify({ domain: domainName }) }); setDomainName(''); await loadDashboard(); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not add domain.'); }
-    finally { setBusy(false); }
-  }
-  async function verifyDomain(id: string) {
-    setBusy(true); setError('');
-    try { await api(`/api/domains/${encodeURIComponent(id)}/verify`, { method: 'POST' }); await loadDashboard(); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'Domain verification failed.'); }
-    finally { setBusy(false); }
-  }
-  async function logout() { await api('/api/auth/logout', { method: 'POST' }); setAuthenticated(false); setDashboard(null); }
-  async function copyKey() { await navigator.clipboard.writeText(newKey); setCopied(true); window.setTimeout(() => setCopied(false), 1800); }
 
-  if (authenticated === null && !setupRequired) return <main className="screenState"><span className="wordmark"><span className="mark">e</span>Email, thanks</span><p>Loading your workspace…</p></main>;
-  if (setupRequired) return <main className="screenState"><span className="wordmark"><span className="mark">e</span>Email, thanks</span><section className="setupCard"><div className="eyebrow">FIRST RUN</div><h1>Set up your workspace</h1><p>Add the dashboard password and session secret to the server environment, then restart Email, thanks.</p><pre><code>EMAILGO_ADMIN_PASSWORD=use-a-unique-long-password<br />EMAILGO_SESSION_SECRET=use-another-random-secret</code></pre><p className="muted">SMTP settings are added separately. Sending remains disabled until they are configured.</p></section></main>;
-  if (!authenticated) return <main className="screenState"><span className="wordmark"><span className="mark">e</span>Email, thanks</span><form className="loginCard" onSubmit={login}><div className="eyebrow">PRIVATE WORKSPACE</div><h1>Welcome back</h1><p>Sign in to manage your email API.</p><label>Admin password<input autoComplete="current-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>{error && <p className="inlineError" role="alert">{error}</p>}<button className="primaryButton" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button></form></main>;
+  async function runAction<T>(action: () => Promise<T>): Promise<T> {
+    setBusy(true);
+    setError('');
+    try { const result = await action(); await loadDashboard(); return result; }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'That action could not be completed.'); throw cause; }
+    finally { setBusy(false); }
+  }
 
-  const metrics = dashboard?.metrics ?? { total: 0, sent: 0, failed: 0 };
-  return <div className="appShell">
-    <a className="skipLink" href="#main">Skip to content</a>
-    <aside className="sidebar"><a className="wordmark" href="#overview"><span className="mark">e</span><span>Email, thanks<small>EMAIL DELIVERY</small></span></a><div className="workspaceLabel">WORKSPACE</div><nav aria-label="Workspace navigation">{(['Overview', 'Emails', 'Domains', 'API keys', 'Quickstart', 'Settings'] as View[]).map((item) => <button key={item} className={`navLink ${view === item ? 'active' : ''}`} onClick={() => setView(item)} aria-current={view === item ? 'page' : undefined}><Icon name={{Overview:'overview',Emails:'emails',Domains:'domains','API keys':'keys',Quickstart:'docs',Settings:'settings'}[item]} />{item}</button>)}</nav><div className="sideFooter"><div className="workspaceAvatar">WT</div><div className="workspaceUser">Website Thanks<small>Owner workspace</small></div><button className="logoutButton" onClick={logout} aria-label="Sign out">↗</button></div></aside>
-    <main className="mainArea" id="main"><header className="topbar"><div className="crumb">Workspace <span>/</span> <strong>{view}</strong></div><div className="topbarRight"><span className={`serviceState ${dashboard?.smtpConfigured ? 'ready' : ''}`}>{dashboard?.smtpConfigured ? 'SMTP configured' : 'SMTP setup needed'}</span><button className="userBadge" aria-label="Website Thanks account">WT</button></div></header>
-      <div className="pageContent">
-        {error && <div className="notice errorNotice" role="alert">{error}<button onClick={() => setError('')} aria-label="Dismiss">×</button></div>}
-        {view === 'Overview' && <>
-          <div className="pageHeading"><div><div className="eyebrow">EMAIL INFRASTRUCTURE</div><h1>Good morning.</h1><p>Your sending workspace, at a glance.</p></div><button className="outlineButton" onClick={() => void loadDashboard()}>Refresh activity</button></div>
-          {!dashboard?.smtpConfigured && <div className="setupBanner"><div className="bannerIcon"><Icon name="settings" /></div><div><strong>Connect your delivery relay</strong><p>Add SMTP connection details to the server environment to enable email delivery. Messages will not send until it is configured.</p></div><button onClick={() => setView('Settings')}>View setup</button></div>}
-          {dashboard?.domains.length === 0 && <div className="setupBanner domainBanner"><div className="bannerIcon"><Icon name="domains" /></div><div><strong>Verify a sender domain</strong><p>Add a domain you own and publish its Email, thanks TXT record before sending from it.</p></div><button onClick={() => setView('Domains')}>Add domain</button></div>}
-          <section className="metricGrid" aria-label="Email activity summary"><article className="metricCard"><span>Messages, last 24 hours</span><strong>{metrics.total ?? 0}</strong><small>API requests recorded</small><div className="metricRule" /></article><article className="metricCard"><span>Accepted by relay</span><strong>{metrics.sent ?? 0}</strong><small>Email handoffs completed</small><div className="metricRule sage" /></article><article className="metricCard"><span>Delivery errors</span><strong>{(metrics.failed ?? 0) + (metrics.bounced ?? 0)}</strong><small>Relay errors, bounces and spam reports</small><div className="metricRule rust" /></article></section>
-          <section className="panel"><div className="panelHeader"><div><h2>Recent sends</h2><p>Your latest API email requests.</p></div><button className="textButton" onClick={() => setView('Emails')}>View all emails <span>→</span></button></div><EmailTable emails={dashboard?.emails.slice(0, 8) ?? []} /></section>
-          <section className="quickstartStrip"><div className="quickstartMark">01</div><div><span className="eyebrow">GET STARTED</span><strong>Make your first request</strong><p>Create an API key, verify a sender domain, then send through the Email, thanks API.</p></div><button className="outlineButton" onClick={() => setView('Quickstart')}>Open quickstart</button></section>
-        </>}
-        {view === 'Emails' && <><div className="pageHeading"><div><div className="eyebrow">MESSAGE LOG</div><h1>Emails</h1><p>Requests accepted by your Email, thanks API.</p></div><button className="outlineButton" onClick={() => void loadDashboard()}>Refresh</button></div><div className="panel"><div className="tableToolbar"><label className="searchBox"><span aria-hidden="true">⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search recipient or subject" /></label><span className="recordCount">{filteredEmails.length} records</span></div><EmailTable emails={filteredEmails} /></div></>}
-        {view === 'Domains' && <><div className="pageHeading"><div><div className="eyebrow">SENDER AUTHENTICATION</div><h1>Domains</h1><p>Verify sender domains before using them in API requests.</p></div></div><form className="addForm panel" onSubmit={addDomain}><label>Domain name<input value={domainName} onChange={(event) => setDomainName(event.target.value)} placeholder="example.com" required /></label><button className="primaryButton" disabled={busy}>Add domain</button></form><div className="domainList">{dashboard?.domains.length ? dashboard.domains.map((domain) => <article className="panel domainCard" key={domain.id}><div className="domainCardTop"><div><h2>{domain.domain}</h2><p>Added {formatDate(domain.created_at)}</p></div><span className={`plainStatus ${domain.verified_at ? 'verified' : ''}`}>{domain.verified_at ? 'Verified' : 'Verification needed'}</span></div>{!domain.verified_at && <><p className="recordHint">Add this DNS TXT record at your domain provider. DNS can take a few minutes to update.</p><div className="dnsRecord"><span>Host</span><code>_emailgo.{domain.domain}</code><span>TXT value</span><code>{domain.verification_token}</code></div><button className="outlineButton verifyButton" onClick={() => void verifyDomain(domain.id)} disabled={busy}>Check DNS record</button></>}</article>) : <div className="emptyPanel">No sender domains yet. Add a domain you control to create its verification record.</div>}</div></>}
-        {view === 'API keys' && <><div className="pageHeading"><div><div className="eyebrow">AUTHENTICATION</div><h1>API keys</h1><p>Use secret keys to authenticate server side requests.</p></div></div><form className="addForm panel" onSubmit={createKey}><label>Key name<input value={keyName} onChange={(event) => setKeyName(event.target.value)} placeholder="Production app" required maxLength={80} /></label><button className="primaryButton" disabled={busy}>Create API key</button></form>{newKey && <div className="newSecret"><div><strong>Copy your new API key now</strong><p>This secret is shown once. Email, thanks stores only its hash.</p></div><code>{newKey}</code><button className="outlineButton" onClick={() => void copyKey()}>{copied ? 'Copied' : 'Copy key'}</button><button className="dismissButton" onClick={() => setNewKey('')} aria-label="Dismiss API key">×</button></div>}<div className="panel keyPanel"><div className="panelHeader"><div><h2>Active keys</h2><p>Revoked keys stop working immediately.</p></div></div>{dashboard?.keys.length ? dashboard.keys.map((key) => <div className="keyRow" key={key.id}><div className="keyGlyph"><Icon name="keys" /></div><div className="keyInfo"><strong>{key.name}</strong><code>{key.prefix}••••••••••••</code></div><div className="keyLastUsed">{key.last_used_at ? `Used ${formatDate(key.last_used_at)}` : 'Not used yet'}</div><button className="dangerButton" onClick={() => void revokeKey(key.id)} disabled={busy}>Revoke</button></div>) : <div className="emptyPanel">No API keys yet. Create a key to authenticate your first request.</div>}</div></>}
-        {view === 'Quickstart' && <><div className="pageHeading"><div><div className="eyebrow">DEVELOPER GUIDE</div><h1>Quickstart</h1><p>Send your first email through the Email, thanks API.</p></div></div><div className="guideSteps"><article className="guideStep"><span>01</span><div><h2>Verify a sender domain</h2><p>Add a domain you control in <button className="inlineLink" onClick={() => setView('Domains')}>Domains</button> and publish the TXT record. Configure SPF and DKIM records for your delivery relay to improve authentication and inbox placement.</p></div></article><article className="guideStep"><span>02</span><div><h2>Create an API key</h2><p>Generate a server side key in <button className="inlineLink" onClick={() => setView('API keys')}>API keys</button>. Store it in a secret manager and never expose it in browser code.</p></div></article><article className="guideStep"><span>03</span><div><h2>Send an email</h2><p>Make a request to your Email, thanks instance. Replace the host and API key with your deployment values.</p><pre><code>{`curl -X POST http://localhost:3000/api/v1/emails \\\n  -H 'Authorization: Bearer eg_live_your_key' \\\n  -H 'Content-Type: application/json' \\\n  -d '{"from":"hello@example.com","to":"person@example.net","subject":"Hello from Email, thanks","text":"Your first email is on its way."}'`}</code></pre></div></article></div></>}
-        {view === 'Settings' && <><div className="pageHeading"><div><div className="eyebrow">WORKSPACE CONFIGURATION</div><h1>Settings</h1><p>Runtime status and delivery connection.</p></div></div><section className="panel settingsPanel"><div className="panelHeader"><div><h2>SMTP delivery relay</h2><p>Email, thanks provides the API and activity log. Configure an SMTP relay to deliver messages.</p></div><span className={`plainStatus ${dashboard?.smtpConfigured ? 'verified' : ''}`}>{dashboard?.smtpConfigured ? 'Configured' : 'Not configured'}</span></div><div className="envGrid">{[['EMAILGO_SMTP_HOST','SMTP server host'],['EMAILGO_SMTP_PORT','SMTP port, usually 587'],['EMAILGO_SMTP_USER','SMTP username'],['EMAILGO_SMTP_PASSWORD','SMTP password'],['EMAILGO_SMTP_SECURE','Set true for TLS on port 465'],['EMAILGO_WEBHOOK_TOKEN','Random token for the delivery events URL'],['EMAILGO_SNS_TOPIC_ARNS','Comma separated SNS topics allowed to post events']].map(([name, description]) => <div className="envRow" key={name}><code>{name}</code><span>{description}</span><strong>{['EMAILGO_SMTP_PASSWORD', 'EMAILGO_WEBHOOK_TOKEN'].includes(name) ? 'Secret' : 'Server setting'}</strong></div>)}</div><div className="securityNote">These values are read from the server environment only. Email, thanks never returns SMTP credentials to the browser. For durable production use, run with persistent storage and back up the SQLite database file.</div></section><section className="panel settingsPanel"><div className="panelHeader"><div><h2>Admin access</h2><p>Set the initial workspace password and session signing secret in the server environment.</p></div></div><div className="envGrid">{[['EMAILGO_ADMIN_PASSWORD','Unique long password for workspace access'],['EMAILGO_SESSION_SECRET','Independent random secret used to sign sessions'],['Persistent storage','Mount ./data as a durable volume in production']].map(([name, description]) => <div className="envRow" key={name}><code>{name}</code><span>{description}</span><strong>Server setting</strong></div>)}</div></section></>}
-      </div>
-    </main>
-  </div>;
-}
+  async function createApiKey(name: string) {
+    const result = await runAction(() => api<{ secret: string }>('/api/keys', { method: 'POST', body: JSON.stringify({ name }) }));
+    return result.secret;
+  }
 
-function EmailTable({ emails }: { emails: Email[] }) {
-  if (!emails.length) return <div className="emptyPanel">No messages yet. Email requests accepted by your API will appear here.</div>;
-  return <div className="tableWrap"><table><thead><tr><th>RECIPIENT</th><th>SUBJECT</th><th>STATUS</th><th>TIME</th></tr></thead><tbody>{emails.map((email) => <tr key={email.id}><td><span className="recipientEmail">{email.to.join(', ')}</span><small className="fromEmail">from {email.from}</small></td><td className="emailSubject">{email.subject}</td><td><span className={`plainStatus ${['sent', 'delivered'].includes(email.status) ? 'verified' : ['failed', 'bounced', 'complained'].includes(email.status) ? 'failed' : ''}`}>{shortStatus(email.status)}</span>{email.error_message && <small className="failureReason">{email.error_message}</small>}</td><td className="timeCell">{formatDate(email.created_at)}</td></tr>)}</tbody></table></div>;
+  async function signOut() {
+    setBusy(true);
+    try { await api('/api/auth/logout', { method: 'POST' }); setAuthenticated(false); setDashboard(null); }
+    catch { setError('Could not sign out. Please try again.'); }
+    finally { setBusy(false); }
+  }
+
+  if (authenticated === null && !setupRequired) return <AuthFrame><p className={styles.authLoading}>Getting your workspace ready…</p></AuthFrame>;
+  if (setupRequired) return <AuthFrame><section className={styles.authCard}>
+    <div className={styles.eyebrow}>FIRST RUN</div><h1>Set up your workspace</h1>
+    <p>Add a password and session secret to the server environment, then restart the app.</p>
+    <pre><code>EMAILGO_ADMIN_PASSWORD=use-a-unique-long-password<br />EMAILGO_SESSION_SECRET=use-another-random-secret</code></pre>
+    <p className={styles.authMuted}>Add your SMTP connection details separately. Sending stays off until they are configured.</p>
+  </section></AuthFrame>;
+  if (!authenticated) return <AuthFrame><form className={styles.authCard} onSubmit={login}>
+    <div className={styles.eyebrow}>PRIVATE WORKSPACE</div><h1>Welcome back</h1>
+    <p>Sign in to manage your sending workspace.</p>
+    <label className={styles.authLabel}>Admin password<input autoComplete="current-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
+    {error && <p className={styles.authError} role="alert">{error}</p>}
+    <button className={styles.authSubmit} disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+  </form></AuthFrame>;
+
+  if (!dashboard) return <AuthFrame><p className={styles.authLoading} role="alert">{error || 'We could not load your workspace.'}</p><button className={styles.authSubmit} onClick={() => void loadDashboard()}>Try again</button></AuthFrame>;
+
+  const emails: EmailRow[] = dashboard.emails.map((email) => ({
+    id: email.id,
+    to: email.to.join(', '),
+    subject: email.subject,
+    status: emailStatus(email.status),
+    sentAt: formatDate(email.created_at),
+  }));
+  const apiKeys: ApiKeyRow[] = dashboard.keys.map((key) => ({
+    id: key.id,
+    name: key.name,
+    prefix: 'Secret hidden',
+    permission: key.permission === 'full_access' ? 'Full access' : 'Send email',
+    lastUsed: formatDate(key.last_used_at),
+  }));
+  const domains: DomainRow[] = dashboard.domains.map((domain) => {
+    const token = publicVerificationToken(domain.verification_token);
+    return {
+      id: domain.id,
+      name: domain.domain,
+      status: domain.verified_at ? 'Verified' : 'Pending DNS',
+      addedAt: formatDate(domain.created_at),
+      records: domain.verified_at ? undefined : [{ type: 'TXT', name: `_send-thanks.${domain.domain}`, value: token, found: false }],
+    };
+  });
+  const blockList: BlockRow[] = dashboard.blockedAddresses.map((entry) => ({
+    address: entry.address,
+    reason: entry.reason === 'bounced' ? 'Bounced' : entry.reason === 'complained' ? 'Complained' : 'Added manually',
+    addedAt: formatDate(entry.added_at),
+    removable: entry.removable,
+  }));
+
+  const navigateTo = (next: View) => {
+    const nextHash = `#${next}`;
+    if (window.location.hash === nextHash) setView(next);
+    else window.location.hash = next;
+  };
+
+  if (view === 'overview') {
+    return <SendThanksOverview
+      accountName="Website Thanks"
+      activeNav="overview"
+      usage={{ used: dashboard.metrics.monthToDate, limit: null }}
+      recentEmails={emails.map((email) => ({
+        id: email.id,
+        to: email.to,
+        subject: email.subject,
+        status: email.status.toLowerCase() as import('@/components/SendThanksOverview').EmailStatus,
+        sentAt: dashboard.emails.find((record) => record.id === email.id)?.created_at ?? new Date().toISOString(),
+      }))}
+      emailFilter={overviewFilter}
+      domains={dashboard.domains.map((domain) => ({ id: domain.id, name: domain.domain, status: domain.verified_at ? 'verified' : 'pending' }))}
+      apiKeys={dashboard.keys.map((key) => ({ id: key.id, name: key.name, maskedKey: 'Secret hidden', lastUsedAt: key.last_used_at }))}
+      blockList={dashboard.blockedAddresses.map((entry) => ({
+        id: entry.address,
+        address: entry.address,
+        reason: entry.reason === 'bounced' ? 'bounced' : entry.reason === 'complained' ? 'complained' : 'manual',
+        blockedAt: entry.added_at,
+        removable: entry.removable,
+      }))}
+      layout={mobileLayout ? 'mobile' : 'desktop'}
+      timeZone="Australia/Adelaide"
+      locale="en-AU"
+      notice={error || null}
+      onNavigate={navigateTo}
+      onEmailFilterChange={setOverviewFilter}
+      onOpenEmail={(id) => { window.location.hash = `emails/${encodeURIComponent(id)}`; }}
+      onViewAllEmails={() => navigateTo('emails')}
+      onAddDomain={() => navigateTo('domains')}
+      onOpenDomain={() => navigateTo('domains')}
+      onCreateApiKey={() => navigateTo('keys')}
+      onViewBlockList={() => navigateTo('block')}
+      onUnblock={async (id) => {
+        const entry = dashboard.blockedAddresses.find((item) => item.address === id);
+        if (!entry?.removable) return;
+        try { await runAction(() => api(`/api/block-list/${encodeURIComponent(entry.address)}`, { method: 'DELETE' })); }
+        catch { /* The overview notice reports the request error. */ }
+      }}
+      onDismissNotice={() => setError('')}
+      onSignOut={() => { void signOut(); }}
+    />;
+  }
+
+  const pageContent = view === 'detail'
+    ? emailDetailLoading ? <div className={styles.auxCard} role="status">Loading email…</div>
+      : emailDetail ? <EmailDetail
+        backHref="#emails"
+        email={{
+          id: emailDetail.id,
+          subject: emailDetail.subject,
+          from: emailDetail.from_address,
+          fromName: emailDetail.from_name,
+          to: emailDetail.to.join(', '),
+          sentAt: emailDetail.created_at,
+          status: emailStatus(emailDetail.status),
+          text: emailDetail.text,
+          hasAttachments: emailDetail.has_attachments,
+          events: emailDetail.events.map(event => ({ status: emailStatus(event.status), at: event.at, note: event.note })),
+        }}
+        onCreateShareLink={async (id, minutes) => {
+          const duration = minutes === 10 ? '10m' : minutes === 60 ? '1h' : minutes === 1440 ? '24h' : '48h';
+          const result = await api<{ share_id: string; url: string; expires_at: string }>(`/api/emails/${encodeURIComponent(id)}/share`, { method: 'POST', body: JSON.stringify({ expires_in: duration }) });
+          return { shareId: result.share_id, url: result.url, expiresAt: result.expires_at };
+        }}
+        onRevokeShareLink={async (id, shareId) => { await api(`/api/emails/${encodeURIComponent(id)}/share/${encodeURIComponent(shareId)}`, { method: 'DELETE' }); }}
+      />
+      : <div className={styles.auxCard} role="alert">{emailDetailError || 'Choose an email to view its details.'}</div>
+    : view === 'quickstart' ? <div className={styles.auxStack}>
+    <article className={styles.auxCard}><span>01</span><div><h2>Verify a sender domain</h2><p>Add a domain you own and publish the TXT record shown in <a href="#domains" onClick={() => setView('domains')}>Domains</a>. Configure SPF and DKIM for your sending service too.</p></div></article>
+    <article className={styles.auxCard}><span>02</span><div><h2>Create an API key</h2><p>Make a key in <a href="#keys" onClick={() => setView('keys')}>API keys</a>. Store it somewhere private and keep it out of browser code.</p></div></article>
+    <article className={styles.auxCard}><span>03</span><div><h2>Send an email</h2><p>Use your own app host and secret key. A request accepted for handoff appears as <strong>Sent</strong>.</p><pre><code>{`curl -X POST http://localhost:3000/api/v1/emails \\\n  -H 'Authorization: Bearer st_live_your_key' \\\n  -H 'Content-Type: application/json' \\\n  -d '{"from":"hello@example.com","to":"person@example.net","subject":"Hello","text":"Sent with Email, thanks."}'`}</code></pre></div></article>
+  </div> : view === 'settings' ? <div className={styles.auxStack}>
+    <section className={styles.auxCard}><div><h2>SMTP delivery connection</h2><p>Email, thanks provides the API and activity log. Add an SMTP connection to deliver messages.</p><span className={`${styles.connectionState} ${dashboard.smtpConfigured ? styles.connected : ''}`}>{dashboard.smtpConfigured ? 'Configured' : 'Not configured'}</span></div></section>
+    <section className={styles.auxCard}><div><h2>Server settings</h2><p>These values are read on the server only and are not shown in the browser.</p><ul><li><code>EMAILGO_SMTP_HOST</code> SMTP server host</li><li><code>EMAILGO_SMTP_PORT</code> SMTP port, usually 587</li><li><code>EMAILGO_SMTP_USER</code> SMTP username</li><li><code>EMAILGO_SMTP_PASSWORD</code> SMTP password</li><li><code>EMAILGO_SMTP_SECURE</code> Set true for TLS on port 465</li></ul></div></section>
+    <section className={styles.auxCard}><div><h2>Delivery notifications</h2><p>Signed events update messages to Delivered, Bounced or Complained. Configure the HTTPS endpoint and a shared token on your event source.</p><ul><li><code>EMAILGO_WEBHOOK_TOKEN</code></li><li>Optional event source restrictions are set on the server.</li></ul><p><code>/api/webhooks/delivery-events?token=…</code></p></div></section>
+    <section className={styles.auxCard}><div><h2>Admin access</h2><p>Set a unique workspace password and independent session signing secret.</p><ul><li><code>EMAILGO_ADMIN_PASSWORD</code></li><li><code>EMAILGO_SESSION_SECRET</code></li><li>Mount <code>./data</code> as durable storage when running outside a managed database.</li></ul></div></section>
+  </div> : view === 'logs' ? <RequestLogsWorkspace />
+    : view === 'suppressions' ? <SuppressionsWorkspace />
+      : view === 'receiving' ? <ReceivingWorkspace />
+        : view === 'broadcasts' ? <BroadcastsWorkspace apiKeys={dashboard.keys} domains={dashboard.domains} canQueue={dashboard.smtpConfigured && dashboard.scheduledSendsEnabled && dashboard.preferencesConfigured} />
+          : view === 'automations' ? <AutomationWorkspace apiKeys={dashboard.keys} domains={dashboard.domains} />
+            : view === 'templates' ? <TemplatesWorkspace />
+              : view === 'contacts' ? <ContactsWorkspace preferencesConfigured={dashboard.preferencesConfigured} />
+                : view === 'segments' ? <SegmentsWorkspace />
+                  : view === 'topics' ? <TopicsWorkspace />
+                    : view === 'webhooks' ? <WebhooksWorkspace apiKeys={dashboard.keys} signingConfigured={dashboard.webhookSigningConfigured} />
+                      : undefined;
+
+  return <>
+    {error && <div className={styles.notice} role="alert">{error}<button type="button" onClick={() => setError('')} aria-label="Dismiss message">×</button></div>}
+    <SendThanksDashboard
+      view={view}
+      accountName="Website Thanks"
+      usage={{ sent: dashboard.metrics.monthToDate, limit: null, resetsOn: 'No reset configured' }}
+      emails={emails}
+      domains={domains}
+      apiKeys={apiKeys}
+      blockList={blockList}
+      pageContent={pageContent}
+      isBusy={busy}
+      onNavigate={navigateTo}
+      onAddDomain={async (domain) => { await runAction(() => api('/api/domains', { method: 'POST', body: JSON.stringify({ domain }) })); }}
+      onVerifyDomain={async (id) => { await runAction(() => api(`/api/domains/${encodeURIComponent(id)}/verify`, { method: 'POST' })); }}
+      onCreateApiKey={createApiKey}
+      onRevokeApiKey={async (id) => { await runAction(() => api(`/api/keys/${encodeURIComponent(id)}`, { method: 'DELETE' })); }}
+      onRevokeApiKeys={async (ids) => { await runAction(() => api('/api/keys', { method: 'DELETE', body: JSON.stringify({ ids, confirmation: 'REVOKE API KEYS' }) })); }}
+      onAddBlockedAddress={async (address) => { await runAction(() => api('/api/block-list', { method: 'POST', body: JSON.stringify({ address }) })); }}
+      onRemoveBlockedAddress={async (address) => { await runAction(() => api(`/api/block-list/${encodeURIComponent(address)}`, { method: 'DELETE' })); }}
+      onSignOut={signOut}
+    />
+  </>;
 }

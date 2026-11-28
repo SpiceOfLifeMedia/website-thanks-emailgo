@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#E9E1D3;font-family:'Schibsted Grotesk',sans-serif;color:#1C1916;-webkit-font-smoothing:antialiased}button,input{font:inherit;color:inherit}:focus{outline:none}:focus-visible{outline:3px solid #1C1916;outline-offset:2px;box-shadow:0 0 0 6px #F7D56E}[data-scroll]::-webkit-scrollbar{display:none}a{color:#1C1916}a:hover{color:#FF5A36}button:disabled{opacity:.45;cursor:not-allowed}input[type=checkbox]:disabled{cursor:not-allowed}@media (prefers-reduced-motion:reduce){*{transition:none!important}}</style>
+</helmet>
+<div style="padding:56px 64px 64px;display:flex;flex-direction:column;gap:28px">
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:.08em;color:#6B6359">DASHBOARD · API KEYS · BULK REVOKE · PROTOTYPE · FICTIONAL DATA</div>
+    <div style="font-size:34px;font-weight:800;letter-spacing:-.03em">Revoke several API keys at once</div>
+    <div style="font-size:15px;color:#3D3832;max-width:920px">Select up to 120 active keys, then type REVOKE API KEYS to confirm. The single key Revoke button still works on each row. Nothing is revoked here; confirming only changes this demo.</div>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start">
+  <sc-for list="{{ frames }}" as="b" hint-placeholder-count="2">
+    <div id="{{ b.id }}" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;gap:10px"><span style="font-family:'IBM Plex Mono',monospace;font-size:13px;background:#1C1916;color:#FBF9F5;padding:4px 10px;border-radius:6px">{{ b.id }}</span><span style="font-size:17px;font-weight:700">{{ b.caption }}</span></div>
+      <div id="{{ b.frameId }}" data-screen-label="{{ b.caption }}" style="width:{{ b.w }};height:{{ b.h }};border:2px solid #1C1916;border-radius:{{ b.rad }};overflow:hidden;background:#F4EEE3;display:flex;flex-direction:column;box-sizing:border-box">
+        <header style="flex-shrink:0;min-height:{{ b.topH }};padding:{{ b.topPad }};background:#FBF9F5;border-bottom:2px solid #1C1916;display:flex;align-items:center;gap:12px;box-sizing:border-box">
+          <span role="img" aria-label="Email, thanks" style="display:flex;align-items:center;gap:8px;flex-shrink:0"><svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true"><rect x="1.5" y="1.5" width="61" height="61" rx="16" style="fill:#FF5A36;stroke:#1C1916;stroke-width:3"></rect><circle cx="32" cy="23" r="9" style="fill:#FBF9F5"></circle><path d="M41 35.5C41 43 34 49 21 52C27 48 31 43.5 32.5 38.5Z" style="fill:#FBF9F5"></path></svg><sc-if value="{{ b.d }}" hint-placeholder-val="{{ true }}"><span aria-hidden="true" style="font-size:18px;font-weight:800;letter-spacing:-.035em;white-space:nowrap">Email<span style="color:#FF5A36">,</span> thanks</span></sc-if></span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#3D3832;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">MAPLE BAKERY · API KEYS</span>
+          <span style="margin-left:auto;flex-shrink:0;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#3D3832;white-space:nowrap">{{ b.activeText }}</span>
+        </header>
+        <div data-scroll="1" style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;padding:{{ b.pad }};display:flex;flex-direction:column;gap:18px">
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <h1 style="margin:0;font-size:{{ b.h1 }};font-weight:800;letter-spacing:-.035em;line-height:1.05">API keys</h1>
+            <p style="margin:0;font-size:15px;line-height:1.45;color:#3D3832;max-width:620px;text-wrap:pretty">Keys let your website and apps send email. Treat them like a password.</p>
+          </div>
+          <sc-if value="{{ b.hasNote }}" hint-placeholder-val="{{ false }}">
+            <div id="{{ b.noteId }}" tabindex="-1" role="status" style="padding:12px 14px;border:2px dashed #1C1916;border-radius:12px;background:#FBF9F5;font-size:14px;line-height:1.45;display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px">
+              <span style="flex:1 1 240px;min-width:0">{{ b.note }}</span>
+              <sc-if value="{{ b.canReset }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ b.reset }}" style="flex-shrink:0;min-height:{{ b.ctl }};padding:0 14px;border-radius:10px;border:2px solid #1C1916;background:#FBF9F5;font-size:14px;font-weight:700;cursor:pointer">Reset demo</button></sc-if>
+            </div>
+          </sc-if>
+
+          <section aria-labelledby="{{ b.cardTitleId }}" style="background:#FBF9F5;border:2px solid #1C1916;border-radius:18px;box-shadow:0 3px 0 #1C1916;min-width:0">
+            <div style="position:sticky;top:0;z-index:2;background:#FBF9F5;border-bottom:2px solid #1C1916;border-radius:16px 16px 0 0">
+              <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:{{ b.titlePad }}">
+                <h2 id="{{ b.cardTitleId }}" style="margin:0;font-size:19px;font-weight:800">Your keys</h2>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#3D3832">{{ b.totalsText }}</span>
+              </div>
+              <sc-if value="{{ b.selecting }}" hint-placeholder-val="{{ true }}">
+                <div role="group" aria-label="Select API keys to revoke together" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 18px 14px">
+                  <button type="button" onClick="{{ b.selectActive }}" disabled="{{ b.noActive }}" style="min-height:{{ b.ctl }};padding:0 16px;border-radius:12px;border:2px solid #1C1916;background:#FBF9F5;font-size:15px;font-weight:700;cursor:pointer">Select active keys</button>
+                  <button type="button" onClick="{{ b.clear }}" disabled="{{ b.none }}" style="min-height:{{ b.ctl }};padding:0 16px;border-radius:12px;border:2px solid #1C1916;background:#FBF9F5;font-size:15px;font-weight:700;cursor:pointer">Clear selection</button>
+                  <span aria-live="polite" style="flex:1 1 180px;min-width:0;font-size:14px;font-weight:700;color:{{ b.countColor }}">{{ b.countText }}</span>
+                  <button id="{{ b.bulkBtnId }}" type="button" onClick="{{ b.openConfirm }}" disabled="{{ b.none }}" style="min-height:{{ b.ctl }};padding:0 18px;border-radius:12px;border:2px solid #1C1916;background:#FF5A36;color:#1C1916;font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 3px 0 #1C1916;flex:{{ b.bulkFlex }}">{{ b.bulkLabel }}</button>
+                </div>
+              </sc-if>
+            </div>
+
+            <sc-if value="{{ b.confirming }}" hint-placeholder-val="{{ false }}">
+              <div role="alertdialog" aria-labelledby="{{ b.confirmTitleId }}" aria-describedby="{{ b.confirmDescId }}" onKeyDown="{{ b.onPanelKey }}" style="margin:16px;padding:{{ b.cardPad }};border:2px solid #1C1916;border-radius:14px;background:#FFD6C9;display:flex;flex-direction:column;gap:14px">
+                <h3 id="{{ b.confirmTitleId }}" style="margin:0;font-size:20px;font-weight:800;letter-spacing:-.02em">{{ b.confirmTitle }}</h3>
+                <div id="{{ b.confirmDescId }}" style="display:flex;flex-direction:column;gap:8px;font-size:15px;line-height:1.5">
+                  <p style="margin:0;text-wrap:pretty"><strong>They stop working immediately.</strong> Any website, app or script using them will fail to send email until you give it a new key.</p>
+                  <p style="margin:0;text-wrap:pretty"><strong>Revoked keys cannot be restored.</strong> To send again, create a new key and update everything that used the old one.</p>
+                </div>
+                <div style="background:#FBF9F5;border:2px solid #1C1916;border-radius:12px;padding:10px 14px;display:flex;flex-direction:column;gap:6px">
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#3D3832">KEYS TO REVOKE</span>
+                  <ul style="margin:0;padding:0 0 0 18px;font-size:14px;line-height:1.55;overflow-wrap:anywhere">
+                    <sc-for list="{{ b.preview }}" as="pn" hint-placeholder-count="3"><li>{{ pn }}</li></sc-for>
+                  </ul>
+                  <sc-if value="{{ b.hasMore }}" hint-placeholder-val="{{ false }}"><span style="font-size:14px;font-weight:700">{{ b.moreText }}</span></sc-if>
+                </div>
+                <label for="{{ b.phraseId }}" style="display:flex;flex-direction:column;gap:6px">
+                  <span style="font-size:15px;font-weight:800">Type REVOKE API KEYS to confirm</span>
+                  <span id="{{ b.phraseHintId }}" style="font-size:13px;color:#3D3832">Use capitals, exactly as shown.</span>
+                </label>
+                <input id="{{ b.phraseId }}" aria-describedby="{{ b.phraseHintId }}" value="{{ b.phrase }}" onChange="{{ b.onPhrase }}" autocomplete="off" autocapitalize="characters" spellcheck="false" style="height:{{ b.ctl }};padding:0 14px;border:2px solid #1C1916;border-radius:12px;background:#FFFFFF;font-family:'IBM Plex Mono',monospace;font-size:{{ b.inFont }};width:100%;box-sizing:border-box;min-width:0">
+                <span aria-live="polite" style="font-size:14px;font-weight:700">{{ b.matchText }}</span>
+                <div style="display:flex;flex-wrap:wrap;gap:10px">
+                  <button type="button" onClick="{{ b.confirm }}" disabled="{{ b.noMatch }}" style="min-height:{{ b.ctl }};padding:0 18px;border-radius:12px;border:2px solid #1C1916;background:#1C1916;color:#FBF9F5;font-size:15px;font-weight:800;cursor:pointer;flex:{{ b.btnFlex }}">{{ b.confirmLabel }}</button>
+                  <button type="button" onClick="{{ b.cancel }}" style="min-height:{{ b.ctl }};padding:0 18px;border-radius:12px;border:2px solid #1C1916;background:#FBF9F5;font-size:15px;font-weight:700;cursor:pointer;flex:{{ b.btnFlex }}">Keep keys</button>
+                </div>
+                <span style="font-size:13px;color:#3D3832">Press Escape to go back without revoking.</span>
+              </div>
+            </sc-if>
+
+            <ul aria-label="API keys" style="list-style:none;margin:0;padding:0">
+              <sc-for list="{{ b.rows }}" as="r" hint-placeholder-count="6">
+                <li style="border-top:{{ r.divider }};background:{{ r.bg }}">
+                  <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:{{ b.rowPad }}">
+                    <sc-if value="{{ r.selectable }}" hint-placeholder-val="{{ true }}">
+                      <label for="{{ r.boxId }}" style="flex-shrink:0;width:{{ b.ctl }};height:{{ b.ctl }};display:flex;align-items:center;justify-content:center;border-radius:10px;cursor:pointer;margin-left:-8px;position:relative">
+                        <input id="{{ r.boxId }}" type="checkbox" checked="{{ r.checked }}" disabled="{{ r.boxDisabled }}" onChange="{{ r.toggle }}" aria-label="{{ r.boxLabel }}" style="appearance:none;-webkit-appearance:none;width:24px;height:24px;margin:0;border:2px solid #1C1916;border-radius:6px;background:{{ r.boxBg }};cursor:pointer;box-sizing:border-box">
+                        <sc-if value="{{ r.checked }}" hint-placeholder-val="{{ false }}"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 14 14" style="position:absolute;pointer-events:none"><path d="M2.5 7.5l3 3 6-7" style="fill:none;stroke:#FBF9F5;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round"></path></svg></sc-if>
+                      </label>
+                    </sc-if>
+                    <sc-if value="{{ r.revoked }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="flex-shrink:0;width:{{ b.ctl }};margin-left:-8px"></span></sc-if>
+                    <div style="flex:1 1 220px;min-width:0;display:flex;flex-direction:column;gap:3px">
+                      <span style="font-size:16px;font-weight:700;overflow-wrap:anywhere;color:{{ r.nameColor }}">{{ r.name }}</span>
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#3D3832;overflow-wrap:anywhere">{{ r.prefix }} · {{ r.permission }} · Last used {{ r.lastUsed }}</span>
+                    </div>
+                    <span style="flex-shrink:0;min-width:84px;text-align:center;padding:4px 10px;border-radius:999px;border:2px solid {{ r.stateBorder }};background:{{ r.stateBg }};font-size:13px;font-weight:800;color:{{ r.stateColor }}">{{ r.stateWord }}</span>
+                    <sc-if value="{{ r.showRevoke }}" hint-placeholder-val="{{ true }}">
+                      <button id="{{ r.revokeId }}" type="button" onClick="{{ r.askSingle }}" aria-label="{{ r.revokeLabel }}" style="flex-shrink:0;min-height:{{ b.ctl }};padding:0 16px;border-radius:12px;border:2px solid #1C1916;background:#FBF9F5;font-size:15px;font-weight:700;cursor:pointer" style-hover="background:#FFD6C9">Revoke</button>
+                    </sc-if>
+                  </div>
+                  <sc-if value="{{ r.showSingle }}" hint-placeholder-val="{{ false }}">
+                    <div role="alertdialog" aria-labelledby="{{ r.singleTitleId }}" onKeyDown="{{ r.onSingleKey }}" style="margin:0 16px 14px;padding:14px;border:2px solid #1C1916;border-radius:12px;background:#FFD6C9;display:flex;flex-direction:column;gap:12px">
+                      <p style="margin:0;font-size:15px;line-height:1.5;text-wrap:pretty"><strong id="{{ r.singleTitleId }}">Revoke “{{ r.name }}”?</strong> Anything using this key will stop sending straight away. This can't be undone.</p>
+                      <div style="display:flex;flex-wrap:wrap;gap:10px">
+                        <button id="{{ r.singleConfirmId }}" type="button" onClick="{{ r.confirmSingle }}" style="min-height:{{ b.ctl }};padding:0 16px;border-radius:12px;border:2px solid #1C1916;background:#1C1916;color:#FBF9F5;font-size:15px;font-weight:800;cursor:pointer;flex:{{ b.btnFlex }}">Revoke key</button>
+                        <button type="button" onClick="{{ r.keepSingle }}" style="min-height:{{ b.ctl }};padding:0 16px;border-radius:12px;border:2px solid #1C1916;background:#FBF9F5;font-size:15px;font-weight:700;cursor:pointer;flex:{{ b.btnFlex }}">Keep key</button>
+                      </div>
+                    </div>
+                  </sc-if>
+                </li>
+              </sc-for>
+            </ul>
+          </section>
+        </div>
+      </div>
+    </div>
+  </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;workspace&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;small&quot;,&quot;large&quot;],&quot;default&quot;:&quot;small&quot;,&quot;tsType&quot;:&quot;'small' | 'large'&quot;}}">
+const LIMIT = 120;
+const PHRASE = 'REVOKE API KEYS';
+const SMALL = [
+  ['k1', 'Website contact form', 'snd_live_4f9a', 'Sending only', '2 minutes ago'],
+  ['k2', 'Checkout server', 'snd_live_b21c', 'Sending only', '1 hour ago'],
+  ['k3', 'Mobile app', 'snd_live_77de', 'Sending only', '5 hours ago'],
+  ['k4', 'Newsletter importer', 'snd_live_0e3b', 'Full access', 'Yesterday'],
+  ['k5', 'Staging site', 'snd_test_9c40', 'Sending only', '3 days ago'],
+  ['k6', 'Old booking plugin from the 2024 website rebuild', 'snd_live_51aa', 'Sending only', '4 months ago'],
+  ['k7', 'Holiday campaign 2025', 'snd_live_c8f2', 'Full access', '11 months ago'],
+  ['k8', 'Intern laptop test', 'snd_test_2d17', 'Sending only', '1 year ago', true],
+  ['k9', 'Agency handover', 'snd_live_e604', 'Full access', '1 year ago', true],
+].map(([id, name, prefix, permission, lastUsed, revoked]) => ({ id, name, prefix, permission, lastUsed, revoked: !!revoked }));
+const LARGE = Array.from({ length: 150 }, (_, i) => {
+  const n = i + 1;
+  return { id: 'L' + n, name: `Shop ${String(n).padStart(3, '0')} order emails`, prefix: 'snd_live_' + (4096 + n * 37).toString(16), permission: n % 9 === 0 ? 'Full access' : 'Sending only', lastUsed: n % 4 === 0 ? 'Yesterday' : `${(n % 23) + 1} hours ago`, revoked: n === 7 || n === 64 };
+});
+const blank = () => ({ sel: [], step: 'select', phrase: '', single: null, revoked: [], note: '', canReset: false });
+
+class Component extends DCLogic {
+  state = { d: blank(), p: blank(), ws: null };
+  keys() { return (this.props.workspace ?? 'small') === 'large' ? LARGE : SMALL; }
+  componentDidUpdate() {
+    const ws = this.props.workspace ?? 'small';
+    if (this.state.ws !== null && this.state.ws !== ws) this.setState({ d: blank(), p: blank(), ws });
+    else if (this.state.ws === null) this.setState({ ws });
+  }
+  set(fid, patch, focusId) {
+    this.setState(s => ({ [fid]: { ...s[fid], ...(typeof patch === 'function' ? patch(s[fid]) : patch) } }), () => {
+      if (focusId) setTimeout(() => { const el = document.getElementById(focusId); if (el) el.focus(); }, 30);
+    });
+  }
+  build(fid, cfg) {
+    const f = this.state[fid], all = this.keys();
+    const isRev = k => k.revoked || f.revoked.includes(k.id);
+    const active = all.filter(k => !isRev(k));
+    const n = f.sel.length, atLimit = n >= LIMIT, selecting = f.step === 'select', confirming = f.step === 'confirm';
+    const pre = fid + '-';
+    const plural = c => `${c} API ${c === 1 ? 'key' : 'keys'}`;
+    const selectedNames = all.filter(k => f.sel.includes(k.id)).map(k => k.name);
+    const rows = all.map((k, i) => {
+      const revoked = isRev(k), checked = f.sel.includes(k.id);
+      return {
+        ...k, revoked, checked, selectable: !revoked,
+        boxDisabled: confirming || (!checked && atLimit), boxBg: checked ? '#1C1916' : (confirming || (!checked && atLimit)) ? '#E3DCD0' : '#FFFFFF', boxId: pre + 'box-' + k.id,
+        boxLabel: `Select ${k.name} to revoke`,
+        divider: i === 0 ? '0' : '2px solid #E3DCD0',
+        bg: checked ? '#FCEFC0' : '#FBF9F5',
+        nameColor: revoked ? '#6B6359' : '#1C1916',
+        stateWord: revoked ? 'Revoked' : checked ? 'Selected' : 'Active',
+        stateBg: revoked ? '#F4EEE3' : checked ? '#F7D56E' : '#FBF9F5',
+        stateBorder: revoked ? '#6B6359' : '#1C1916',
+        stateColor: revoked ? '#3D3832' : '#1C1916',
+        showRevoke: !revoked && selecting && f.single !== k.id,
+        showSingle: f.single === k.id && selecting,
+        revokeId: pre + 'rv-' + k.id, singleTitleId: pre + 'st-' + k.id, singleConfirmId: pre + 'sc-' + k.id,
+        revokeLabel: `Revoke ${k.name}`,
+        toggle: e => { const on = e.target.checked; this.set(fid, s => ({ sel: on ? (s.sel.length >= LIMIT ? s.sel : [...s.sel, k.id]) : s.sel.filter(x => x !== k.id), note: '' })); },
+        askSingle: () => this.set(fid, { single: k.id }, pre + 'sc-' + k.id),
+        keepSingle: () => this.set(fid, { single: null }, pre + 'rv-' + k.id),
+        onSingleKey: e => { if (e.key === 'Escape') { e.preventDefault(); this.set(fid, { single: null }, pre + 'rv-' + k.id); } },
+        confirmSingle: () => this.set(fid, s => ({ single: null, revoked: [...s.revoked, k.id], sel: s.sel.filter(x => x !== k.id), canReset: true, note: `Prototype only: nothing was revoked. In the app, “${k.name}” would stop working now and show Revoked.` }), pre + 'note'),
+      };
+    });
+    const cancel = () => this.set(fid, { step: 'select', phrase: '' }, pre + 'bulk');
+    const matches = f.phrase === PHRASE;
+    const preview = selectedNames.slice(0, 5);
+    return {
+      ...cfg, rows, selecting, confirming, titlePad: confirming ? '14px 18px 14px' : '14px 18px 0',
+      frameId: 'frame-' + cfg.id, noteId: pre + 'note', cardTitleId: pre + 'title', bulkBtnId: pre + 'bulk',
+      confirmTitleId: pre + 'ct', confirmDescId: pre + 'cd', phraseId: pre + 'phrase', phraseHintId: pre + 'ph',
+      activeText: `${active.length} ACTIVE`,
+      totalsText: `${active.length} ACTIVE · ${all.length - active.length} REVOKED`,
+      hasNote: !!f.note, note: f.note, canReset: f.canReset,
+      reset: () => this.set(fid, blank()),
+      noActive: active.length === 0, none: n === 0,
+      countText: n === 0 ? `No keys selected · limit ${LIMIT}` : atLimit ? `${n} selected · limit of ${LIMIT} reached` : `${n} of ${LIMIT} selected`,
+      countColor: '#1C1916',
+      bulkLabel: n === 0 ? 'Revoke selected keys' : `Revoke ${plural(n)}`,
+      selectActive: () => {
+        const ids = active.slice(0, LIMIT).map(k => k.id), left = active.length - ids.length;
+        this.set(fid, { sel: ids, single: null, canReset: false, note: left > 0 ? `Selected the first ${LIMIT} active keys, the most you can revoke at once. ${left} active ${left === 1 ? 'key was' : 'keys were'} left unselected.` : '' });
+      },
+      clear: () => this.set(fid, { sel: [], note: '' }),
+      openConfirm: () => this.set(fid, { step: 'confirm', phrase: '', single: null }, pre + 'phrase'),
+      confirmTitle: `Revoke ${plural(n)}?`,
+      preview, hasMore: selectedNames.length > 5, moreText: `and ${selectedNames.length - 5} more`,
+      phrase: f.phrase, onPhrase: e => this.set(fid, { phrase: e.target.value }),
+      matchText: matches ? 'Phrase matches. You can revoke now.' : f.phrase ? 'Phrase does not match yet.' : 'Revoke stays off until the phrase matches.',
+      noMatch: !matches,
+      confirmLabel: `Revoke ${plural(n)}`,
+      confirm: () => { if (!matches) return; this.set(fid, s => ({ step: 'select', phrase: '', revoked: [...s.revoked, ...s.sel], sel: [], canReset: true, note: `Prototype only: nothing was revoked. In the app, these ${plural(s.sel.length)} would stop working now and show Revoked.` }), pre + 'note'); },
+      cancel, onPanelKey: e => { if (e.key === 'Escape') { e.preventDefault(); cancel(); } },
+    };
+  }
+  renderVals() {
+    const D = { id: '1a', caption: 'Desktop · 1440 × 1000', d: true, w: '1440px', h: '1000px', rad: '18px', topH: '64px', topPad: '0 32px', pad: '32px 40px 48px', h1: '40px', ctl: '44px', inFont: '15px', cardPad: '20px', rowPad: '12px 18px 12px 26px', btnFlex: '0 0 auto', bulkFlex: '0 0 auto' };
+    const P = { id: '1b', caption: 'Phone · 390 × 844', d: false, w: '390px', h: '844px', rad: '28px', topH: '60px', topPad: '0 16px', pad: '18px 14px 32px', h1: '30px', ctl: '52px', inFont: '16px', cardPad: '14px', rowPad: '10px 14px 12px 22px', btnFlex: '1 1 100%', bulkFlex: '1 1 100%' };
+    return { frames: [this.build('d', D), this.build('p', P)] };
+  }
+}
+</script>
+</body>
+</html>

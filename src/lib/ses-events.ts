@@ -7,7 +7,15 @@ export type SnsEnvelope = {
 };
 
 export type DeliveryEventType = 'delivered' | 'bounced' | 'complained' | 'deferred';
-export type DeliveryEvent = { type: DeliveryEventType; relayMessageId: string; recipient: string; suppress: boolean; detail: string };
+export type DeliveryEvent = {
+  type: DeliveryEventType;
+  relayMessageId: string;
+  recipient: string;
+  suppress: boolean;
+  detail: string;
+  bounce?: { type: 'Permanent' | 'Transient' | 'Undetermined'; subType: string };
+  complaint?: { feedbackType: string };
+};
 
 const snsHost = /^sns\.[a-z0-9-]+\.amazonaws\.com(\.cn)?$/;
 const certificateCache = new Map<string, string>();
@@ -71,6 +79,11 @@ function addresses(list: unknown, field = 'emailAddress') {
   return list.map((item) => typeof item === 'string' ? item : (item as Record<string, unknown>)?.[field]).filter((item): item is string => typeof item === 'string' && item.length <= 254).map((item) => item.trim().toLowerCase());
 }
 
+function safeEventLabel(value: unknown, fallback: string) {
+  if (typeof value !== 'string' || !value.trim() || /amazon|\bses\b|\baws\b|resend|migadu|spacemail/i.test(value)) return fallback;
+  return value.trim().replace(/[\r\n\0]/g, ' ').slice(0, 120);
+}
+
 export function parseSesNotification(message: string): DeliveryEvent[] {
   let body: Record<string, unknown>;
   try { body = JSON.parse(message) as Record<string, unknown>; } catch { return []; }
@@ -80,17 +93,23 @@ export function parseSesNotification(message: string): DeliveryEvent[] {
   if (!relayMessageId) return [];
   if (kind === 'Bounce') {
     const bounce = body.bounce as Record<string, unknown> | undefined;
-    const bounceType = String(bounce?.bounceType ?? 'Undetermined');
+    const rawBounceType = safeEventLabel(bounce?.bounceType, 'Undetermined');
+    const bounceType: NonNullable<DeliveryEvent['bounce']>['type'] = rawBounceType === 'Permanent' || rawBounceType === 'Transient' ? rawBounceType : 'Undetermined';
+    const bounceSubType = safeEventLabel(bounce?.bounceSubType, 'Unknown');
     const permanent = bounceType === 'Permanent';
-    const detail = `${bounceType}${bounce?.bounceSubType ? ` / ${String(bounce.bounceSubType)}` : ''}`.slice(0, 200);
-    return addresses(bounce?.bouncedRecipients).map((recipient) => ({ type: permanent ? 'bounced' : 'deferred', relayMessageId, recipient, suppress: permanent, detail }));
+    const detail = `${bounceType} / ${bounceSubType}`;
+    return addresses(bounce?.bouncedRecipients).map((recipient) => ({
+      type: permanent ? 'bounced' : 'deferred', relayMessageId, recipient, suppress: permanent, detail,
+      bounce: { type: bounceType, subType: bounceSubType },
+    }));
   }
   if (kind === 'Complaint') {
     const complaint = body.complaint as Record<string, unknown> | undefined;
-    const detail = String(complaint?.complaintFeedbackType ?? 'complaint').slice(0, 200);
+    const feedbackType = safeEventLabel(complaint?.complaintFeedbackType, 'unknown');
+    const detail = feedbackType;
     const complainants = addresses(complaint?.complainedRecipients);
     // SES may list every possible complainant; only suppress when the complainant is unambiguous.
-    return complainants.map((recipient) => ({ type: 'complained', relayMessageId, recipient, suppress: complainants.length === 1, detail }));
+    return complainants.map((recipient) => ({ type: 'complained', relayMessageId, recipient, suppress: complainants.length === 1, detail, complaint: { feedbackType } }));
   }
   if (kind === 'Delivery') {
     const delivery = body.delivery as Record<string, unknown> | undefined;

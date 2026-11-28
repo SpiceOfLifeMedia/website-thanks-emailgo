@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#E9E1D3;font-family:'Schibsted Grotesk',sans-serif;color:#1C1916}button,input,select{font:inherit;color:inherit}:focus{outline:none}:focus-visible{outline:3px solid #1C1916;outline-offset:2px;box-shadow:0 0 0 6px #F7D56E}[data-scroll]::-webkit-scrollbar{display:none}a{color:#1C1916}@media (prefers-reduced-motion:reduce){*{transition:none!important}}</style>
+</helmet>
+<div style="padding:56px 64px 64px;display:flex;flex-direction:column;gap:28px">
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:.08em;color:#6B6359">AUTOMATIONS · WORKFLOW CANVAS · LIVE · FICTIONAL DATA · NOTHING RUNS</div>
+    <div style="font-size:34px;font-weight:800;letter-spacing:-.03em">Workflow canvas</div>
+    <div style="font-size:15px;color:#3D3832;max-width:900px">Select a step, edit it in the inspector, add from the palette, connect branches, Move earlier, nudge position, Save draft, or Activate (asks first).</div>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start">
+  <sc-for list="{{ frames }}" as="b" hint-placeholder-count="5">
+    <div id="{{ b.id }}" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;gap:10px"><span style="font-family:'IBM Plex Mono',monospace;font-size:13px;background:#1C1916;color:#FBF9F5;padding:4px 10px;border-radius:6px">{{ b.id }}</span><span style="font-size:17px;font-weight:700">{{ b.caption }}</span></div>
+      <div data-screen-label="{{ b.caption }}" style="width:{{ b.w }};height:{{ b.h }};border:2px solid #1C1916;border-radius:{{ b.rad }};overflow:hidden;background:#F4EEE3;display:flex;flex-direction:column">
+        <div style="flex-shrink:0;height:52px;padding:0 16px;background:#FBF9F5;border-bottom:2px solid #1C1916;display:flex;align-items:center;justify-content:space-between" role="img" aria-label="Email, thanks"><span style="display:flex;align-items:center;gap:8px"><svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true"><rect x="1.5" y="1.5" width="61" height="61" rx="16" style="fill:#FF5A36;stroke:#1C1916;stroke-width:3"></rect><circle cx="32" cy="23" r="9" style="fill:#FBF9F5"></circle><path d="M41 35.5C41 43 34 49 21 52C27 48 31 43.5 32.5 38.5Z" style="fill:#FBF9F5"></path></svg><span aria-hidden="true" style="font-size:18px;font-weight:800;letter-spacing:-.035em;white-space:nowrap">Email<span style="color:#FF5A36">,</span> thanks</span></span><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#6B6359">AUTOMATIONS</span></div>
+        <div data-scroll="1" style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;padding:{{ b.pad }};display:flex;flex-direction:column;gap:12px">
+          <header style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 16px;border:2px solid #1C1916;border-radius:16px;background:#FBF9F5;box-shadow:0 3px 0 #1C1916">
+            <label style="flex:1 1 260px;min-width:0;display:flex"><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Workflow name</span><input value="{{ b.name }}" onChange="{{ b.onName }}" style="flex:1;min-width:0;height:{{ b.ctl }};padding:0 10px;border:2px dashed #E3DCD0;border-radius:12px;background:transparent;font-size:{{ b.nameSize }};font-weight:800"></label>
+            <span style="height:30px;padding:0 12px;display:inline-flex;align-items:center;border:2px solid #1C1916;border-radius:999px;background:{{ b.statusBg }};color:{{ b.statusFg }};font-size:14px;font-weight:800">{{ b.status }}</span>
+            <span aria-live="polite" style="font-size:14px;font-weight:700">{{ b.saveText }}</span>
+            <div style="display:grid;grid-template-columns:{{ b.actCols }};gap:8px;margin-left:{{ b.actMargin }};width:{{ b.actW }}">
+              <button type="button" onClick="{{ b.save }}" style="height:{{ b.ctl }};padding:0 14px;border-radius:12px;border:2px solid #1C1916;background:#FBF9F5;font-size:15px;font-weight:700;cursor:pointer">Save draft</button>
+              <button type="button" onClick="{{ b.askActivate }}" disabled="{{ b.actDisabled }}" style="height:{{ b.ctl }};padding:0 16px;border-radius:12px;border:2px solid #1C1916;background:#FF5A36;font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 2px 0 #1C1916;opacity:{{ b.actOpacity }}">Activate</button>
+            </div>
+          </header>
+          <p style="margin:0;font-size:13px;color:#3D3832">Save draft only saves. Nothing runs until you activate.</p>
+          <sc-if value="{{ b.confirming }}" hint-placeholder-val="{{ false }}"><div role="alertdialog" aria-label="Confirm activation" style="padding:14px;border:2px solid #1C1916;border-radius:14px;background:#FCEFC0;display:flex;flex-direction:column;gap:10px;font-size:15px;line-height:1.45"><strong style="font-size:16px">Activate “{{ b.name }}”?</strong><span>Once active, it starts for every new user.signed_up event. Active workflows can’t be edited until they’re paused.</span><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" onClick="{{ b.cancel }}" style="height:{{ b.ctl }};padding:0 14px;border-radius:12px;border:2px solid #1C1916;background:#FBF9F5;font-weight:700;cursor:pointer">Keep as draft</button><button type="button" onClick="{{ b.confirm }}" style="height:{{ b.ctl }};padding:0 14px;border-radius:12px;border:2px solid #1C1916;background:#1C1916;color:#FBF9F5;font-weight:800;cursor:pointer">Activate workflow</button></div></div></sc-if>
+          <sc-if value="{{ b.hasIssues }}" hint-placeholder-val="{{ false }}"><section role="alert" style="padding:12px 14px;border:2px solid #1C1916;border-radius:14px;background:#FFD6C9;font-size:15px"><strong>{{ b.issuesTitle }}</strong><ul style="margin:6px 0 0;padding-left:18px"><sc-for list="{{ b.issues }}" as="i" hint-placeholder-count="2"><li>{{ i }}</li></sc-for></ul></section></sc-if>
+          <sc-if value="{{ b.hasNote }}" hint-placeholder-val="{{ false }}"><div role="status" style="padding:8px 12px;border:2px dashed #1C1916;border-radius:12px;background:#FBF9F5;font-size:14px">{{ b.note }}</div></sc-if>
+
+          <div style="display:grid;grid-template-columns:{{ b.cols }};gap:16px;align-items:start">
+            <nav aria-label="Add a step" style="order:{{ b.palOrder }};display:grid;grid-template-columns:{{ b.palCols }};gap:6px;padding:12px;border:2px solid #1C1916;border-radius:16px;background:#FBF9F5">
+              <span style="grid-column:1/-1;font-size:14px;font-weight:700">{{ b.addAfter }}</span>
+              <sc-for list="{{ b.palette }}" as="t" hint-placeholder-count="6"><button type="button" onClick="{{ t.add }}" disabled="{{ t.disabled }}" style="height:{{ t.h }};padding:0 12px;border-radius:12px;border:2px solid #1C1916;background:#FBF9F5;font-size:14px;font-weight:700;text-align:left;cursor:pointer;opacity:{{ t.op }}" style-hover="background:#F4EEE3">{{ t.label }}</button></sc-for>
+            </nav>
+            <section aria-label="Workflow canvas" style="order:1;min-width:0;padding:{{ b.canvasPad }};border:2px solid #1C1916;border-radius:16px;background:#F4EEE3">
+              <sc-if value="{{ b.empty }}" hint-placeholder-val="{{ false }}"><div style="padding:16px;border:2px dashed #1C1916;border-radius:12px;background:#FBF9F5;display:flex;flex-direction:column;gap:6px"><strong style="font-size:16px">Only the trigger so far</strong><span style="font-size:14px;color:#3D3832;line-height:1.45">Add a first step from the palette: a delay, an email, or a condition that splits into true and false branches.</span></div></sc-if>
+              <ol aria-label="Workflow steps" style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;align-items:center">
+                <sc-for list="{{ b.main }}" as="s" hint-placeholder-count="4"><li style="width:100%;display:flex;flex-direction:column;align-items:center">
+                  <button type="button" onClick="{{ s.pick }}" aria-pressed="{{ s.pressed }}" style="width:100%;max-width:{{ s.maxW }};text-align:left;display:flex;flex-direction:column;gap:3px;padding:12px 14px;border:2px {{ s.line }} #1C1916;border-radius:16px;background:{{ s.bg }};box-shadow:{{ s.shadow }};cursor:pointer;transform:{{ s.tf }}"><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.05em;color:#3D3832">{{ s.kind }}</span><span style="font-size:15px;font-weight:800;overflow-wrap:anywhere">{{ s.title }}</span><sc-if value="{{ s.hasIssue }}" hint-placeholder-val="{{ false }}"><span style="align-self:flex-start;margin-top:4px;padding:2px 8px;border:2px solid #1C1916;border-radius:999px;background:#FFD6C9;font-size:12px;font-weight:800">{{ s.issue }}</span></sc-if></button>
+                  <sc-if value="{{ s.lineAfter }}" hint-placeholder-val="{{ true }}"><div style="width:2px;height:16px;background:#1C1916"></div></sc-if>
+                </li></sc-for>
+              </ol>
+              <sc-if value="{{ b.hasBranch }}" hint-placeholder-val="{{ true }}">
+                <div style="display:grid;grid-template-columns:{{ b.branchCols }};gap:16px;padding-top:12px;border-top:{{ b.branchTop }}">
+                  <sc-for list="{{ b.branches }}" as="br" hint-placeholder-count="2"><section aria-label="{{ br.aria }}" style="display:flex;flex-direction:column;align-items:{{ br.align }};gap:10px;min-width:0;padding:{{ br.pad }};border:{{ br.border }};border-radius:14px;background:{{ br.bg }}">
+                    <span style="align-self:{{ br.chipAlign }};height:30px;padding:0 12px;display:inline-flex;align-items:center;border:2px {{ br.chipLine }} #1C1916;border-radius:999px;background:{{ br.chipBg }};color:{{ br.chipFg }};font-size:14px;font-weight:800">{{ br.label }}</span>
+                    <sc-if value="{{ br.empty }}" hint-placeholder-val="{{ false }}"><div style="width:100%;padding:12px;border:2px dashed #1C1916;border-radius:12px;background:#FBF9F5;box-sizing:border-box;display:flex;flex-direction:column;gap:10px"><span style="font-size:14px">No steps on this branch yet.</span><label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:14px;font-weight:700">Step type</span><select onChange="{{ br.onType }}" style="height:{{ br.h }};padding:0 10px;border:2px solid #1C1916;border-radius:12px;background:#FFFFFF;font-size:14px;width:100%"><sc-for list="{{ br.typeOpts }}" as="o" hint-placeholder-count="6"><option value="{{ o.value }}" selected="{{ o.sel }}">{{ o.label }}</option></sc-for></select></label><button type="button" onClick="{{ br.add }}" style="height:{{ br.h }};padding:0 14px;border-radius:12px;border:2px solid #1C1916;background:#FF5A36;font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 2px 0 #1C1916">{{ br.addLabel }}</button></div></sc-if>
+                    <sc-for list="{{ br.rows }}" as="s" hint-placeholder-count="1"><button type="button" onClick="{{ s.pick }}" aria-pressed="{{ s.pressed }}" style="width:100%;text-align:left;display:flex;flex-direction:column;gap:3px;padding:12px 14px;border:2px {{ s.line }} #1C1916;border-radius:16px;background:{{ s.bg }};box-shadow:{{ s.shadow }};cursor:pointer;transform:{{ s.tf }}"><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.05em;color:#3D3832">{{ s.kind }}</span><span style="font-size:15px;font-weight:800;overflow-wrap:anywhere">{{ s.title }}</span></button></sc-for>
+                  </section></sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{ b.hasLoose }}" hint-placeholder-val="{{ false }}"><div style="margin-top:16px;padding:12px;border:2px dashed #1C1916;border-radius:14px;background:#FBF9F5;display:flex;flex-direction:column;gap:6px"><strong>Not connected</strong><sc-for list="{{ b.loose }}" as="s" hint-placeholder-count="1"><button type="button" onClick="{{ s.pick }}" aria-pressed="{{ s.pressed }}" style="text-align:left;padding:10px 12px;border:2px dashed #1C1916;border-radius:14px;background:{{ s.bg }};cursor:pointer;font-weight:800">{{ s.kind }} · {{ s.title }}</button></sc-for></div></sc-if>
+            </section>
+
+            <section aria-label="Step inspector" style="order:{{ b.inspOrder }};display:flex;flex-direction:column;gap:12px;padding:16px;border:2px solid #1C1916;border-radius:16px;background:#FBF9F5;box-shadow:0 3px 0 #1C1916;min-width:0">
+              <sc-if value="{{ b.noSel }}" hint-placeholder-val="{{ false }}"><strong>Pick a step</strong><span style="font-size:13px;color:#3D3832">Select a step to edit it, connect branches or move it.</span></sc-if>
+              <sc-if value="{{ b.hasSel }}" hint-placeholder-val="{{ true }}">
+                <h2 style="margin:0;font-size:17px;font-weight:800">{{ b.selLabel }} <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#3D3832">{{ b.selKey }}</span></h2>
+                <sc-for list="{{ b.fields }}" as="f" hint-placeholder-count="2"><label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:14px;font-weight:700">{{ f.label }}</span><sc-if value="{{ f.isIn }}" hint-placeholder-val="{{ true }}"><input value="{{ f.value }}" onChange="{{ f.onChange }}" style="height:{{ f.h }};padding:0 12px;border:2px solid #1C1916;border-radius:12px;background:#FFFFFF;font-family:{{ f.font }};font-size:14px;box-sizing:border-box;width:100%;min-width:0"></sc-if><sc-if value="{{ f.isSel }}" hint-placeholder-val="{{ false }}"><select onChange="{{ f.onChange }}" style="height:{{ f.h }};padding:0 10px;border:2px solid #1C1916;border-radius:12px;background:#FFFFFF;font-family:'IBM Plex Mono',monospace;font-size:14px;width:100%"><sc-for list="{{ f.opts }}" as="o" hint-placeholder-count="11"><option value="{{ o.value }}" selected="{{ o.sel }}">{{ o.label }}</option></sc-for></select></sc-if></label></sc-for><sc-if value="{{ b.isUpdate }}" hint-placeholder-val="{{ false }}"><label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:14px;font-weight:700">Updates (JSON)</span><textarea value="{{ b.jsonText }}" onChange="{{ b.onJson }}" rows="7" spellCheck="false" aria-invalid="{{ b.jsonInvalid }}" style="padding:10px 12px;border:2px {{ b.jsonLine }} #1C1916;border-radius:12px;background:#FFFFFF;font-family:'IBM Plex Mono',monospace;font-size:13px;line-height:1.5;box-sizing:border-box;width:100%;resize:vertical"></textarea><span style="font-size:13px;color:#3D3832">Allowed keys: name, properties, tags. Changes apply only while the JSON is valid; other config keys are kept.</span><sc-if value="{{ b.hasJsonErr }}" hint-placeholder-val="{{ false }}"><span role="alert" style="padding:8px 12px;border:2px solid #1C1916;border-radius:10px;background:#FFD6C9;font-size:14px;font-weight:700">{{ b.jsonErr }} Nothing was changed.</span></sc-if></label></sc-if>
+                <sc-for list="{{ b.connects }}" as="c" hint-placeholder-count="1"><label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:14px;font-weight:700">{{ c.label }}</span><select key="{{ c.key }}" onChange="{{ c.onChange }}" style="height:{{ c.h }};padding:0 10px;border:2px solid #1C1916;border-radius:12px;background:#FFFFFF;font-size:14px;width:100%"><sc-for list="{{ c.opts }}" as="o" hint-placeholder-count="3"><option value="{{ o.value }}" selected="{{ o.sel }}">{{ o.label }}</option></sc-for></select></label></sc-for>
+                <sc-if value="{{ b.canEdit }}" hint-placeholder-val="{{ true }}"><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" onClick="{{ b.moveEarlier }}" disabled="{{ b.noMove }}" style="height:{{ b.ctl }};padding:0 14px;border-radius:12px;border:2px solid #1C1916;background:#FBF9F5;font-weight:700;cursor:pointer;opacity:{{ b.moveOp }}">Move earlier</button><button type="button" onClick="{{ b.remove }}" style="height:{{ b.ctl }};padding:0 14px;border-radius:12px;border:2px solid #1C1916;background:#FBF9F5;font-weight:700;cursor:pointer" style-hover="background:#FFD6C9">Remove step</button></div></sc-if>
+                <sc-if value="{{ b.desktop }}" hint-placeholder-val="{{ true }}"><fieldset style="margin:0;padding:10px 12px;border:2px solid #E3DCD0;border-radius:12px;display:flex;flex-direction:column;gap:8px"><legend style="font-size:14px;font-weight:700">Canvas position</legend><div style="display:flex;gap:6px;flex-wrap:wrap"><sc-for list="{{ b.nudges }}" as="n" hint-placeholder-count="5"><button type="button" onClick="{{ n.go }}" style="height:44px;padding:0 12px;border-radius:12px;border:2px solid #1C1916;background:#FBF9F5;font-weight:700;cursor:pointer">{{ n.label }}</button></sc-for></div><span style="font-size:13px;color:#3D3832">Position is for this session only. It isn’t saved yet.</span></fieldset></sc-if>
+              </sc-if>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const LABEL = { trigger: 'Trigger', condition: 'Condition', delay: 'Delay', wait_for_event: 'Wait for event', send_email: 'Send email', contact_update: 'Update contact', add_to_segment: 'Add to segment' };
+const ADDABLE = ['condition', 'delay', 'wait_for_event', 'send_email', 'contact_update', 'add_to_segment'];
+const FIELDS = { trigger: [['event_name', 'Event name', 1]], condition: [['field', 'Contact field', 1], ['operator', 'Operator', 1, 1], ['value', 'Value', 0]], delay: [['duration', 'Duration', 0]],
+  wait_for_event: [['event_name', 'Event name', 1], ['timeout', 'Timeout', 0]], send_email: [['template_id', 'Template ID', 1], ['from', 'From address', 0]], contact_update: [], add_to_segment: [['segment_id', 'Segment ID', 1]] };
+const DEF = { delay: { duration: '1 day' }, wait_for_event: { event_name: '', timeout: '3 days' }, send_email: { template_id: '', from: 'hello@goodyarn.example' }, contact_update: { updates: { tags: [] } }, add_to_segment: { segment_id: '' }, condition: { field: '', operator: 'eq', value: '' } };
+// Fictional workflow (prototype only).
+const base = () => ({
+  steps: { start: { type: 'trigger', c: { event_name: 'user.signed_up' } }, wait1: { type: 'delay', c: { duration: '1 day' } }, welcome: { type: 'send_email', c: { template_id: 'tpl_welcome', from: 'hello@goodyarn.example' } },
+    isPro: { type: 'condition', c: { field: 'contact.properties.plan', operator: 'eq', value: 'pro' } }, proSeg: { type: 'add_to_segment', c: { segment_id: 'seg_pro_onboarding' } }, nudge: { type: 'contact_update', c: { updates: { tags: ['trial-nudge'] }, note: 'kept as-is' } } },
+  main: ['start', 'wait1', 'welcome', 'isPro'], t: ['proSeg'], f: ['nudge'], loose: [] });
+const sum = (s) => { const c = s.c; return { trigger: `When ${c.event_name || 'an event'} happens`, delay: `Wait ${c.duration || '…'}`, wait_for_event: `Until ${c.event_name || 'an event'}, up to ${c.timeout || '…'}`,
+  send_email: `Template ${c.template_id || '…'}`, condition: `${c.field || 'field'} ${c.operator || '…'} ${c.value}`, contact_update: `Update ${Object.keys(c.updates || {}).join(', ') || 'contact'}`, add_to_segment: `Segment ${c.segment_id || '…'}` }[s.type]; };
+const issueOf = (k, s) => { const c = s.c;
+  if (s.type === 'send_email' && !c.template_id) return 'Needs a template ID';
+  if (s.type === 'condition' && (!/^(event|contact|wait_events)\.[A-Za-z0-9_.-]{1,250}$/.test(c.field || '') || !c.operator)) return 'Needs a contact., event. or wait_events. field';
+  if (s.type === 'add_to_segment' && !c.segment_id) return 'Needs a segment ID';
+  if (s.type === 'delay' && !/^\s*\d{1,5}\s*(seconds?|minutes?|hours?|days?)\s*$/i.test(c.duration || '')) return 'Needs a duration like "2 days"';
+  return ''; };
+const F = [
+  { id: 'a1a', caption: 'Desktop 1440 × 1000 · condition selected', layout: 'desktop', init: x => ({ ...x, sel: 'isPro' }) },
+  { id: 'a1b', caption: 'Desktop · validation + activation confirm', layout: 'desktop', init: x => { x.steps.welcome.c.template_id = ''; x.loose = ['nudge']; x.f = []; return { ...x, sel: 'isPro', confirming: false }; } },
+  { id: 'a1c', caption: 'Desktop · empty workflow', layout: 'desktop', init: x => ({ ...x, main: ['start'], t: [], f: [], sel: 'start' }) },
+  { id: 'a2a', caption: 'Phone 390 × 844 · step selected', layout: 'mobile', init: x => ({ ...x, sel: 'welcome' }) },
+  { id: 'a2b', caption: 'Phone · validation', layout: 'mobile', init: x => { x.steps.welcome.c.template_id = ''; x.loose = ['nudge']; x.f = []; return { ...x, sel: 'isPro' }; } }
+];
+
+class Component extends DCLogic {
+  state = { st: Object.fromEntries(F.map(f => [f.id, { name: 'Welcome series', status: 'Draft', dirty: false, savedAt: '9:41 am', confirming: f.id === 'a1b', note: '', nud: {}, ...f.init(base()) }])) };
+  upd(id, fn) { this.setState(s => { const x = JSON.parse(JSON.stringify(s.st[id])); fn(x); return { st: { ...s.st, [id]: x } }; }); }
+  renderVals() {
+    const frames = F.map(fr => {
+      const s = this.state.st[fr.id], d = fr.layout === 'desktop', h = d ? '44px' : '52px', S = s.steps, cond = S[s.main[s.main.length - 1]]?.type === 'condition' ? s.main[s.main.length - 1] : null;
+      const edit = fn => this.upd(fr.id, x => { fn(x); x.dirty = true; x.note = ''; });
+      const card = (k, last) => { const st = S[k], on = s.sel === k, iss = issueOf(k, st) || (s.loose.includes(k) ? 'Not connected' : ''), n = s.nud[k] || [0, 0];
+        return { kind: `${LABEL[st.type].toUpperCase()} · ${k}`, title: sum(st), pressed: String(on), bg: on ? '#F7D56E' : '#FBF9F5', shadow: on ? '0 5px 0 #1C1916' : '0 3px 0 #1C1916', line: iss ? 'dashed' : 'solid',
+          hasIssue: !!iss, issue: iss, lineAfter: !last, maxW: d ? '320px' : '100%', tf: d ? `translate(${n[0]}px,${n[1]}px)` : 'none', pick: () => this.upd(fr.id, x => { x.sel = k; }) }; };
+      const issues = [...s.main, ...s.t, ...s.f, ...s.loose].map(k => { const i = issueOf(k, S[k]); return i ? `${k}: ${i}` : ''; }).filter(Boolean);
+      if (cond && !s.f.length) issues.push(`${cond}: the false branch isn’t connected`);
+      if (cond && !s.t.length) issues.push(`${cond}: the true branch isn’t connected`);
+      s.loose.forEach(k => issues.push(`${k}: not connected to the workflow`));
+      const sel = s.sel && S[s.sel] ? s.sel : null, st = sel ? S[sel] : null;
+      const where = k => ['main', 't', 'f', 'loose'].find(l => s[l].includes(k));
+      const lst = sel ? where(sel) : null, idx = sel && lst ? s[lst].indexOf(sel) : -1;
+      const canMove = st && st.type !== 'trigger' && st.type !== 'condition' && lst && lst !== 'loose' && idx > (lst === 'main' ? 1 : 0);
+      const others = Object.keys(S).filter(k => S[k].type !== 'trigger' && k !== sel);
+      const connects = !st ? [] : st.type === 'condition' ? [['t', 'If true, go to'], ['f', 'If false, go to']].map(([b, label]) => ({ label, h, value: s[b][0] || '', key: `${sel}-${b}-${s[b][0] || ''}`,
+          opts: [{ value: '', label: 'Not connected', sel: !s[b][0] }, ...others.filter(k => k !== 'start').map(k => ({ value: k, label: `${k} · ${LABEL[S[k].type]}`, sel: s[b][0] === k }))],
+          onChange: e => { const v = e.target.value; edit(x => { const old = x[b]; ['main', 't', 'f', 'loose'].forEach(l => { x[l] = x[l].filter(q => q !== v); }); x.loose.push(...old.filter(q => q !== v)); x[b] = v ? [v] : []; }); } }))
+        : [{ label: 'Next step', h, key: `${sel}-next`, value: lst && lst !== 'loose' ? (s[lst][idx + 1] || '') : '', opts: [{ value: '', label: 'End of workflow', sel: !(lst && lst !== 'loose' && s[lst][idx + 1]) }, ...(lst && lst !== 'loose' && s[lst][idx + 1] ? [{ value: s[lst][idx + 1], label: `${s[lst][idx + 1]} · ${LABEL[S[s[lst][idx + 1]].type]}`, sel: true }] : [])], onChange: () => {} }];
+      const after = sel && lst !== 'loose' && st?.type !== 'condition' ? sel : (cond ? null : s.main[s.main.length - 1]);
+      const add = t => () => edit(x => { const k = t.replace(/_.*/, '') + (Object.keys(x.steps).length + 1); x.steps[k] = { type: t, c: { ...DEF[t] } };
+        const l = after ? where(after) : 'main', i = after ? x[l].indexOf(after) + 1 : x.main.length;
+        if (t === 'condition') { if (l !== 'main' || i !== x.main.length || cond) { x.note = 'In this prototype a new condition can only go at the end of the main path.'; delete x.steps[k]; return; } x.main.push(k); }
+        else x[l].splice(i, 0, k); x.sel = k; });
+      const statusMap = { Draft: ['#FBF9F5', '#1C1916'], Active: ['#2E6B4B', '#FBF9F5'] }[s.status];
+      return {
+        id: fr.id, caption: fr.caption, desktop: d, ctl: h, w: d ? '1440px' : '390px', h: d ? '1000px' : '844px', rad: d ? '20px' : '36px', pad: d ? '20px 24px 32px' : '12px 12px calc(28px + env(safe-area-inset-bottom))',
+        name: s.name, nameSize: d ? '22px' : '19px', onName: e => { const v = e.target.value; edit(x => { x.name = v; }); }, status: s.status, statusBg: statusMap[0], statusFg: statusMap[1],
+        saveText: s.dirty ? 'Unsaved changes' : `Draft saved ${s.savedAt}`, save: () => this.upd(fr.id, x => { x.dirty = false; x.savedAt = '9:58 am'; x.note = 'Draft saved. Nothing was activated.'; }),
+        actCols: d ? 'auto auto' : '1fr 1fr', actMargin: d ? 'auto' : '0', actW: d ? 'auto' : '100%',
+        askActivate: () => this.upd(fr.id, x => { x.confirming = true; }), actDisabled: issues.length > 0 || s.status === 'Active', actOpacity: issues.length > 0 || s.status === 'Active' ? 0.5 : 1,
+        confirming: s.confirming, cancel: () => this.upd(fr.id, x => { x.confirming = false; }), confirm: () => this.upd(fr.id, x => { x.confirming = false; x.status = 'Active'; x.note = 'Activated (prototype only).'; }),
+        hasIssues: issues.length > 0, issues, issuesTitle: `${issues.length} ${issues.length === 1 ? 'problem' : 'problems'} to fix before activating`, hasNote: !!s.note, note: s.note,
+        cols: d ? '200px minmax(0,1fr) 340px' : 'minmax(0,1fr)', palOrder: d ? 0 : 3, inspOrder: d ? 2 : 2, palCols: d ? '1fr' : '1fr 1fr', canvasPad: d ? '20px 16px' : '12px',
+        addAfter: after ? `Add after ${after}` : 'Select a step that isn’t a condition to add after it', palette: ADDABLE.map(t => ({ label: LABEL[t], h, add: add(t), disabled: !after, op: after ? 1 : 0.5 })),
+        empty: s.main.length === 1 && !cond, main: s.main.map((k, i) => card(k, i === s.main.length - 1 && k !== cond)),
+        hasBranch: !!cond, branchCols: d ? '1fr 1fr' : '1fr', branchTop: d ? '2px solid #1C1916' : '0',
+        branches: [['t', 'If true', '#2E6B4B', '#FBF9F5', 'solid'], ['f', 'If false', '#FBF9F5', '#1C1916', 'dashed']].map(([b, label, bg, fg, line]) => ({ aria: label + ' branch', label, chipBg: bg, chipFg: fg, chipLine: line,
+          align: d ? 'center' : 'stretch', chipAlign: d ? 'center' : 'flex-start', h, addLabel: `Add step to ${label}`,
+          typeOpts: ['send_email', 'delay', 'wait_for_event', 'contact_update', 'add_to_segment'].map(t => ({ value: t, label: LABEL[t], sel: (s.bt?.[b] || 'send_email') === t })), onType: e => { const v = e.target.value; this.upd(fr.id, x => { x.bt = { ...(x.bt || {}), [b]: v }; }); },
+          add: () => edit(x => { const t = (x.bt?.[b]) || 'send_email'; if (t === 'condition') { x.note = 'In this prototype a nested condition can’t be added to a branch.'; return; } const k = t.replace(/_.*/, '') + (Object.keys(x.steps).length + 1); x.steps[k] = { type: t, c: { ...DEF[t] } }; x[b].push(k); x.sel = k; }), pad: d ? '0' : '12px', border: d ? '0' : '2px solid #1C1916', bg: d ? 'transparent' : '#FBF9F5', empty: !s[b].length, rows: s[b].map(k => card(k, true)) })),
+        hasLoose: s.loose.length > 0, loose: s.loose.map(k => card(k, true)),
+        noSel: !st, hasSel: !!st, selLabel: st ? LABEL[st.type] : '', selKey: sel || '',
+        fields: st ? FIELDS[st.type].map(([p, label, mono, sel]) => ({ label, h, value: st.c[p] ?? '', isSel: !!sel, isIn: !sel, opts: sel ? ['eq','neq','gt','gte','lt','lte','contains','starts_with','ends_with','exists','is_empty'].map(o => ({ value: o, label: o, sel: st.c[p] === o })) : [], font: mono ? "'IBM Plex Mono',monospace" : "'Schibsted Grotesk',sans-serif", onChange: e => { const v = e.target.value; edit(x => { x.steps[sel].c[p] = v; }); } })) : [],
+        isUpdate: st?.type === 'contact_update', jsonText: s.json && s.json.k === sel ? s.json.t : JSON.stringify(st?.c.updates ?? {}, null, 2), jsonErr: s.json && s.json.k === sel ? s.json.e : '', hasJsonErr: !!(s.json && s.json.k === sel && s.json.e),
+        jsonInvalid: String(!!(s.json && s.json.k === sel && s.json.e)), jsonLine: s.json && s.json.k === sel && s.json.e ? 'dashed' : 'solid',
+        onJson: e => { const text = e.target.value; this.upd(fr.id, x => { try { const v = JSON.parse(text); if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error('Updates must be a JSON object, like { "tags": ["vip"] }.'); x.steps[sel].c.updates = v; x.json = { k: sel, t: text, e: '' }; x.dirty = true; } catch (err) { x.json = { k: sel, t: text, e: err instanceof SyntaxError ? 'Not valid JSON yet.' : err.message }; } }); },
+        connects, canEdit: !!st && st.type !== 'trigger', noMove: !canMove, moveOp: canMove ? 1 : 0.5,
+        moveEarlier: () => canMove && edit(x => { const a = x[lst]; [a[idx - 1], a[idx]] = [a[idx], a[idx - 1]]; }),
+        remove: () => edit(x => { if (sel === cond) { x.main.pop(); x.loose.push(...x.t, ...x.f); x.t = []; x.f = []; } else ['main', 't', 'f', 'loose'].forEach(l => { x[l] = x[l].filter(q => q !== sel); }); delete x.steps[sel]; x.sel = null; }),
+        nudges: [['Left', -16, 0], ['Up', 0, -16], ['Down', 0, 16], ['Right', 16, 0], ['Reset']].map(([label, dx, dy]) => ({ label, go: () => sel && this.upd(fr.id, x => { const n = x.nud[sel] || [0, 0]; x.nud[sel] = label === 'Reset' ? [0, 0] : [Math.max(-240, Math.min(240, n[0] + dx)), Math.max(-120, Math.min(120, n[1] + dy))]; }) }))
+      };
+    });
+    return { frames };
+  }
+}
+</script>
+</body>
+</html>

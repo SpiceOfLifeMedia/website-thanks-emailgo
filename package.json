@@ -6,18 +6,25 @@
     "dev": "next dev",
     "build": "next build",
     "start": "node scripts/start.mjs",
+    "send-thanks": "node bin/send-thanks.mjs",
+    "send-thanks-mcp": "node bin/send-thanks-mcp.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node --test --disable-warning=MODULE_TYPELESS_PACKAGE_JSON tests/*.test.mjs",
     "check": "npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
+    "@modelcontextprotocol/server": "^2.4.0",
     "@neondatabase/serverless": "^1.2.1",
+    "html-to-text": "^10.0.1",
     "next": "^16.4.5",
     "nodemailer": "^10.6.1",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "^2.4.0",
+    "@types/html-to-text": "^9.0.4",
     "@types/node": "^22.18.6",
     "@types/nodemailer": "^8.0.2",
     "@types/react": "^19.1.16",

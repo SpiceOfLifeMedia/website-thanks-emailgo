@@ -1,9 +1,22 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { cookies } from 'next/headers';
 import { execute, hashSecret, nowIso, queryOne } from '@/lib/database';
+import { DEFAULT_WORKSPACE_ID } from '@/lib/workspaces';
 
 const SESSION_COOKIE = 'emailgo_session';
 const SESSION_HOURS = 8;
+type AuthorizedRequestKey = { id: string; name: string; prefix: string };
+type AuthorizedApiKey = { id: string; permission: 'sending_access' | 'full_access'; domainId: string | null; workspaceId: string };
+const authorizedRequestKeys = new WeakMap<Request, AuthorizedRequestKey>();
+const authorizedApiKeys = new WeakMap<Request, AuthorizedApiKey>();
+
+export function getAuthorizedRequestKeyId(request: Request) {
+  return authorizedRequestKeys.get(request)?.id ?? null;
+}
+
+export function getAuthorizedRequestKey(request: Request) {
+  return authorizedRequestKeys.get(request) ?? null;
+}
 
 function adminPassword() { return process.env.EMAILGO_ADMIN_PASSWORD; }
 function sessionSecret() { return process.env.EMAILGO_SESSION_SECRET || adminPassword(); }
@@ -48,26 +61,49 @@ export const sessionMaxAge = SESSION_HOURS * 60 * 60;
 
 export function hasTrustedBrowserOrigin(request: Request) {
   const origin = request.headers.get('origin');
-  if (!origin) return true;
+  const forwardedHost = request.headers.get('x-forwarded-host')?.split(',')[0]?.trim();
+  const requestHost = forwardedHost || request.headers.get('host');
+  if (!origin) {
+    const fetchSite = request.headers.get('sec-fetch-site');
+    if (fetchSite) return fetchSite === 'same-origin';
+    const referer = request.headers.get('referer');
+    if (!referer || !requestHost) return false;
+    try {
+      const refererUrl = new URL(referer);
+      return (refererUrl.protocol === 'https:' || refererUrl.protocol === 'http:') && refererUrl.host.toLowerCase() === requestHost.toLowerCase();
+    } catch { return false; }
+  }
   try {
     const originUrl = new URL(origin);
-    const forwardedHost = request.headers.get('x-forwarded-host')?.split(',')[0]?.trim();
-    const requestHost = forwardedHost || request.headers.get('host');
     return (originUrl.protocol === 'https:' || originUrl.protocol === 'http:') && Boolean(requestHost) && originUrl.host.toLowerCase() === requestHost!.toLowerCase();
   } catch { return false; }
 }
 
 export async function authorizeApiKey(request: Request) {
+  const cached = authorizedApiKeys.get(request);
+  if (cached) return cached;
   const authorization = request.headers.get('authorization') ?? '';
-  const match = /^Bearer (eg_live_[A-Za-z0-9_-]{40,})$/.exec(authorization);
+  const match = /^Bearer ((?:eg|st)_live_[A-Za-z0-9_-]{40,})$/.exec(authorization);
   if (!match) return null;
   const secret = match[1];
   const prefix = secret.slice(0, 20);
-  const row = await queryOne<{ id: string; secret_hash: string }>('SELECT id, secret_hash FROM api_keys WHERE prefix = ? AND revoked_at IS NULL', [prefix]);
+  const row = await queryOne<{ id: string; name: string; prefix: string; secret_hash: string; permission: string; domain_id: string | null; workspace_id: string | null }>('SELECT id, name, prefix, secret_hash, permission, domain_id, workspace_id FROM api_keys WHERE prefix = ? AND revoked_at IS NULL', [prefix]);
   if (!row) return null;
   const supplied = Buffer.from(hashSecret(secret));
   const stored = Buffer.from(row.secret_hash);
   if (supplied.length !== stored.length || !timingSafeEqual(supplied, stored)) return null;
   await execute('UPDATE api_keys SET last_used_at = ? WHERE id = ?', [nowIso(), row.id]);
-  return { id: row.id };
+  authorizedRequestKeys.set(request, { id: row.id, name: row.name, prefix: row.prefix });
+  const apiKey: AuthorizedApiKey = {
+    id: row.id,
+    permission: row.permission === 'sending_access' ? 'sending_access' : 'full_access',
+    domainId: row.domain_id,
+    workspaceId: row.workspace_id ?? DEFAULT_WORKSPACE_ID,
+  };
+  authorizedApiKeys.set(request, apiKey);
+  return apiKey;
+}
+
+export function hasFullApiAccess(apiKey: { permission: string }) {
+  return apiKey.permission === 'full_access';
 }

@@ -1,0 +1,80 @@
+/* Email, thanks: thread composer (Reply, Reply all, Forward, drafts). Same tokens as shared-inbox-workspace.module.css. */
+.composer, .closed, .openers {
+  --paper: #F4EEE3; --chalk: #FBF9F5; --ink: #1C1916; --graphite: #3D3832; --pencil: #6B6359; --line: #E3DCD0;
+  --tomato: #FF5A36; --honey: #F7D56E; --honey-pale: #FCEFC0; --danger-pale: #FFD6C9;
+  --ctl: 44px;
+  font-family: 'Schibsted Grotesk', system-ui, sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased; min-width: 0;
+}
+.m { --ctl: 52px; }
+.composer button, .composer input, .composer select, .composer textarea, .closed button, .openers button { font: inherit; color: inherit; }
+.composer :focus, .closed :focus, .openers :focus { outline: none; }
+.composer :focus-visible, .closed :focus-visible, .openers :focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; box-shadow: 0 0 0 6px var(--honey); }
+
+.composer { border: 2px solid var(--ink); border-radius: 16px; background: var(--honey-pale); box-shadow: 0 3px 0 var(--ink); padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 12px; }
+.composer.m { width: 100%; max-width: 100%; box-sizing: border-box; flex-shrink: 0; gap: 8px; padding: 12px; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+.head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.title { margin: 0; font-size: 17px; font-weight: 800; }
+.status { font-size: 14px; font-weight: 700; padding: 4px 10px; border: 2px dashed var(--ink); border-radius: 999px; background: var(--chalk); }
+.statusSaved { border-style: solid; }
+.strong { font-size: 16px; font-weight: 800; }
+.muted, .hint { font-size: 13px; line-height: 1.4; color: var(--graphite); overflow-wrap: anywhere; }
+.optional { font-weight: 500; color: var(--graphite); }
+.mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; letter-spacing: .04em; color: var(--graphite); }
+
+/* Mode switch */
+.modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.mode { height: var(--ctl); min-width: 0; padding: 0 8px; border-radius: 12px; border: 2px solid var(--line); background: var(--chalk); font-size: 15px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.on, .on:hover { border-color: var(--ink); background: var(--honey); font-weight: 800; }
+
+/* Fields */
+.fields { display: flex; flex-direction: column; gap: 10px; }
+.m .fields { gap: 6px; }
+.row { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 12px; align-items: start; }
+.m .row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.rowLabel { font-size: 14px; font-weight: 800; padding-top: 12px; }
+.m .rowLabel, .bodyField .rowLabel { padding-top: 0; }
+.rowBody, .bodyField { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.control { width: 100%; min-width: 0; box-sizing: border-box; height: var(--ctl); padding: 0 12px; border: 2px solid var(--ink); border-radius: 12px; background: #FFFFFF; font-size: 15px; }
+.m .control { font-size: 16px; }
+.area { height: auto; padding: 12px; line-height: 1.5; resize: vertical; font-size: 16px; }
+.invalid { border-style: dashed; }
+.error { align-self: flex-start; padding: 6px 10px; border: 2px solid var(--ink); border-radius: 10px; background: var(--danger-pale); font-size: 13px; font-weight: 700; overflow-wrap: anywhere; }
+.formError { padding: 8px 12px; border: 2px solid var(--ink); border-radius: 10px; background: var(--danger-pale); font-size: 14px; font-weight: 700; }
+.reveal { display: flex; gap: 8px; flex-wrap: wrap; padding-left: 84px; }
+.m .reveal { padding-left: 0; }
+.textBtn { height: var(--ctl); padding: 0 12px; border-radius: 10px; border: 2px solid transparent; background: transparent; font-size: 14px; font-weight: 800; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.textBtn:hover { background: var(--chalk); }
+
+/* Forward preview */
+.quote { margin: 0; padding: 12px 14px; border: 2px dashed var(--ink); border-radius: 12px; background: var(--chalk); display: flex; flex-direction: column; gap: 6px; }
+.quoteMeta { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; font-size: 13px; }
+.quoteMeta dt { font-weight: 700; }
+.quoteMeta dd { margin: 0; overflow-wrap: anywhere; }
+.quoteText { margin: 4px 0 0; padding-left: 12px; border-left: 3px solid var(--line); font-size: 14px; line-height: 1.5; color: var(--graphite); overflow-wrap: anywhere; white-space: pre-wrap; }
+
+/* Buttons */
+.btn, .btnPrimary, .btnInk { height: var(--ctl); padding: 0 14px; border-radius: 12px; border: 2px solid var(--ink); background: var(--chalk); font-size: 15px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.btn:hover:not(:disabled) { background: var(--paper); }
+.btnPrimary { padding: 0 20px; background: var(--tomato); font-weight: 800; box-shadow: 0 2px 0 var(--ink); }
+.btnPrimary:active:not(:disabled) { transform: translateY(2px); box-shadow: none; }
+.btnInk { background: var(--ink); color: var(--chalk); font-weight: 800; }
+.composer button:disabled { opacity: .5; cursor: not-allowed; }
+.actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.discard { margin-left: auto; background: transparent; }
+.discard:hover:not(:disabled) { background: var(--danger-pale); }
+.m .actions .send { flex: 1 1 100%; }
+.m .actions .btn { flex: 1 1 40%; }
+.m .actions .discard { flex: 1 1 auto; margin-left: 0; }
+.confirm { padding: 14px; border: 2px solid var(--ink); border-radius: 12px; background: var(--danger-pale); display: flex; flex-direction: column; gap: 10px; font-size: 15px; line-height: 1.45; }
+.pair { display: flex; gap: 8px; flex-wrap: wrap; }
+.m .pair { display: grid; grid-template-columns: 1fr 1fr; }
+
+/* Closed draft + openers */
+.closed { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 12px 14px; border: 2px dashed var(--ink); border-radius: 14px; background: var(--honey-pale); }
+.closedText { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.openers { display: flex; gap: 8px; flex-wrap: wrap; }
+.openers.m { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+@media (prefers-reduced-motion: reduce) {
+  .composer *, .closed *, .openers * { transition: none !important; animation: none !important; }
+}
