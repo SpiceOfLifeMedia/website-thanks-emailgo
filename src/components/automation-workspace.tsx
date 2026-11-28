@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import AutomationRunRetry, { type Run as AutomationRun, type RunDetail as AutomationRunDetail, type RetryRequest } from './AutomationRunRetry';
 import SendThanksAutomationCanvas, {
   CANVAS_KEY,
   insertStep,
@@ -31,8 +32,18 @@ type AutomationDraft = {
   issues: ValidationIssue[];
   activation: ActivationState;
 };
-type Run = { id: string; event_name: string; contact_id: string | null; email: string | null; status: string; current_step_key: string | null; started_at: string; completed_at: string | null; error: string | null };
-type RunDetail = Record<string, unknown> & { status: string; steps: Array<{ id: string; step_key: string; step_type: string; status: string; started_at: string; finished_at: string | null; error: string | null; input: unknown; output: unknown }> };
+type Run = AutomationRun;
+type RunDetail = AutomationRunDetail | 'loading' | 'error';
+type RunDetailResponse = {
+  id: string; event_id: string; event_name: string; contact_id: string | null; email: string | null;
+  status: string; started_at: string; updated_at: string; completed_at: string | null; error: string | null;
+  event?: AutomationRunDetail['event']; contact?: AutomationRunDetail['contact']; step_order?: AutomationRunDetail['step_order'];
+  steps: Array<{
+    id: string; step_key: string; step_type: string; status: string; started_at: string; finished_at: string | null;
+    error: string | null; input: unknown; output: unknown;
+    attempts?: Array<{ id: string; attempt_number: number; status: string; error: string | null; started_at: string | null; finished_at: string | null; created_at: string }>;
+  }>;
+};
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, { ...init, headers: { ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers }, cache: 'no-store' });
@@ -60,8 +71,10 @@ export function AutomationWorkspace({ apiKeys, domains }: { apiKeys: ApiKey[]; d
   const [contactName, setContactName] = useState('');
   const [contactTags, setContactTags] = useState('');
   const [openId, setOpenId] = useState('');
+  const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
   const [runs, setRuns] = useState<Record<string, Run[]>>({});
   const [runDetails, setRunDetails] = useState<Record<string, RunDetail>>({});
+  const [retryingRunId, setRetryingRunId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState('');
   const [canvasDraft, setCanvasDraft] = useState<AutomationDraft | null>(null);
   const [busy, setBusy] = useState(false);
@@ -243,7 +256,8 @@ export function AutomationWorkspace({ apiKeys, domains }: { apiKeys: ApiKey[]; d
   }
 
   async function showRuns(automation: Automation) {
-    if (openId === automation.id) { setOpenId(''); return; }
+    if (openId === automation.id) { setOpenId(''); setExpandedRunId(null); return; }
+    setExpandedRunId(null);
     setOpenId(automation.id); setError('');
     try {
       const result = await api<{ data: Run[] }>(`/api/automations/${encodeURIComponent(automation.id)}/runs`);
@@ -252,10 +266,61 @@ export function AutomationWorkspace({ apiKeys, domains }: { apiKeys: ApiKey[]; d
   }
 
   async function showRun(automation: Automation, run: Run) {
+    setRunDetails((current) => ({ ...current, [run.id]: 'loading' }));
     try {
-      const detail = await api<RunDetail>(`/api/automations/${encodeURIComponent(automation.id)}/runs/${encodeURIComponent(run.id)}`);
-      setRunDetails((current) => ({ ...current, [run.id]: detail }));
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not load run detail.'); }
+      const raw = await api<RunDetailResponse>(`/api/automations/${encodeURIComponent(automation.id)}/runs/${encodeURIComponent(run.id)}`);
+      const steps = raw.steps.flatMap((step) => {
+        const attempts = step.attempts?.length ? step.attempts : [{
+          id: step.id,
+          attempt_number: 1,
+          status: step.status,
+          error: step.error,
+          started_at: step.started_at,
+          finished_at: step.finished_at,
+          created_at: step.started_at,
+        }];
+        return attempts.map((attempt) => ({
+          id: attempt.id,
+          step_key: step.step_key,
+          step_type: step.step_type,
+          status: attempt.status,
+          started_at: attempt.started_at ?? attempt.created_at ?? step.started_at,
+          finished_at: attempt.finished_at,
+          error: attempt.error,
+          input: step.input,
+          output: step.output,
+          attempt: attempt.attempt_number,
+        }));
+      });
+      setRunDetails((current) => ({ ...current, [run.id]: {
+        status: raw.status,
+        steps,
+        event: raw.event ?? { id: raw.event_id, name: raw.event_name, received_at: raw.started_at },
+        contact: raw.contact ?? { id: raw.contact_id, email: raw.email },
+        step_order: raw.step_order ?? automation.steps.filter((step) => step.type !== 'trigger').map((step) => ({ key: step.key, type: step.type })),
+      } }));
+    } catch (cause) {
+      setRunDetails((current) => ({ ...current, [run.id]: 'error' }));
+      setError(cause instanceof Error ? cause.message : 'Could not load run detail.');
+    }
+  }
+
+  async function retryRun(automation: Automation, request: RetryRequest) {
+    setRetryingRunId(request.runId); setError(''); setNotice('');
+    try {
+      await api(`/api/automations/${encodeURIComponent(automation.id)}/runs/${encodeURIComponent(request.runId)}/retry`, {
+        method: 'POST', body: JSON.stringify({ confirm_send_retry: request.acknowledgedDuplicateRisk }),
+      });
+      const result = await api<{ data: Run[] }>(`/api/automations/${encodeURIComponent(automation.id)}/runs`);
+      setRuns((current) => ({ ...current, [automation.id]: result.data }));
+      setNotice(`Retry queued for ${request.stepKey}. Completed steps stay complete.`);
+      const updatedRun = result.data.find((item) => item.id === request.runId);
+      if (updatedRun) await showRun(automation, updatedRun);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'Could not queue this retry.';
+      setError(message);
+      throw new Error(message);
+    } finally { setRetryingRunId(null); }
   }
 
   async function stopRun(automation: Automation, run: Run) {
@@ -264,6 +329,7 @@ export function AutomationWorkspace({ apiKeys, domains }: { apiKeys: ApiKey[]; d
       await api(`/api/automations/${encodeURIComponent(automation.id)}/runs/${encodeURIComponent(run.id)}/stop`, { method: 'POST', body: '{}' });
       const result = await api<{ data: Run[] }>(`/api/automations/${encodeURIComponent(automation.id)}/runs`);
       setRuns((current) => ({ ...current, [automation.id]: result.data }));
+      await showRun(automation, result.data.find((item) => item.id === run.id) ?? run);
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not stop run.'); }
     finally { setBusy(false); }
   }
@@ -362,11 +428,23 @@ export function AutomationWorkspace({ apiKeys, domains }: { apiKeys: ApiKey[]; d
             onCancelActivate={() => setCanvasDraft(current => current ? { ...current, activation: 'idle' } : current)}
           />
         </div>}
-        {openId === automation.id && <div className="automationRuns">{runs[automation.id]?.length ? runs[automation.id].map((run) => <div className="automationRun" key={run.id}>
-          <div className="automationRunSummary"><button className="textButton" onClick={() => void showRun(automation, run)}>{run.event_name} · {run.email ?? run.contact_id ?? 'No contact'}</button><span className={`plainStatus ${run.status === 'completed' ? 'verified' : run.status === 'failed' ? 'failed' : ''}`}>{run.status}</span><time>{date(run.started_at)}</time>{['running','waiting'].includes(run.status) && <button className="textButton" onClick={() => void stopRun(automation, run)} disabled={busy}>Stop run</button>}</div>
-          {run.error && <p className="failureReason automationRunError">{run.error}</p>}
-          {runDetails[run.id] && <div className="automationStepHistory">{runDetails[run.id].steps.map((step) => <div className="automationStep" key={step.id}><strong>{step.step_key}</strong><span>{step.step_type}</span><span className={`plainStatus ${step.status === 'completed' ? 'verified' : step.status === 'failed' ? 'failed' : ''}`}>{step.status}</span>{step.error && <small>{step.error}</small>}<details><summary>Step data</summary><pre>{JSON.stringify({ input: step.input, output: step.output }, null, 2)}</pre></details></div>)}</div>}
-        </div>) : <div className="emptyPanel">No runs recorded for this automation.</div>}</div>}
+        {openId === automation.id && <div className="automationRuns">
+          <AutomationRunRetry
+            automationName={automation.name}
+            runs={runs[automation.id] ?? []}
+            details={runDetails}
+            expandedRunId={expandedRunId}
+            onToggleRun={(run) => {
+              const next = expandedRunId === run.id ? null : run.id;
+              setExpandedRunId(next);
+              if (next) void showRun(automation, run);
+            }}
+            onStopRun={(run) => stopRun(automation, run)}
+            onRetryFailedStep={(request) => retryRun(automation, request)}
+            busyRunId={retryingRunId ?? (busy ? expandedRunId : null)}
+            formatDate={date}
+          />
+        </div>}
       </article>) : <div className="emptyPanel">No automations yet. Create a draft, then start it to accept matching events.</div>}
     </section>
   </>;

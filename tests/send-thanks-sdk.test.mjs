@@ -33,6 +33,22 @@ test('SDK revokes a share link by its share ID', async () => {
   assert.equal(calls[0].init.method, 'DELETE');
 });
 
+test('SDK retries a failed automation run with explicit duplicate-send confirmation', async () => {
+  const calls = [];
+  const client = new SendThanks('st_live_example', {
+    baseUrl: 'https://mail.example.test',
+    fetch: async (url, init) => {
+      calls.push({ url: String(url), init });
+      return new Response(JSON.stringify({ object: 'automation_run', id: 'run_123', status: 'running', attempt: 2 }), { status: 202, headers: { 'Content-Type': 'application/json' } });
+    },
+  });
+  const result = await client.automations.retryRun('auto/123', 'run 456', { confirm_send_retry: true });
+  assert.equal(result.error, null);
+  assert.equal(calls[0].url, 'https://mail.example.test/api/v1/automations/auto%2F123/runs/run%20456/retry');
+  assert.equal(calls[0].init.method, 'POST');
+  assert.deepEqual(JSON.parse(calls[0].init.body), { confirm_send_retry: true });
+});
+
 test('SDK downloads a filtered CSV export as text', async () => {
   const calls = [];
   const client = new SendThanks('st_live_example', {

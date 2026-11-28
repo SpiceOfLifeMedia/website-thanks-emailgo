@@ -204,11 +204,105 @@ export async function archiveAutomation(apiKeyId: string, id: string) {
   return execute("UPDATE automations SET status='archived',updated_at=? WHERE id=? AND api_key_id=? AND status<>'archived'", [nowIso(), id, apiKeyId]);
 }
 
+export async function retryAutomationRun(apiKeyId: string, automationId: string, runId: string, confirmSendRetry = false) {
+  const run = await queryOne<{
+    id: string;
+    status: string;
+    current_step_key: string | null;
+    steps_json: string;
+  }>('SELECT id,status,current_step_key,steps_json FROM automation_runs WHERE id=? AND automation_id=? AND api_key_id=?', [runId, automationId, apiKeyId]);
+  if (!run) return { ok: false as const, status: 404 as const, error: 'Automation run not found.' };
+  if (run.status !== 'failed' || !run.current_step_key) return { ok: false as const, status: 409 as const, error: 'Only a failed run with a current step can be retried.' };
+
+  const steps = parseJson<AutomationStep[]>(run.steps_json, []);
+  const failedStep = steps.find((step) => step.key === run.current_step_key);
+  if (!failedStep || failedStep.type === 'trigger') return { ok: false as const, status: 409 as const, error: 'The failed workflow step cannot be retried.' };
+  if (failedStep.type === 'send_email' && !confirmSendRetry) {
+    return { ok: false as const, status: 409 as const, error: 'Confirm that retrying this email step may send a duplicate.' };
+  }
+
+  const history = await queryOne<{ status: string; error: string | null; started_at: string; finished_at: string | null }>(
+    'SELECT status,error,started_at,finished_at FROM automation_run_steps WHERE run_id=? AND step_key=?', [runId, failedStep.key],
+  );
+  if (!history || history.status !== 'failed') return { ok: false as const, status: 409 as const, error: 'Failed step history is unavailable; this run cannot be retried safely.' };
+
+  const previousAttempt = await queryOne<{ attempt_number: number; status: string }>(
+    'SELECT attempt_number,status FROM automation_run_step_attempts WHERE run_id=? AND step_key=? ORDER BY attempt_number DESC LIMIT 1', [runId, failedStep.key],
+  );
+  if (previousAttempt && previousAttempt.status !== 'failed') return { ok: false as const, status: 409 as const, error: 'A retry for this step is already queued or in progress.' };
+
+  const timestamp = nowIso();
+  const attemptNumber = (previousAttempt?.attempt_number ?? 1) + 1;
+  const statements = [] as Array<{ sql: string; params: readonly unknown[] }>;
+  if (!previousAttempt) {
+    statements.push({
+      sql: `INSERT INTO automation_run_step_attempts(id,run_id,step_key,attempt_number,status,error,started_at,finished_at,created_at)
+        VALUES(?,?,?,1,'failed',?,?,?,?)`,
+      params: [randomId('rtry'), runId, failedStep.key, history.error, history.started_at, history.finished_at ?? timestamp, timestamp],
+    });
+  }
+  statements.push({
+    sql: `INSERT INTO automation_run_step_attempts(id,run_id,step_key,attempt_number,status,error,started_at,finished_at,created_at)
+      VALUES(?,?,?,?,'queued',NULL,NULL,NULL,?)`,
+    params: [randomId('rtry'), runId, failedStep.key, attemptNumber, timestamp],
+  });
+  statements.push({
+    sql: `UPDATE automation_runs SET status='running',completed_at=NULL,processing_started_at=NULL,
+      waiting_event_name=NULL,waiting_since=NULL,resume_at=NULL,error=NULL,updated_at=?
+      WHERE id=? AND automation_id=? AND api_key_id=? AND status='failed' AND current_step_key=?`,
+    params: [timestamp, runId, automationId, apiKeyId, failedStep.key],
+  });
+  try {
+    await transaction(statements);
+  } catch (cause) {
+    const current = await queryOne<{ status: string }>('SELECT status FROM automation_runs WHERE id=? AND automation_id=? AND api_key_id=?', [runId, automationId, apiKeyId]);
+    if (!current || current.status !== 'failed') return { ok: false as const, status: 409 as const, error: 'This run changed while the retry was being requested.' };
+    throw cause;
+  }
+  return { ok: true as const, run: { id: runId, status: 'running' as const, step_key: failedStep.key, attempt: attemptNumber } };
+}
+
+async function setRetryAttemptStatus(runId: string, stepKey: string, status: 'processing' | 'waiting' | 'completed' | 'failed', error: string | null = null) {
+  const eligible = status === 'processing' ? "status IN ('queued','processing','waiting')" : "status IN ('queued','processing','waiting')";
+  const timestamp = nowIso();
+  await execute(`UPDATE automation_run_step_attempts SET status=?,error=?,
+      started_at=CASE WHEN ?='processing' THEN COALESCE(started_at,?) ELSE started_at END,
+      finished_at=CASE WHEN ? IN ('waiting','completed','failed') THEN ? ELSE NULL END
+    WHERE id=(SELECT id FROM automation_run_step_attempts WHERE run_id=? AND step_key=? AND ${eligible} ORDER BY attempt_number DESC LIMIT 1)`,
+  [status, error, status, timestamp, status, timestamp, runId, stepKey]);
+}
+
 export async function getAutomationRun(apiKeyId: string, automationId: string, runId: string) {
-  const run = await queryOne<Record<string, unknown>>('SELECT id,automation_id,event_id,event_name,contact_id,email,payload_json,current_step_key,status,waiting_event_name,resume_at,context_json,started_at,updated_at,completed_at,error FROM automation_runs WHERE id=? AND automation_id=? AND api_key_id=?', [runId, automationId, apiKeyId]);
+  const run = await queryOne<Record<string, unknown>>('SELECT id,automation_id,event_id,event_name,contact_id,email,payload_json,steps_json,current_step_key,status,waiting_event_name,resume_at,context_json,started_at,updated_at,completed_at,error FROM automation_runs WHERE id=? AND automation_id=? AND api_key_id=?', [runId, automationId, apiKeyId]);
   if (!run) return undefined;
   const steps = await query<{ id: string; step_key: string; step_type: string; status: string; input_json: string | null; output_json: string | null; started_at: string; finished_at: string | null; error: string | null }>('SELECT id,step_key,step_type,status,input_json,output_json,started_at,finished_at,error FROM automation_run_steps WHERE run_id=? ORDER BY started_at,id', [runId]);
-  return { ...run, payload: parseJson<Record<string, unknown>>(run.payload_json as string, {}), context: parseJson<Record<string, unknown>>(run.context_json as string, {}), steps: steps.rows.map((step) => ({ ...step, input: parseJson<Record<string, unknown>>(step.input_json, {}), output: parseJson<Record<string, unknown>>(step.output_json, {}) })) };
+  const attempts = await query<{ id: string; step_key: string; attempt_number: number; status: string; error: string | null; started_at: string | null; finished_at: string | null; created_at: string }>(
+    'SELECT id,step_key,attempt_number,status,error,started_at,finished_at,created_at FROM automation_run_step_attempts WHERE run_id=? ORDER BY step_key,attempt_number', [runId],
+  );
+  const payload = parseJson<Record<string, unknown>>(run.payload_json as string, {});
+  const context = parseJson<Record<string, unknown>>(run.context_json as string, {});
+  const rawContact = context.contact && typeof context.contact === 'object' && !Array.isArray(context.contact)
+    ? context.contact as Record<string, unknown>
+    : {};
+  const workflowSteps = parseJson<AutomationStep[]>(run.steps_json as string, []);
+  return {
+    ...run,
+    payload,
+    context,
+    event: { id: run.event_id, name: run.event_name, received_at: run.started_at, payload },
+    contact: {
+      id: rawContact.id ?? run.contact_id,
+      email: rawContact.email ?? run.email,
+      name: rawContact.name ?? null,
+    },
+    step_order: workflowSteps.filter((step) => step.type !== 'trigger').map((step) => ({ key: step.key, type: step.type })),
+    steps: steps.rows.map((step) => ({
+      ...step,
+      input: parseJson<Record<string, unknown>>(step.input_json, {}),
+      output: parseJson<Record<string, unknown>>(step.output_json, {}),
+      attempts: attempts.rows.filter((attempt) => attempt.step_key === step.step_key),
+    })),
+  };
 }
 
 function recordAutomation(row: { id: string; api_key_id: string; name: string; status: string; trigger_event: string; steps_json: string; connections_json: string; created_at: string; updated_at: string }): AutomationRecord {
@@ -331,6 +425,7 @@ export async function processAutomationRuns(limit = 10) {
       const failedRun = await queryOne<{ current_step_key: string | null }>('SELECT current_step_key FROM automation_runs WHERE id=?', [candidate.id]);
       if (failedRun?.current_step_key) await execute("UPDATE automation_run_steps SET status='failed',error=?,finished_at=? WHERE run_id=? AND step_key=?", [message, nowIso(), candidate.id, failedRun.current_step_key]);
       await execute("UPDATE automation_runs SET status='failed',error=?,processing_started_at=NULL,completed_at=?,updated_at=? WHERE id=?", [message, nowIso(), nowIso(), candidate.id]);
+      if (failedRun?.current_step_key) await setRetryAttemptStatus(candidate.id, failedRun.current_step_key, 'failed', message);
       failed += 1;
     }
   }
@@ -368,6 +463,7 @@ async function advanceAutomationRun(runId: string): Promise<'completed' | 'waiti
     const historyId = existingHistory?.id ?? randomId('rstep');
     if (!existingHistory) await execute('INSERT INTO automation_run_steps(id,run_id,step_key,step_type,status,input_json,started_at) VALUES(?,?,?,?,?,?,?)', [historyId, runId, step.key, step.type, 'processing', JSON.stringify(step.config), startedAt]);
     else await execute("UPDATE automation_run_steps SET status='processing',error=NULL WHERE id=?", [historyId]);
+    await setRetryAttemptStatus(runId, step.key, 'processing');
 
     if (step.type === 'delay') {
       const seconds = parseDuration(step.config.duration);
@@ -376,6 +472,7 @@ async function advanceAutomationRun(runId: string): Promise<'completed' | 'waiti
       const next = nextStep(connections, step.key);
       await execute("UPDATE automation_run_steps SET status='completed',output_json=?,finished_at=? WHERE id=?", [JSON.stringify({ resume_at: resumeAt }), startedAt, historyId]);
       await execute("UPDATE automation_runs SET status='waiting',current_step_key=?,resume_at=?,waiting_event_name=NULL,waiting_since=NULL,processing_started_at=NULL,updated_at=? WHERE id=?", [next, resumeAt, startedAt, runId]);
+      await setRetryAttemptStatus(runId, step.key, 'completed');
       return 'waiting';
     }
 
@@ -399,12 +496,14 @@ async function advanceAutomationRun(runId: string): Promise<'completed' | 'waiti
         const resumeAt = new Date(Date.parse(since) + timeoutSeconds * 1000).toISOString();
         await execute("UPDATE automation_run_steps SET status='waiting',output_json=? WHERE id=?", [JSON.stringify({ event_name: eventName, resume_at: resumeAt }), historyId]);
         await execute("UPDATE automation_runs SET status='waiting',waiting_event_name=?,waiting_since=?,resume_at=?,processing_started_at=NULL,updated_at=? WHERE id=?", [eventName, since, resumeAt, startedAt, runId]);
+        await setRetryAttemptStatus(runId, step.key, 'waiting');
         return 'waiting';
       }
       context = { ...context, wait_events: { ...recordValue(context.wait_events), [eventName]: received ? { ...parseJson<Record<string, unknown>>(received.payload_json, {}), received_at: received.created_at } : { timed_out: true } } };
       const next = nextStep(connections, step.key);
       await execute("UPDATE automation_run_steps SET status='completed',output_json=?,finished_at=?,error=NULL WHERE id=?", [JSON.stringify(received ? { event_name: eventName, received_at: received.created_at } : { event_name: eventName, timed_out: true }), startedAt, historyId]);
       await execute("UPDATE automation_runs SET status='processing',current_step_key=?,waiting_event_name=NULL,waiting_since=NULL,resume_at=NULL,context_json=?,updated_at=? WHERE id=?", [next, JSON.stringify(context), startedAt, runId]);
+      await setRetryAttemptStatus(runId, step.key, 'completed');
       continue;
     }
 
@@ -413,6 +512,7 @@ async function advanceAutomationRun(runId: string): Promise<'completed' | 'waiti
       const next = nextStep(connections, step.key, matched);
       await execute("UPDATE automation_run_steps SET status='completed',output_json=?,finished_at=? WHERE id=?", [JSON.stringify({ matched }), startedAt, historyId]);
       await execute("UPDATE automation_runs SET current_step_key=?,updated_at=? WHERE id=?", [next, startedAt, runId]);
+      await setRetryAttemptStatus(runId, step.key, 'completed');
       continue;
     }
 
@@ -439,6 +539,7 @@ async function advanceAutomationRun(runId: string): Promise<'completed' | 'waiti
       await execute("UPDATE automation_run_steps SET status='completed',output_json=?,finished_at=? WHERE id=?", [JSON.stringify({ contact_id: contact.id, updated: Object.keys(updates) }), nowIso(), historyId]);
       const next = nextStep(connections, step.key);
       await execute('UPDATE automation_runs SET current_step_key=?,context_json=?,updated_at=? WHERE id=?', [next, JSON.stringify(context), nowIso(), runId]);
+      await setRetryAttemptStatus(runId, step.key, 'completed');
       continue;
     }
 
@@ -450,6 +551,7 @@ async function advanceAutomationRun(runId: string): Promise<'completed' | 'waiti
       await execute("UPDATE automation_run_steps SET status='completed',output_json=?,finished_at=? WHERE id=?", [JSON.stringify({ segment_id: segmentId, contact_id: contact.id }), nowIso(), historyId]);
       const next = nextStep(connections, step.key);
       await execute('UPDATE automation_runs SET current_step_key=?,updated_at=? WHERE id=?', [next, nowIso(), runId]);
+      await setRetryAttemptStatus(runId, step.key, 'completed');
       continue;
     }
 
@@ -458,6 +560,7 @@ async function advanceAutomationRun(runId: string): Promise<'completed' | 'waiti
       const next = nextStep(connections, step.key);
       await execute("UPDATE automation_run_steps SET status='completed',output_json=?,finished_at=? WHERE id=?", [JSON.stringify(output), nowIso(), historyId]);
       await execute("UPDATE automation_runs SET current_step_key=?,updated_at=? WHERE id=?", [next, nowIso(), runId]);
+      await setRetryAttemptStatus(runId, step.key, 'completed');
       continue;
     }
     throw new Error(`Step type "${step.type}" is not supported by the worker.`);

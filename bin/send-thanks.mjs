@@ -31,7 +31,7 @@ Common commands:
   segments list|create|get|update|delete|contacts|metrics [id] [--segment-id ID] [--metrics all_contacts,subscribers]
   topics list|create|get|update|delete [id] [--data JSON]
   broadcasts list|create|get|update|delete|queue|cancel|duplicate|recipients|clicked-links [id] [--data JSON] [--type opened|clicked]
-  automations list|create|get|update|archive|duplicate|start|stop|runs|run|cancel-run|stop-run [id] [--run-id id] [--data JSON]
+  automations list|create|get|update|archive|duplicate|start|stop|runs|run|retry-run|cancel-run|stop-run [id] [--run-id id] [--confirm-send-retry] [--data JSON]
   events list|create|get|update|delete|send|observed [id_or_name] [--data JSON] [--idempotency-key KEY]
   webhooks list|create|get|update|delete|deliveries|replay|rotate-secret|events|event|attempts|replay-event [webhook_id] [--event-id ID] [--data JSON]
   suppressions list|add|get|remove|batch-add|batch-remove [email|id] [--data JSON]
@@ -82,6 +82,7 @@ const jsonBody = async () => {
   if (resource === 'domains' && action === 'create' && flags.has('domain')) return { domain: flags.get('domain') };
   if (resource === 'api-keys' && action === 'rename' && flags.has('name')) return { name: flags.get('name') };
   if (resource === 'suppressions' && action === 'add' && id) return { email: id };
+  if (resource === 'automations' && action === 'retry-run') return flags.get('data') || flags.get('file') ? JSON.parse(flags.get('data') ?? await readFile(String(flags.get('file')), 'utf8')) : flags.has('confirm-send-retry') ? { confirm_send_retry: true } : {};
   return undefined;
 };
 
@@ -141,6 +142,7 @@ const resourceRoutes = {
     start: ['POST', `${item('/api/v1/automations')}/start`], stop: ['POST', `${item('/api/v1/automations')}/stop`],
     runs: ['GET', withQuery(`${item('/api/v1/automations')}/runs`)],
     run: ['GET', `${item('/api/v1/automations')}/runs/${encodeURIComponent(String(flags.get('run-id') || ''))}`],
+    'retry-run': ['POST', `${item('/api/v1/automations')}/runs/${encodeURIComponent(String(flags.get('run-id') || ''))}/retry`],
     'stop-run': ['POST', `${item('/api/v1/automations')}/runs/${encodeURIComponent(String(flags.get('run-id') || ''))}/cancel`],
     'cancel-run': ['POST', `${item('/api/v1/automations')}/runs/${encodeURIComponent(String(flags.get('run-id') || ''))}/cancel`],
   },

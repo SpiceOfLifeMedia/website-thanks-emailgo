@@ -125,6 +125,7 @@ export class SendThanks {
       stop: (id) => request('POST', `/api/v1/automations/${encodeURIComponent(id)}/stop`, { body: {} }),
       runs: (id, query) => request('GET', `/api/v1/automations/${encodeURIComponent(id)}/runs`, { query }),
       getRun: (id, runId) => request('GET', `/api/v1/automations/${encodeURIComponent(id)}/runs/${encodeURIComponent(runId)}`),
+      retryRun: (id, runId, body = {}) => request('POST', `/api/v1/automations/${encodeURIComponent(id)}/runs/${encodeURIComponent(runId)}/retry`, { body }),
       stopRun: (id, runId) => request('POST', `/api/v1/automations/${encodeURIComponent(id)}/runs/${encodeURIComponent(runId)}/cancel`, { body: {} }),
       cancelRun: (id, runId) => request('POST', `/api/v1/automations/${encodeURIComponent(id)}/runs/${encodeURIComponent(runId)}/cancel`, { body: {} }),
     };

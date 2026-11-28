@@ -287,6 +287,12 @@ const postgresSchema = [
     finished_at TEXT, error TEXT, UNIQUE(run_id,step_key), FOREIGN KEY(run_id) REFERENCES automation_runs(id)
   )`,
   'CREATE INDEX IF NOT EXISTS automation_run_steps_run ON automation_run_steps(run_id,started_at)',
+  `CREATE TABLE IF NOT EXISTS automation_run_step_attempts (
+    id TEXT PRIMARY KEY, run_id TEXT NOT NULL, step_key TEXT NOT NULL, attempt_number INTEGER NOT NULL,
+    status TEXT NOT NULL, error TEXT, started_at TEXT, finished_at TEXT, created_at TEXT NOT NULL,
+    UNIQUE(run_id,step_key,attempt_number), FOREIGN KEY(run_id) REFERENCES automation_runs(id) ON DELETE CASCADE
+  )`,
+  'CREATE INDEX IF NOT EXISTS automation_run_step_attempts_run ON automation_run_step_attempts(run_id,step_key,attempt_number)',
   `CREATE TABLE IF NOT EXISTS contacts (
     id TEXT PRIMARY KEY, email TEXT NOT NULL, name TEXT,
     properties_json TEXT NOT NULL, tags_json TEXT NOT NULL, unsubscribed_at TEXT,
@@ -617,6 +623,12 @@ function getSqlite() {
       finished_at TEXT, error TEXT, UNIQUE(run_id,step_key), FOREIGN KEY(run_id) REFERENCES automation_runs(id)
     );
     CREATE INDEX IF NOT EXISTS automation_run_steps_run ON automation_run_steps(run_id,started_at);
+    CREATE TABLE IF NOT EXISTS automation_run_step_attempts (
+      id TEXT PRIMARY KEY, run_id TEXT NOT NULL, step_key TEXT NOT NULL, attempt_number INTEGER NOT NULL,
+      status TEXT NOT NULL, error TEXT, started_at TEXT, finished_at TEXT, created_at TEXT NOT NULL,
+      UNIQUE(run_id,step_key,attempt_number), FOREIGN KEY(run_id) REFERENCES automation_runs(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS automation_run_step_attempts_run ON automation_run_step_attempts(run_id,step_key,attempt_number);
     CREATE TABLE IF NOT EXISTS contacts (
       id TEXT PRIMARY KEY, email TEXT NOT NULL, name TEXT,
       properties_json TEXT NOT NULL, tags_json TEXT NOT NULL, unsubscribed_at TEXT,
